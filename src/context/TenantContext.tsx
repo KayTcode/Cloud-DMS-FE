@@ -74,7 +74,7 @@ interface TenantContextType {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activeNav, setActiveNav] = useState<NavItem>('tenants');
+  const [activeNav, setActiveNav] = useState<NavItem>('dashboard');
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
   const [events, setEvents] = useState<TenantEvent[]>(initialEvents);
@@ -248,9 +248,6 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const handleSelectNav = (nav: NavItem) => {
     setActiveNav(nav);
-    if (nav !== 'tenants') {
-      addToast('info', `Navigated to ${nav.replace('-', ' ')}. Click Tenants to return.`);
-    }
   };
 
   const clearNotifications = () => {

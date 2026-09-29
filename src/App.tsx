@@ -1,17 +1,18 @@
 import React from 'react';
 import { TenantProvider } from '@/context/TenantContext';
 import { MainLayout } from '@/layouts';
-import { TenantPortal } from '@/features/tenants';
+import { SystemAdminPortal } from '@/features/system-admin';
 
 /**
- * App Shell: Connects Context Provider, MainLayout and Feature Slice
+ * App Shell: Connects Context Provider, MainLayout and SystemAdminPortal Feature Slice
  */
 export default function App() {
   return (
     <TenantProvider>
       <MainLayout>
-        <TenantPortal />
+        <SystemAdminPortal />
       </MainLayout>
     </TenantProvider>
   );
 }
+

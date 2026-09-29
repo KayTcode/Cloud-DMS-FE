@@ -29,6 +29,23 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     handleDismissToast,
   } = useTenantContext();
 
+  const getHeaderTitle = () => {
+    switch (activeNav) {
+      case 'dashboard':
+        return 'System Dashboard';
+      case 'tenants':
+        return 'Tenant Management';
+      case 'storage-providers':
+        return 'Storage Providers';
+      case 'audit-logs':
+        return 'System Audit Logs';
+      case 'settings':
+        return 'Platform Settings';
+      default:
+        return 'SysAdmin Portal';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex">
       {/* Impersonation active top alert banner */}
@@ -61,7 +78,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col min-w-0 lg:pl-64 ${isImpersonating ? 'pt-9' : ''}`}>
         <TopHeader
-          title={`Tenants > ${tenant.name}`}
+          title={getHeaderTitle()}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
