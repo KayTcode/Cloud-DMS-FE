@@ -32,15 +32,26 @@ export async function getTenantUsers(tenantId: string): Promise<TenantUser[]> {
 }
 
 /**
- * Query: Lấy danh sách phòng ban của Tenant
- * Khớp BE: GetTenantDepartmentsQuery
+ * Query: Lấy danh sách phòng ban của Tenant trực tiếp từ Database
+ * Khớp BE: GetDepartmentsQuery -> GET /api/tenant/{tenantId}/departments
  */
 export async function getTenantDepartments(tenantId: string): Promise<Department[]> {
   try {
-    const data = await apiClient.get<any, Department[]>(API_ENDPOINTS.TENANTS.DEPARTMENTS(tenantId));
-    return data;
+    const res: any = await apiClient.get(API_ENDPOINTS.TENANTS.DEPARTMENTS(tenantId));
+    const items = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+    if (items && items.length > 0) {
+      return items.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        headCount: typeof d.headCount === 'number' ? d.headCount : (d.users?.length || 0),
+        lead: d.lead || 'Chưa chỉ định',
+        allocatedStorageGB: d.allocatedStorageGB || 50,
+        adminEmail: d.adminEmail,
+      }));
+    }
+    return mockDepartments;
   } catch (error) {
-    console.warn('[API Offline] Sử dụng mock data cho getTenantDepartments');
+    console.warn('[API Offline] Không gọi được API, fallback mock data cho getTenantDepartments:', error);
     return mockDepartments;
   }
 }

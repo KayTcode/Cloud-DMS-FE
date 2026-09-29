@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   ActiveTab,
   NavItem,
@@ -6,14 +6,17 @@ import {
   TenantEvent,
   TenantUser,
 } from '@/features/tenants/types';
-import { initialTenant, initialEvents, mockUsers } from '@/data/tenantMockData';
+import { initialTenant, initialEvents, mockUsers, mockDepartments } from '@/data/tenantMockData';
 import { ToastMessage } from '@/types/common.types';
 import {
   toggleSuspendTenant,
   createTenantUser,
+  createDepartmentAdminApi,
+  getTenantDepartments,
   exportTenantBackup,
   updateTenantSettings,
 } from '@/features/tenants/api';
+import { CreateDepartmentAdminPayload, Department } from '@/features/tenants/types';
 
 interface TenantContextType {
   // Navigation & Tabs
@@ -47,6 +50,9 @@ interface TenantContextType {
   tenant: TenantInfo;
   events: TenantEvent[];
   users: TenantUser[];
+  departments: Department[];
+  isLoadingDepartments: boolean;
+  refreshDepartments: () => Promise<void>;
 
   // Toasts
   toasts: ToastMessage[];
@@ -60,6 +66,7 @@ interface TenantContextType {
   handleExitImpersonate: () => void;
   handleOpenCreateDepartmentUser: (deptName?: string) => void;
   handleUserCreated: (newUser: TenantUser) => Promise<void>;
+  handleCreateDepartmentAdmin: (payload: CreateDepartmentAdminPayload) => Promise<boolean>;
   handleUpdateTenant: (updated: Partial<TenantInfo>) => Promise<void>;
   handleSelectNav: (nav: NavItem) => void;
 }
@@ -72,7 +79,26 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
   const [events, setEvents] = useState<TenantEvent[]>(initialEvents);
   const [users, setUsers] = useState<TenantUser[]>(mockUsers);
+  const [departments, setDepartments] = useState<Department[]>(mockDepartments);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState<boolean>(false);
   const [targetDeptForCreate, setTargetDeptForCreate] = useState<string | undefined>(undefined);
+
+  const refreshDepartments = async () => {
+    setIsLoadingDepartments(true);
+    try {
+      const depts = await getTenantDepartments(tenant.id);
+      if (depts && depts.length > 0) {
+        setDepartments(depts);
+      }
+    } finally {
+      setIsLoadingDepartments(false);
+    }
+  };
+
+  // Fetch departments from database on initial mount or when tenant changes
+  useEffect(() => {
+    refreshDepartments();
+  }, [tenant.id]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -166,6 +192,54 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setActiveTab('users');
   };
 
+  const handleCreateDepartmentAdmin = async (payload: CreateDepartmentAdminPayload): Promise<boolean> => {
+    try {
+      const createdAdmin = await createDepartmentAdminApi(tenant.id, payload);
+      
+      // Update Users list
+      setUsers((prev) => [createdAdmin, ...prev]);
+
+      // If assigned to a department, update the department lead/admin info
+      if (payload.departmentId) {
+        setDepartments((prev) =>
+          prev.map((dept) => {
+            if (dept.id === payload.departmentId || dept.name === payload.departmentId) {
+              return {
+                ...dept,
+                lead: createdAdmin.name,
+                adminEmail: createdAdmin.email,
+                headCount: dept.headCount + 1,
+              };
+            }
+            return dept;
+          })
+        );
+      }
+
+      setTenant((prev) => ({
+        ...prev,
+        licenseUsed: prev.licenseUsed + 1,
+      }));
+
+      const deptLabel = payload.departmentId ? `phòng ban ${createdAdmin.department}` : 'Tenant (Chưa gán phòng ban)';
+      const newEvent: TenantEvent = {
+        id: `evt-${Date.now()}`,
+        text: `Department Admin ${createdAdmin.name} (${createdAdmin.email}) được tạo cho ${deptLabel}`,
+        timeAgo: 'Just now',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'user',
+      };
+      setEvents((prev) => [newEvent, ...prev]);
+
+      addToast('success', `Đã tạo tài khoản Department Admin cho ${createdAdmin.name} thành công!`);
+      setActiveTab('departments');
+      return true;
+    } catch (err: any) {
+      addToast('error', err.message || 'Lỗi khi tạo Department Admin');
+      return false;
+    }
+  };
+
   const handleUpdateTenant = async (updated: Partial<TenantInfo>) => {
     await updateTenantSettings(tenant.id, updated);
     setTenant((prev) => ({ ...prev, ...updated }));
@@ -209,6 +283,9 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         tenant,
         events,
         users,
+        departments,
+        isLoadingDepartments,
+        refreshDepartments,
         toasts,
         addToast,
         handleDismissToast,
@@ -218,6 +295,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         handleExitImpersonate,
         handleOpenCreateDepartmentUser,
         handleUserCreated,
+        handleCreateDepartmentAdmin,
         handleUpdateTenant,
         handleSelectNav,
       }}

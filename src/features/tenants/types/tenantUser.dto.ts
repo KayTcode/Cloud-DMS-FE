@@ -17,10 +17,20 @@ export interface CreateTenantUserRequest {
   role: string;
 }
 
+export interface CreateDepartmentAdminPayload {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  departmentId?: string; // Optional: Có thể gán hoặc để trống
+}
+
 export interface Department {
   id: string;
   name: string;
   headCount: number;
   lead: string;
   allocatedStorageGB: number;
+  adminEmail?: string;
 }
