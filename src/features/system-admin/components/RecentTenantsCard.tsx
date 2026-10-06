@@ -33,6 +33,7 @@ export const RecentTenantsCard: React.FC<RecentTenantsCardProps> = ({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-200/80 text-[11px] font-semibold text-slate-500">
+              <th className="pb-3 px-3 text-center w-12 font-semibold">#</th>
               <th className="pb-3 pr-4 font-semibold">Tenant Name</th>
               <th className="pb-3 px-4 font-semibold">Plan</th>
               <th className="pb-3 px-4 font-semibold">Users</th>
@@ -41,13 +42,16 @@ export const RecentTenantsCard: React.FC<RecentTenantsCardProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
-            {displayTenants.map((t) => (
+            {displayTenants.map((t, index) => (
               <tr
                 key={t.id}
                 onClick={() => onSelectTenant && onSelectTenant(t)}
                 className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
               >
-                <td className="py-3.5 pr-4 font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                <td className="py-3.5 px-3 text-center font-mono text-slate-400 text-xs">
+                  {index + 1}
+                </td>
+                <td className="py-3.5 pr-4 font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors">
                   {t.name}
                 </td>
                 <td className="py-3.5 px-4 text-slate-600 font-normal">

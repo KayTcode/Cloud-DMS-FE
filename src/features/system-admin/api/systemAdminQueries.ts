@@ -1,19 +1,19 @@
 import axiosClient from '@/api/axiosClient';
-import { 
-  SystemTenant, 
-  SystemActivityItem, 
-  StorageProviderItem, 
-  AuditLogEntry, 
+import {
+  SystemTenant,
+  SystemActivityItem,
+  StorageProviderItem,
+  AuditLogEntry,
   SystemMetricsSummary,
   AdminUserDto,
   PaginatedResult,
   GetUsersQueryFilter
 } from '../types';
-import { 
-  INITIAL_SYSTEM_TENANTS, 
-  SYSTEM_ACTIVITIES, 
-  STORAGE_PROVIDERS, 
-  AUDIT_LOGS 
+import {
+  INITIAL_SYSTEM_TENANTS,
+  SYSTEM_ACTIVITIES,
+  STORAGE_PROVIDERS,
+  AUDIT_LOGS
 } from '@/data/sysAdminMockData';
 
 /**
@@ -24,17 +24,23 @@ export const getAdminUsersApi = async (
   query?: GetUsersQueryFilter
 ): Promise<PaginatedResult<AdminUserDto>> => {
   const params = new URLSearchParams();
+  // Tìm kiếm
   if (query?.searchTerm) params.append('SearchTerm', query.searchTerm);
+  // Lọc theo vai trò
   if (query?.roleId) params.append('RoleId', query.roleId);
+  // Lọc theo tenant
   if (query?.tenantId) params.append('TenantId', query.tenantId);
+  // Lọc theo phòng ban
   if (query?.departmentId) params.append('DepartmentId', query.departmentId);
+  // Lọc theo trạng thái
   if (query?.isActive !== undefined) params.append('IsActive', String(query.isActive));
+  // Phân trang
   if (query?.pageNumber) params.append('PageNumber', String(query.pageNumber));
   if (query?.pageSize) params.append('PageSize', String(query.pageSize));
 
   const response: any = await axiosClient.get(`/admin/users?${params.toString()}`);
-  
-  // Format DateTime strings for clean display
+
+  // Format ngày tháng để hiển thị đẹp hơn
   const formatUserDates = (items: AdminUserDto[]) => {
     return items.map((u) => {
       let createdFormatted = u.createdAt;
@@ -56,7 +62,7 @@ export const getAdminUsersApi = async (
       };
     });
   };
-
+  // Lấy danh sách user
   if (response?.value?.items) {
     return {
       ...response.value,
@@ -149,18 +155,66 @@ export const getSystemActivitiesApi = async (): Promise<SystemActivityItem[]> =>
   return SYSTEM_ACTIVITIES;
 };
 
+const formatBytes = (bytes: number): string => {
+  if (!bytes || bytes === 0) return '0 GB';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 /**
- * Get storage providers
+ * Get storage providers from database and format capacities
  */
 export const getStorageProvidersApi = async (): Promise<StorageProviderItem[]> => {
   try {
     const response: any = await axiosClient.get('/admin/storage-providers');
-    if (response?.value) return response.value;
-    if (response?.data) return response.data;
+    const items = response?.value || response?.data || response;
+    if (Array.isArray(items) && items.length > 0) {
+      return items.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        type: p.typeName || (p.type === 1 ? 'Google Drive' : p.type === 2 ? 'OneDrive' : 'Local Storage'),
+        status: (p.status || 'Connected') as 'Connected' | 'Degraded' | 'Offline',
+        storageUsed: formatBytes(p.usedCapacityBytes || 0),
+        capacity: formatBytes(p.totalCapacityBytes || 0),
+        latency: '28ms',
+        region: 'Cloud Storage Pool',
+        totalCapacityBytes: p.totalCapacityBytes,
+        usedCapacityBytes: p.usedCapacityBytes,
+        availableCapacityBytes: p.availableCapacityBytes,
+        allocatedToTenantsBytes: p.allocatedToTenantsBytes,
+        unallocatedCapacityBytes: p.unallocatedCapacityBytes,
+        rootFolderId: p.rootFolderId,
+        tenantsCount: p.tenantsCount || 0,
+        createdAt: p.createdAt,
+        lastSyncAt: p.lastSyncAt,
+      }));
+    }
   } catch {
-    // Fallback
+    // Fallback to mock
   }
   return STORAGE_PROVIDERS;
+};
+
+/**
+ * Get available quota of a storage provider
+ */
+export const getStorageProviderAvailableQuotaApi = async (
+  providerId: string
+): Promise<any> => {
+  const response: any = await axiosClient.get(`/admin/storage-providers/${providerId}/available-quota`);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * Get allocated storage quota and usage of a specific tenant
+ */
+export const getTenantStorageQuotaApi = async (
+  tenantId: string
+): Promise<any> => {
+  const response: any = await axiosClient.get(`/admin/tenants/${tenantId}/quota`);
+  return response?.value || response?.data || response;
 };
 
 /**

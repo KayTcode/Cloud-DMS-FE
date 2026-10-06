@@ -13,6 +13,9 @@ export interface SystemTenant {
   status: TenantStatus;
   adminEmail?: string;
   region?: string;
+  tenantCode?: string;
+  phoneNumber?: string;
+  departmentName?: string;
 }
 
 /**
@@ -59,10 +62,12 @@ export interface GetUsersQueryFilter {
 
 export interface CreateAdminUserPayload {
   email: string;
-  password: string;
+  password?: string;
   firstName: string;
   lastName: string;
   phoneNumber?: string;
+  tenantName?: string;
+  plan?: PlanType;
   roleIds?: string[];
   tenantId?: string;
   departmentId?: string;
@@ -106,6 +111,66 @@ export interface StorageProviderItem {
   capacity: string;
   latency: string;
   region: string;
+  totalCapacityBytes?: number;
+  usedCapacityBytes?: number;
+  availableCapacityBytes?: number;
+  allocatedToTenantsBytes?: number;
+  unallocatedCapacityBytes?: number;
+  rootFolderId?: string;
+  tenantsCount?: number;
+  createdAt?: string;
+  lastSyncAt?: string;
+}
+
+export type StorageProviderTypeEnum = 0 | 1 | 2; // 0 = Local, 1 = GoogleDrive, 2 = OneDrive
+
+export interface ConnectStorageProviderPayload {
+  name: string;
+  type: StorageProviderTypeEnum;
+  configJson: string;
+}
+
+export interface TestConnectionPayload {
+  type: StorageProviderTypeEnum;
+  configJson: string;
+}
+
+export interface TestConnectionResponse {
+  success: boolean;
+  message: string;
+  totalCapacityBytes: number;
+  usedCapacityBytes: number;
+  availableCapacityBytes: number;
+  latencyMs: number;
+}
+
+export interface StorageProviderAvailableQuotaResponse {
+  providerId: string;
+  providerName: string;
+  type: number;
+  totalCapacityBytes: number;
+  cloudUsedBytes: number;
+  cloudFreeBytes: number;
+  alreadyAllocatedBytes: number;
+  availableToAllocateBytes: number;
+}
+
+export interface TenantStorageQuotaResponse {
+  tenantId: string;
+  tenantName: string;
+  tenantCode: string;
+  storageProviderId?: string;
+  storageProviderName?: string;
+  storageProviderType?: number;
+  storageQuotaBytes: number;
+  storageUsedBytes: number;
+  availableBytes: number;
+  usagePercentage: number;
+}
+
+export interface AllocateTenantQuotaPayload {
+  storageProviderId: string;
+  quotaBytes: number;
 }
 
 export interface AuditLogEntry {

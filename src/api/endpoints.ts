@@ -21,4 +21,10 @@ export const API_ENDPOINTS = {
     ACTIVITY: (tenantId: string) => `/tenants/${tenantId}/activity`,
     SETTINGS: (tenantId: string) => `/tenants/${tenantId}/settings`,
   },
+  FILES: {
+    UPLOAD: '/files/upload',
+    LIST: '/files',
+    DOWNLOAD: (id: string) => `/files/${id}/download`,
+    DELETE: (id: string) => `/files/${id}`,
+  },
 } as const;

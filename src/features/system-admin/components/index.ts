@@ -7,3 +7,5 @@ export * from './CreateTenantModal';
 export * from './TenantDetailsModal';
 export * from './EditUserModal';
 export * from './ResetPasswordModal';
+export * from './ConnectProviderModal';
+export * from './AllocateQuotaModal';

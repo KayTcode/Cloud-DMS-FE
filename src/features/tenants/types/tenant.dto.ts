@@ -25,6 +25,11 @@ export interface TenantInfo {
   diskAllocatedTB: number;
   filesCount: number;
   directoriesCount: number;
+  storageQuotaBytes?: number;
+  storageUsedBytes?: number;
+  availableBytes?: number;
+  storageProviderName?: string;
+  usagePercentage?: number;
 }
 
 export interface TenantEvent {

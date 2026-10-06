@@ -173,3 +173,56 @@ export const deleteSystemTenantApi = async (tenantId: string): Promise<boolean> 
     return true;
   }
 };
+
+/**
+ * 7. Test connection to a cloud storage provider (POST /api/admin/storage-providers/test)
+ */
+export const testStorageProviderConnectionApi = async (
+  payload: { type: number; configJson: string }
+): Promise<any> => {
+  const response: any = await axiosClient.post('/admin/storage-providers/test', payload);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 8. Connect and register a new Cloud Storage Provider (POST /api/admin/storage-providers)
+ */
+export const connectStorageProviderApi = async (
+  payload: { name: string; type: number; configJson: string }
+): Promise<any> => {
+  const response: any = await axiosClient.post('/admin/storage-providers', payload);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 9. Delete/Disconnect a Storage Provider (DELETE /api/admin/storage-providers/{id})
+ */
+export const deleteStorageProviderApi = async (id: string): Promise<boolean> => {
+  await axiosClient.delete(`/admin/storage-providers/${id}`);
+  return true;
+};
+
+/**
+ * 10. Allocate or update Storage Quota for a Tenant (PUT /api/admin/tenants/{tenantId}/quota)
+ */
+export const allocateTenantStorageQuotaApi = async (
+  tenantId: string,
+  payload: { storageProviderId: string; quotaBytes: number }
+): Promise<any> => {
+  const response: any = await axiosClient.put(`/admin/tenants/${tenantId}/quota`, payload);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 11. Exchange Microsoft OAuth Authorization Code for Tokens and test Quota
+ */
+export const exchangeOneDriveCodeApi = async (payload: {
+  clientId: string;
+  clientSecret: string;
+  code: string;
+  redirectUri: string;
+}): Promise<any> => {
+  const response: any = await axiosClient.post('/admin/storage-providers/onedrive/exchange-code', payload);
+  return response?.value || response?.data || response;
+};
+

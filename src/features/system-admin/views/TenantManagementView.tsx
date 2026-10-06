@@ -3,9 +3,7 @@ import {
   Plus, 
   Filter, 
   ChevronDown, 
-  MoreHorizontal, 
   Check, 
-  Eye, 
   ShieldAlert, 
   Trash2,
   ExternalLink,
@@ -13,7 +11,8 @@ import {
   KeyRound,
   Building2,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  HardDrive
 } from 'lucide-react';
 import { AdminUserDto, PlanType, TenantStatus } from '../types';
 
@@ -31,7 +30,7 @@ interface TenantManagementViewProps {
   onOpenResetPasswordModal: (user: AdminUserDto) => void;
   onToggleStatus: (userId: string, currentStatus: boolean) => void;
   onDeleteUser: (userId: string, userEmail: string) => void;
-  onOpenPortal?: (user: AdminUserDto) => void;
+  onOpenAllocateQuotaModal?: (user: AdminUserDto) => void;
 }
 
 export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
@@ -47,12 +46,11 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   onOpenResetPasswordModal,
   onToggleStatus,
   onDeleteUser,
-  onOpenPortal,
+  onOpenAllocateQuotaModal,
 }) => {
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-  const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
   // Filtered calculation (if client filtering on current page or server-side)
   const filteredUsers = useMemo(() => {
@@ -161,6 +159,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 bg-slate-50/30">
+                <th className="py-3.5 px-3 text-center w-14 font-semibold">STT</th>
                 <th className="py-3.5 px-5 font-semibold">User / Tenant Name</th>
                 <th className="py-3.5 px-4 font-semibold">Email & Phone</th>
                 <th className="py-3.5 px-4 font-semibold">Organization</th>
@@ -173,35 +172,43 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <p className="text-sm font-medium">No accounts found</p>
                     <p className="text-xs mt-1">Try adjusting your filters or search query.</p>
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => (
+                filteredUsers.map((u, index) => (
                   <tr
                     key={u.id}
                     className="hover:bg-slate-50/70 transition-colors group"
                   >
-                    {/* User / Tenant Name */}
+                    {/* STT */}
+                    <td className="py-3.5 px-3 text-center font-mono text-slate-500 font-medium text-xs">
+                      {(currentPage - 1) * 10 + index + 1}
+                    </td>
+
+                    {/* User / Tenant Name (Hyperlink) */}
                     <td className="py-3.5 px-5">
-                      <button
-                        onClick={() => onSelectUser(u)}
-                        className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-left cursor-pointer flex items-center gap-2"
-                      >
+                      <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 font-bold text-[11px] flex items-center justify-center shrink-0">
                           {u.fullName.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-bold text-slate-900">{u.fullName}</div>
+                          <button
+                            onClick={() => onSelectUser(u)}
+                            className="font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left cursor-pointer inline-flex items-center gap-1"
+                            title="Bấm để xem chi tiết tài khoản"
+                          >
+                            <span>{u.fullName}</span>
+                          </button>
                           {u.tenantCode && (
-                            <span className="text-[10px] font-mono text-slate-400 font-normal">
+                            <span className="block text-[10px] font-mono text-slate-400 font-normal">
                               Code: {u.tenantCode}
                             </span>
                           )}
                         </div>
-                      </button>
+                      </div>
                     </td>
 
                     {/* Email & Phone */}
@@ -259,103 +266,59 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                       </span>
                     </td>
 
-                    {/* Actions Menu */}
-                    <td className="py-3.5 px-5 text-right relative">
-                      <div className="inline-block text-left">
+                    {/* Actions: Direct action buttons instead of ... dropdown */}
+                    <td className="py-3.5 px-5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Edit Profile */}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveActionMenuId(
-                              activeActionMenuId === u.id ? null : u.id
-                            );
-                          }}
-                          className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                          aria-label={`Actions for ${u.fullName}`}
+                          onClick={() => onOpenEditModal(u)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Chỉnh sửa thông tin tài khoản"
                         >
-                          <MoreHorizontal className="w-4 h-4" />
+                          <Edit className="w-4 h-4" />
                         </button>
 
-                        {/* Action Dropdown Popup */}
-                        {activeActionMenuId === u.id && (
-                          <div
-                            className="absolute right-5 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-1.5 text-xs text-left"
-                            onMouseLeave={() => setActiveActionMenuId(null)}
+                        {/* Cấp Quota Cloud */}
+                        {onOpenAllocateQuotaModal && (
+                          <button
+                            onClick={() => onOpenAllocateQuotaModal(u)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                            title="Cấp phát Quota Cloud"
                           >
-                            <button
-                              onClick={() => {
-                                onSelectUser(u);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-400" />
-                              <span>View details</span>
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                onOpenEditModal(u);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-                            >
-                              <Edit className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Edit profile</span>
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                onOpenResetPasswordModal(u);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-                            >
-                              <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Reset password</span>
-                            </button>
-
-                            {onOpenPortal && (
-                              <button
-                                onClick={() => {
-                                  onOpenPortal(u);
-                                  setActiveActionMenuId(null);
-                                }}
-                                className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-blue-50 text-blue-600 font-semibold transition-colors cursor-pointer"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                                <span>Open Full Portal</span>
-                              </button>
-                            )}
-
-                            <div className="my-1 border-t border-slate-100" />
-
-                            <button
-                              onClick={() => {
-                                onToggleStatus(u.id, u.isActive);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-                            >
-                              <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
-                              <span>
-                                {u.isActive ? 'Suspend User' : 'Activate User'}
-                              </span>
-                            </button>
-
-                            <div className="my-1 border-t border-slate-100" />
-
-                            <button
-                              onClick={() => {
-                                onDeleteUser(u.id, u.email);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-rose-50 text-rose-600 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                              <span>Delete account</span>
-                            </button>
-                          </div>
+                            <HardDrive className="w-4 h-4" />
+                          </button>
                         )}
+
+                        {/* Reset Password */}
+                        <button
+                          onClick={() => onOpenResetPasswordModal(u)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          title="Đặt lại mật khẩu"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+
+                        {/* Suspend / Activate */}
+                        <button
+                          onClick={() => onToggleStatus(u.id, u.isActive)}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            u.isActive
+                              ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                              : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                          }`}
+                          title={u.isActive ? 'Tạm dừng tài khoản' : 'Kích hoạt tài khoản'}
+                        >
+                          <ShieldAlert className="w-4 h-4" />
+                        </button>
+
+                        {/* Delete User */}
+                        <button
+                          onClick={() => onDeleteUser(u.id, u.email)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Xóa tài khoản"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

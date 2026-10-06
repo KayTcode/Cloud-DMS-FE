@@ -65,6 +65,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 bg-slate-50/20">
+                <th className="py-3 px-3 text-center w-14">STT</th>
                 <th className="py-3 px-5">Timestamp</th>
                 <th className="py-3 px-4">Action</th>
                 <th className="py-3 px-4">Actor</th>
@@ -74,8 +75,11 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {filtered.map((log) => (
+              {filtered.map((log, index) => (
                 <tr key={log.id} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3.5 px-3 text-center font-mono text-slate-500 text-xs">
+                    {index + 1}
+                  </td>
                   <td className="py-3.5 px-5 font-mono text-slate-500 text-[11px]">
                     {log.timestamp}
                   </td>

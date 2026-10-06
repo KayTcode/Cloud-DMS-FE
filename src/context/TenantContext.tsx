@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import {
   ActiveTab,
   NavItem,
@@ -6,13 +6,17 @@ import {
   TenantEvent,
   TenantUser,
 } from '@/features/tenants/types';
-import { initialTenant, initialEvents, mockUsers, mockDepartments } from '@/data/tenantMockData';
+import { initialTenant, initialEvents } from '@/data/tenantMockData';
 import { ToastMessage } from '@/types/common.types';
+import { useAuth } from '@/context/AuthContext';
 import {
   toggleSuspendTenant,
   createTenantUser,
   createDepartmentAdminApi,
   getTenantDepartments,
+  getTenantUsers,
+  getTenantStorageQuota,
+  TenantQuotaData,
   exportTenantBackup,
   updateTenantSettings,
 } from '@/features/tenants/api';
@@ -46,13 +50,17 @@ interface TenantContextType {
   setIsImpersonateModalOpen: (open: boolean) => void;
   isImpersonating: boolean;
 
-  // Data
+  // Real Data
   tenant: TenantInfo;
   events: TenantEvent[];
   users: TenantUser[];
   departments: Department[];
+  quotaData: TenantQuotaData | null;
+  isLoadingData: boolean;
   isLoadingDepartments: boolean;
   refreshDepartments: () => Promise<void>;
+  refreshTenantData: (targetIdOverride?: string) => Promise<void>;
+  setCurrentTenantId: (id: string, initialMeta?: Partial<TenantInfo>) => void;
 
   // Toasts
   toasts: ToastMessage[];
@@ -74,31 +82,40 @@ interface TenantContextType {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activeNav, setActiveNav] = useState<NavItem>('dashboard');
+  const { user: authUser } = useAuth();
+
+  const getInitialNav = useCallback((role?: string): NavItem => {
+    switch (role) {
+      case 'SystemAdmin':
+        return 'tenants'; // SysAdmin: Quản lý Tenants & Tài khoản
+      case 'TenantAdmin':
+        return 'tenants'; // TenantAdmin: Phòng ban & Nhân viên
+      case 'DepartmentAdmin':
+        return 'tenants'; // DeptAdmin: Quản lý nhân viên
+      case 'User':
+      case 'Employee':
+      default:
+        return 'dashboard'; // User: Tài liệu & My Drive
+    }
+  }, []);
+
+  const [activeNav, setActiveNav] = useState<NavItem>(() => getInitialNav(authUser?.role));
+
+  useEffect(() => {
+    if (authUser?.role) {
+      setActiveNav(getInitialNav(authUser.role));
+    }
+  }, [authUser?.role, getInitialNav]);
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
   const [events, setEvents] = useState<TenantEvent[]>(initialEvents);
-  const [users, setUsers] = useState<TenantUser[]>(mockUsers);
-  const [departments, setDepartments] = useState<Department[]>(mockDepartments);
+  const [users, setUsers] = useState<TenantUser[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [quotaData, setQuotaData] = useState<TenantQuotaData | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState<boolean>(false);
   const [targetDeptForCreate, setTargetDeptForCreate] = useState<string | undefined>(undefined);
-
-  const refreshDepartments = async () => {
-    setIsLoadingDepartments(true);
-    try {
-      const depts = await getTenantDepartments(tenant.id);
-      if (depts && depts.length > 0) {
-        setDepartments(depts);
-      }
-    } finally {
-      setIsLoadingDepartments(false);
-    }
-  };
-
-  // Fetch departments from database on initial mount or when tenant changes
-  useEffect(() => {
-    refreshDepartments();
-  }, [tenant.id]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -108,17 +125,17 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = (type: 'success' | 'warning' | 'info' | 'error', message: string) => {
-    const id = Date.now().toString();
+  const addToast = useCallback((type: 'success' | 'warning' | 'info' | 'error', message: string) => {
+    const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
-  };
+  }, []);
 
-  const handleDismissToast = (id: string) => {
+  const handleDismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
 
   const handleSuspendToggle = async () => {
     const newStatus = await toggleSuspendTenant(tenant.id, tenant.status);
@@ -138,6 +155,117 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
     setEvents((prev) => [newEvent, ...prev]);
   };
+
+  /**
+   * Fetches real Quota, Departments, and Users for a Tenant from Database
+   */
+  const refreshTenantData = useCallback(async (targetIdOverride?: string) => {
+    const targetId = targetIdOverride || authUser?.tenantId || tenant.id;
+    if (!targetId || targetId === '11111111-1111-1111-1111-111111111111') {
+      return;
+    }
+
+    setIsLoadingData(true);
+    setIsLoadingDepartments(true);
+
+    try {
+      const [quotaRes, deptsRes, usersRes] = await Promise.allSettled([
+        getTenantStorageQuota(targetId),
+        getTenantDepartments(targetId),
+        getTenantUsers(targetId),
+      ]);
+
+      let loadedQuota: TenantQuotaData | null = null;
+      if (quotaRes.status === 'fulfilled' && quotaRes.value) {
+        loadedQuota = quotaRes.value;
+        setQuotaData(loadedQuota);
+      }
+
+      let loadedDepts: Department[] = [];
+      if (deptsRes.status === 'fulfilled') {
+        loadedDepts = deptsRes.value;
+        setDepartments(loadedDepts);
+      }
+
+      let loadedUsers: TenantUser[] = [];
+      if (usersRes.status === 'fulfilled') {
+        loadedUsers = usersRes.value;
+        setUsers(loadedUsers);
+      }
+
+      // Sync headcount in departments from real users list
+      if (loadedDepts.length > 0 && loadedUsers.length > 0) {
+        const syncedDepts = loadedDepts.map((d) => {
+          const matchCount = loadedUsers.filter((u) => u.department === d.name).length;
+          return {
+            ...d,
+            headCount: matchCount > 0 ? matchCount : d.headCount,
+          };
+        });
+        setDepartments(syncedDepts);
+      }
+
+      // Update tenant info state
+      setTenant((prev) => {
+        const qBytes = loadedQuota?.storageQuotaBytes ?? prev.storageQuotaBytes ?? 0;
+        const uBytes = loadedQuota?.storageUsedBytes ?? prev.storageUsedBytes ?? 0;
+        const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
+        const usedTB = Number((uBytes / (1024 ** 4)).toFixed(3));
+
+        return {
+          ...prev,
+          id: targetId,
+          name: loadedQuota?.tenantName || prev.name,
+          licenseUsed: loadedUsers.length,
+          departmentsCount: loadedDepts.length,
+          diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
+          diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
+          storageQuotaBytes: qBytes,
+          storageUsedBytes: uBytes,
+          availableBytes: loadedQuota?.availableBytes,
+          storageProviderName: loadedQuota?.storageProviderName,
+          usagePercentage: loadedQuota?.usagePercentage,
+        };
+      });
+    } catch (err) {
+      console.error('[TenantContext] Error refreshing real tenant data:', err);
+    } finally {
+      setIsLoadingData(false);
+      setIsLoadingDepartments(false);
+    }
+  }, [authUser?.tenantId, tenant.id]);
+
+  const refreshDepartments = async () => {
+    setIsLoadingDepartments(true);
+    try {
+      const depts = await getTenantDepartments(tenant.id);
+      setDepartments(depts);
+    } finally {
+      setIsLoadingDepartments(false);
+    }
+  };
+
+  const setCurrentTenantId = useCallback((id: string, initialMeta?: Partial<TenantInfo>) => {
+    if (initialMeta) {
+      setTenant((prev) => ({
+        ...prev,
+        ...initialMeta,
+        id,
+      }));
+    } else {
+      setTenant((prev) => ({ ...prev, id }));
+    }
+    refreshTenantData(id);
+  }, [refreshTenantData]);
+
+  // Initial load when tenantId is available from Auth user (e.g. Tenant Admin)
+  useEffect(() => {
+    if (authUser?.tenantId && authUser.tenantId !== tenant.id) {
+      setCurrentTenantId(authUser.tenantId);
+    } else if (authUser?.tenantId) {
+      refreshTenantData(authUser.tenantId);
+    }
+  }, [authUser?.tenantId, setCurrentTenantId, refreshTenantData]);
 
   const handleDownloadBackup = async () => {
     addToast('info', `Preparing database backup export for ${tenant.name}...`);
@@ -281,8 +409,12 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         events,
         users,
         departments,
+        quotaData,
+        isLoadingData,
         isLoadingDepartments,
         refreshDepartments,
+        refreshTenantData,
+        setCurrentTenantId,
         toasts,
         addToast,
         handleDismissToast,

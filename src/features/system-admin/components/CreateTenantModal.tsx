@@ -18,7 +18,6 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,14 +25,15 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim() || !firstName.trim() || !lastName.trim()) return;
+    if (!email.trim() || !firstName.trim() || !lastName.trim() || !tenantName.trim()) return;
 
     setIsSubmitting(true);
     try {
       await onCreate(
         {
+          tenantName: tenantName.trim(),
+          plan: plan,
           email: email.trim(),
-          password: password.trim(),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           phoneNumber: phoneNumber.trim() || undefined,
@@ -46,7 +46,6 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
       setFirstName('');
       setLastName('');
       setEmail('');
-      setPassword('');
       setPhoneNumber('');
       onClose();
     } finally {
@@ -82,7 +81,7 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-          {/* Organization Name & Plan */}
+          {/* Organization Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Tenant Organization Name *
@@ -97,33 +96,17 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Subscription Plan
-            </label>
-            <div className="grid grid-cols-3 gap-2.5">
-              {(['Starter', 'Business', 'Enterprise'] as PlanType[]).map((p) => (
-                <button
-                  type="button"
-                  key={p}
-                  onClick={() => setPlan(p)}
-                  className={`py-2 px-3 text-xs font-medium rounded-lg border text-center transition-all cursor-pointer ${
-                    plan === p
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="border-t border-slate-100 pt-3">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-blue-600" />
-              Lead Administrator Info
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                Lead Administrator Info
+              </h4>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                Role: Tenant Admin
+              </span>
+            </div>
 
             {/* First & Last Name */}
             <div className="grid grid-cols-2 gap-3">
@@ -189,25 +172,19 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
             </div>
           </div>
 
-          {/* Initial Password */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Initial Account Password *
-            </label>
-            <div className="relative">
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
-              />
+          {/* Email Invitation Notice */}
+          <div className="p-3.5 bg-blue-50/80 border border-blue-200/90 rounded-xl flex items-start gap-3">
+            <div className="p-2 bg-blue-100/80 text-blue-700 rounded-lg shrink-0 mt-0.5">
+              <Mail className="w-4 h-4" />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Minimum 6 characters. The administrator can change it upon first login.
-            </p>
+            <div>
+              <h4 className="text-xs font-bold text-blue-950">
+                Gửi lời mời & Thiết lập mật khẩu qua Gmail
+              </h4>
+              <p className="text-[11px] text-blue-800/80 leading-relaxed mt-0.5">
+                Quản trị viên không cần nhập mật khẩu ban đầu. Hệ thống sẽ tự động gửi email chứa đường dẫn kích hoạt đến <strong>{email || 'địa chỉ email trên'}</strong> để Tenant Admin tự kích hoạt và thiết lập mật khẩu bảo mật.
+              </p>
+            </div>
           </div>
 
           {/* Action buttons */}
@@ -218,14 +195,15 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
               disabled={isSubmitting}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             >
-              Cancel
+              Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'Provisioning...' : 'Confirm Provisioning'}
+              <Mail className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Đang tạo & Gửi email...' : 'Khởi tạo Tenant & Gửi thư mời'}</span>
             </button>
           </div>
         </form>

@@ -100,49 +100,70 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-          {departments.map((dept) => (
-            <div
-              key={dept.id}
-              className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:border-blue-200 transition-all group flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span>{dept.name}</span>
-                  </div>
-                  <button
-                    onClick={() => onCreateDepartmentUser(dept.id)}
-                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 opacity-90 group-hover:opacity-100 cursor-pointer"
-                    title={`Tạo Admin cho ${dept.name}`}
-                  >
-                    <UserPlus className="w-3 h-3" />
-                    <span>Thêm User</span>
-                  </button>
-                </div>
-                
-                <div className="mt-2.5 space-y-1">
-                  <div className="text-[11px] text-slate-600 flex items-center gap-1">
-                    <Crown className="w-3 h-3 text-amber-500" />
-                    <span>Lead / Admin: <strong className="text-slate-900">{dept.lead}</strong></span>
-                  </div>
-                  {dept.adminEmail && (
-                    <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                      <Mail className="w-2.5 h-2.5 text-slate-400" />
-                      <span>{dept.adminEmail}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between text-xs pt-3 border-t border-slate-200/60">
-                <span className="text-slate-500 font-medium">{dept.headCount} Members</span>
-                <span className="font-semibold text-blue-600 tabular-nums">{dept.allocatedStorageGB} GB</span>
-              </div>
+        {departments.length === 0 ? (
+          <div className="text-center py-12 px-4 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 mt-4">
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
+              <Building2 className="w-5 h-5" />
             </div>
-          ))}
-        </div>
+            <div className="text-xs font-bold text-slate-700">
+              Chưa có phòng ban nào được thiết lập trong tổ chức
+            </div>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1 mb-3">
+              Hãy tạo phòng ban và chỉ định tài khoản Department Admin đầu tiên để bắt đầu phân quyền và lưu trữ tài liệu.
+            </p>
+            <button
+              onClick={() => onCreateDepartmentUser()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Tạo tài khoản Department Admin</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            {departments.map((dept) => (
+              <div
+                key={dept.id}
+                className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:border-blue-200 transition-all group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>{dept.name}</span>
+                    </div>
+                    <button
+                      onClick={() => onCreateDepartmentUser(dept.id)}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 opacity-90 group-hover:opacity-100 cursor-pointer"
+                      title={`Tạo Admin cho ${dept.name}`}
+                    >
+                      <UserPlus className="w-3 h-3" />
+                      <span>Thêm User</span>
+                    </button>
+                  </div>
+                  
+                  <div className="mt-2.5 space-y-1">
+                    <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                      <Crown className="w-3 h-3 text-amber-500" />
+                      <span>Lead / Admin: <strong className="text-slate-900">{dept.lead}</strong></span>
+                    </div>
+                    {dept.adminEmail && (
+                      <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                        <Mail className="w-2.5 h-2.5 text-slate-400" />
+                        <span>{dept.adminEmail}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between text-xs pt-3 border-t border-slate-200/60">
+                  <span className="text-slate-500 font-medium">{dept.headCount} Members</span>
+                  <span className="font-semibold text-blue-600 tabular-nums">{dept.allocatedStorageGB} GB</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

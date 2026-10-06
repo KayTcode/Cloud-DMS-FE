@@ -22,23 +22,11 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
   const [showPassword, setShowPassword] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [role, setRole] = useState('Department Administrator');
-  const [accessLevel, setAccessLevel] = useState<'Standard' | 'Manager' | 'Admin'>('Admin');
   const [quotaGB, setQuotaGB] = useState('50');
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [requirePasswordReset, setRequirePasswordReset] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Auto-generate suggested email based on name
-  const handleNameChange = (name: string) => {
-    setFullName(name);
-    if (!email || email.endsWith('@acme.com')) {
-      const sanitized = name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '');
-      if (sanitized) {
-        setEmail(`${sanitized}@acme.com`);
-      }
-    }
-  };
 
   // Generate strong random password
   const handleGeneratePassword = () => {
@@ -78,32 +66,18 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
 
     setIsSubmitting(true);
     try {
-      if (accessLevel === 'Admin') {
-        // Call Backend API via Context
-        const success = await handleCreateDepartmentAdmin({
-          email: email.trim(),
-          password: password,
-          firstName: firstName,
-          lastName: lastName,
-          phoneNumber: phoneNumber.trim() || undefined,
-          departmentId: selectedDeptId ? selectedDeptId : undefined,
-        });
+      // Auto-assign as Department Admin
+      const success = await handleCreateDepartmentAdmin({
+        email: email.trim(),
+        password: password,
+        firstName: firstName,
+        lastName: lastName,
+        phoneNumber: phoneNumber.trim() || undefined,
+        departmentId: selectedDeptId ? selectedDeptId : undefined,
+      });
 
-        if (!success) {
-          setIsSubmitting(false);
-        }
-      } else {
-        // Standard or Manager member
-        const matchedDept = departments.find(d => d.id === selectedDeptId || d.name === selectedDeptId);
-        await handleUserCreated({
-          id: `usr-${Date.now()}`,
-          name: trimmedName,
-          email: email.trim(),
-          department: matchedDept?.name || 'Chưa phân bổ',
-          role: `${role} (${accessLevel})`,
-          status: 'Active',
-          lastActive: 'Just now',
-        });
+      if (!success) {
+        setIsSubmitting(false);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Đã có lỗi xảy ra khi tạo tài khoản.');
@@ -187,38 +161,17 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
               </p>
             </div>
 
-            {/* Access Role */}
+            {/* Department Role Badge (Fixed as Department Admin) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Cấp độ phân quyền (Access Level)
+                Cấp độ quyền hạn tài khoản
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['Admin', 'Manager', 'Standard'] as const).map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => {
-                      setAccessLevel(level);
-                      if (level === 'Admin') setRole('Department Administrator');
-                      else if (level === 'Manager') setRole('Team Lead');
-                      else setRole('Staff Member');
-                    }}
-                    className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                      accessLevel === level
-                        ? 'bg-blue-50/80 border-blue-500 text-blue-700 shadow-2xs'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    {level === 'Admin' && '👑 Quản trị viên (Admin)'}
-                    {level === 'Manager' && 'Trưởng nhóm (Lead)'}
-                    {level === 'Standard' && 'Thành viên'}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-50/60 border border-blue-200 rounded-lg text-blue-800 text-xs font-semibold">
+                <Shield className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Department Administrator (Quản trị viên phòng ban)</span>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                {accessLevel === 'Admin' && 'Gán Role DepartmentAdmin: Toàn quyền quản trị tài liệu và nhân sự trong phòng ban.'}
-                {accessLevel === 'Manager' && 'Quản lý phê duyệt hồ sơ và xem báo cáo phòng ban.'}
-                {accessLevel === 'Standard' && 'Quyền truy cập tài liệu phòng ban và thư mục cá nhân.'}
+                Tài khoản tự động nhận quyền Quản trị viên phòng ban (Department Admin) trong tổ chức.
               </p>
             </div>
 
@@ -231,7 +184,7 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                 type="text"
                 required
                 value={fullName}
-                onChange={(e) => handleNameChange(e.target.value)}
+                onChange={(e) => setFullName(e.target.value)}
                 placeholder="VD: Nguyễn Văn An"
                 className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
