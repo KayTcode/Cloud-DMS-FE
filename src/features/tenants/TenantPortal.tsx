@@ -15,7 +15,9 @@ import {
   TenantStorageView,
   TenantActivityView,
   TenantSettingsView,
+  TenantHubView,
 } from '@/features/tenants/views';
+import { ArrowLeft } from 'lucide-react';
 
 // =========================================================================================
 // TENANT PORTAL (MÀN HÌNH ĐIỀU HÀNH DÀNH CHO QUẢN TRỊ VIÊN CỦA MỘT TENANT)
@@ -67,39 +69,68 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
   // ---------------------------------------------------------------------------------------
   // 3. EFFECT ĐỒNG BỘ DỮ LIỆU TENANT (Tương tự Data Binding / Load Entity by ID)
-  // - Khi `effectiveTenantId` thay đổi, tự động nạp lại thông tin Tenant tương ứng từ BE.
+  // - Khi ở Tab 'hub': KHÔNG nạp dữ liệu gì từ API (0 API load ban đầu).
+  // - Khi người dùng chuyển sang các tab nghiệp vụ: Tự động nạp thông tin Tenant tương ứng từ BE.
   // ---------------------------------------------------------------------------------------
   useEffect(() => {
+    if (activeTab === 'hub') {
+      return;
+    }
+
     if (effectiveTenantId && effectiveTenantId !== tenant.id) {
       setCurrentTenantId(effectiveTenantId);
     } else if (effectiveTenantId) {
       refreshTenantData(effectiveTenantId);
     }
-  }, [effectiveTenantId, tenant.id, setCurrentTenantId, refreshTenantData]);
+  }, [activeTab, effectiveTenantId, tenant.id, setCurrentTenantId, refreshTenantData]);
 
   // =======================================================================================
   // 4. JSX RENDER (Tương đương Tenant Sub-View Router)
-  // - TenantBanner: Thanh thông tin tổng quan của Tenant (Tên, Gói cước, Trạng thái, Dung lượng).
-  // - TenantTabs: Thanh tab chuyển đổi giữa các module nội bộ của Tenant.
-  // - Sub-views: Tương ứng với từng nghiệp vụ cụ thể của Tenant (Nhân viên, Phòng ban, Dung lượng, ...).
+  // - Khi activeTab === 'hub': Hiển thị màn hình trung tâm điều khiển (Bảng chọn chức năng).
+  // - Khi ở các tab khác: Hiển thị thanh quay lại Hub, Banner, Tabs và màn hình nghiệp vụ chi tiết.
   // =======================================================================================
   return (
     <>
-      {/* 4.1. Khung hiển thị thông tin tóm tắt & các thao tác nhanh của Tenant */}
-      <TenantBanner
-        tenant={tenant}
-        onSuspendToggle={handleSuspendToggle}
-        onManageSubscriptions={() => setIsSubscriptionModalOpen(true)}
-        onNavigateToTenants={() => setActiveTab('overview')}
-      />
+      {/* 4.0. SUB-VIEW 0: Màn hình Trung tâm Điều khiển Doanh nghiệp (0 API load ban đầu) */}
+      {activeTab === 'hub' && (
+        <TenantHubView
+          tenant={tenant}
+          onNavigateTab={(tab) => setActiveTab(tab)}
+          onOpenCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
+          onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
+          onDownloadBackup={handleDownloadBackup}
+        />
+      )}
 
-      {/* 4.2. Thanh Tabs chuyển đổi module nội bộ (Overview / Users / Departments / Storage / Activity / Settings) */}
-      <TenantTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* 4.1. CÁC MÀN HÌNH CHI TIẾT KHI ĐÃ CHỌN CHỨC NĂNG */}
+      {activeTab !== 'hub' && (
+        <>
+          {/* Nút quay lại Menu chức năng chính */}
+          <div className="mb-4">
+            <button
+              onClick={() => setActiveTab('hub')}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-lg shadow-2xs transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>← Quay lại Trung tâm điều khiển Doanh nghiệp</span>
+            </button>
+          </div>
+
+          {/* Khung hiển thị thông tin tóm tắt & các thao tác nhanh của Tenant */}
+          <TenantBanner
+            tenant={tenant}
+            onSuspendToggle={handleSuspendToggle}
+            onManageSubscriptions={() => setIsSubscriptionModalOpen(true)}
+            onNavigateToTenants={() => setActiveTab('hub')}
+          />
+        </>
+      )}
 
       {/* 4.3. Khu vực hiển thị nội dung của Tab con đang active */}
-      <div className="tab-content-area">
-        {/* Tab 1: Tổng quan số liệu Tenant (Dung lượng, Số user, Hoạt động gần đây) */}
-        {activeTab === 'overview' && (
+      {activeTab !== 'hub' && (
+        <div className="tab-content-area">
+          {/* Tab 1: Tổng quan số liệu Tenant (Dung lượng, Số user, Hoạt động gần đây) */}
+          {activeTab === 'overview' && (
           <TenantOverviewView
             tenant={tenant}
             events={events}
@@ -162,6 +193,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
           />
         )}
       </div>
+      )}
 
       {/* --------------------------------------------------------------------------------- */}
       {/* 4.4. CÁC MODAL HỘP THOẠI CỦA TENANT                                                */}

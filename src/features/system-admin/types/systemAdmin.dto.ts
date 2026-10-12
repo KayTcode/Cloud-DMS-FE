@@ -70,7 +70,17 @@ export interface CreateAdminUserPayload {
   plan?: PlanType;
   roleIds?: string[];
   tenantId?: string;
-  departmentId?: string;
+  storageProviderId?: string;
+  storageQuotaBytes?: number;
+}
+
+export interface CreateEmployeePayload {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  password?: string;
+  storageQuotaBytes?: number;
 }
 
 export interface UpdateAdminUserPayload {

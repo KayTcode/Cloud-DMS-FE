@@ -13,6 +13,7 @@ import {
   toggleSuspendTenant,
   createTenantUser,
   createDepartmentAdminApi,
+  allocateDepartmentQuotaApi,
   getTenantDepartments,
   getTenantUsers,
   getTenantStorageQuota,
@@ -75,6 +76,7 @@ interface TenantContextType {
   handleOpenCreateDepartmentUser: (deptName?: string) => void;
   handleUserCreated: (newUser: TenantUser) => Promise<void>;
   handleCreateDepartmentAdmin: (payload: CreateDepartmentAdminPayload) => Promise<boolean>;
+  handleAllocateDepartmentQuota: (departmentId: string, quotaGB: number) => Promise<boolean>;
   handleUpdateTenant: (updated: Partial<TenantInfo>) => Promise<void>;
   handleSelectNav: (nav: NavItem) => void;
 }
@@ -87,9 +89,9 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const getInitialNav = useCallback((role?: string): NavItem => {
     switch (role) {
       case 'SystemAdmin':
-        return 'tenants'; // SysAdmin: Quản lý Tenants & Tài khoản
+        return 'hub'; // SysAdmin: Trung tâm điều khiển / Chọn chức năng (0 API load ban đầu)
       case 'TenantAdmin':
-        return 'tenants'; // TenantAdmin: Phòng ban & Nhân viên
+        return 'hub'; // TenantAdmin: Màn hình chọn chức năng (0 API load ban đầu)
       case 'DepartmentAdmin':
         return 'tenants'; // DeptAdmin: Quản lý nhân viên
       case 'User':
@@ -103,11 +105,17 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   useEffect(() => {
     if (authUser?.role) {
-      setActiveNav(getInitialNav(authUser.role));
+      const initial = getInitialNav(authUser.role);
+      setActiveNav(initial);
+      if (authUser.role === 'TenantAdmin') {
+        setActiveTab('hub');
+      }
     }
   }, [authUser?.role, getInitialNav]);
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => 
+    authUser?.role === 'TenantAdmin' ? 'hub' : 'overview'
+  );
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
   const [events, setEvents] = useState<TenantEvent[]>(initialEvents);
   const [users, setUsers] = useState<TenantUser[]>([]);
@@ -368,6 +376,37 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  const handleAllocateDepartmentQuota = async (departmentId: string, quotaGB: number): Promise<boolean> => {
+    try {
+      const quotaBytes = Math.round(quotaGB * 1024 * 1024 * 1024);
+      await allocateDepartmentQuotaApi(tenant.id, departmentId, quotaBytes);
+
+      setDepartments((prev) =>
+        prev.map((d) => (d.id === departmentId ? { ...d, allocatedStorageGB: quotaGB } : d))
+      );
+
+      const targetDept = departments.find((d) => d.id === departmentId);
+      const deptName = targetDept?.name || 'Phòng ban';
+
+      addToast('success', `Đã cập nhật Quota lưu trữ cho phòng ban ${deptName}: ${quotaGB} GB thành công!`);
+
+      const newEvent: TenantEvent = {
+        id: `evt-${Date.now()}`,
+        text: `Điều chỉnh hạn mức lưu trữ phòng ban ${deptName} lên ${quotaGB} GB`,
+        timeAgo: 'Just now',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'storage',
+      };
+      setEvents((prev) => [newEvent, ...prev]);
+      return true;
+    } catch (err: any) {
+      console.error('[TenantContext] Lỗi khi cấp Quota cho phòng ban:', err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Không thể cập nhật Quota phòng ban.';
+      addToast('error', errMsg);
+      return false;
+    }
+  };
+
   const handleUpdateTenant = async (updated: Partial<TenantInfo>) => {
     await updateTenantSettings(tenant.id, updated);
     setTenant((prev) => ({ ...prev, ...updated }));
@@ -376,6 +415,28 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const handleSelectNav = (nav: NavItem) => {
     setActiveNav(nav);
+    if (authUser?.role === 'TenantAdmin') {
+      switch (nav) {
+        case 'hub':
+          setActiveTab('hub');
+          break;
+        case 'dashboard':
+          setActiveTab('overview');
+          break;
+        case 'tenants':
+          setActiveTab('departments');
+          break;
+        case 'storage-providers':
+          setActiveTab('storage');
+          break;
+        case 'audit-logs':
+          setActiveTab('activity');
+          break;
+        case 'settings':
+          setActiveTab('settings');
+          break;
+      }
+    }
   };
 
   const clearNotifications = () => {
@@ -425,6 +486,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         handleOpenCreateDepartmentUser,
         handleUserCreated,
         handleCreateDepartmentAdmin,
+        handleAllocateDepartmentQuota,
         handleUpdateTenant,
         handleSelectNav,
       }}

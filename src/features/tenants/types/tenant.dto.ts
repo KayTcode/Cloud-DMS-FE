@@ -1,4 +1,5 @@
 export type ActiveTab =
+  | 'hub'
   | 'overview'
   | 'users'
   | 'departments'

@@ -5,3 +5,4 @@ export * from './TenantDepartmentsView';
 export * from './TenantStorageView';
 export * from './TenantActivityView';
 export * from './TenantSettingsView';
+export * from './TenantHubView';

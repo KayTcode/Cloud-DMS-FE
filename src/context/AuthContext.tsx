@@ -15,6 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'access_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'auth_user';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -37,6 +38,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!token) {
       setUser(null);
       localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
   }, [token]);
 
@@ -58,6 +60,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(authUser);
 
       localStorage.setItem(TOKEN_KEY, response.accessToken);
+      if (response.refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
+      }
       localStorage.setItem(USER_KEY, JSON.stringify(authUser));
 
       return authUser;
@@ -80,6 +85,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(authUser);
 
     localStorage.setItem(TOKEN_KEY, response.accessToken);
+    if (response.refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
+    }
     localStorage.setItem(USER_KEY, JSON.stringify(authUser));
 
     return authUser;
@@ -89,6 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(null);
     setUser(null);
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   };
 

@@ -25,6 +25,30 @@ export const createAdminUserApi = async (
 };
 
 /**
+ * 1b. Create an employee within a department (POST /api/department/{departmentId}/employees)
+ */
+export const createDepartmentEmployeeApi = async (
+  departmentId: string,
+  payload: any
+): Promise<AdminUserDto> => {
+  const response: any = await axiosClient.post(`/department/${departmentId}/employees`, payload);
+  if (response?.value) return response.value;
+  if (response?.data) return response.data;
+  return response;
+};
+
+/**
+ * 1c. Get employees list within a department (GET /api/department/{departmentId}/employees)
+ */
+export const getDepartmentEmployeesApi = async (
+  departmentId: string
+): Promise<AdminUserDto[]> => {
+  const response: any = await axiosClient.get(`/department/${departmentId}/employees`);
+  const data = response?.value?.items || response?.value || response?.data || response;
+  return Array.isArray(data) ? data : [];
+};
+
+/**
  * 2. Update user profile information (PUT /api/admin/users/{id})
  */
 export const updateAdminUserApi = async (

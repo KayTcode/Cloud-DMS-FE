@@ -127,3 +127,20 @@ export async function updateTenantSettings(tenantId: string, settings: TenantSet
     return true;
   }
 }
+
+/**
+ * Command: Cấp / Điều chỉnh Quota lưu trữ cho Phòng ban
+ * Khớp BE: AllocateDepartmentStorageQuotaCommand -> PUT /api/tenant/{tenantId}/departments/{departmentId}/quota
+ */
+export async function allocateDepartmentQuotaApi(
+  tenantId: string,
+  departmentId: string,
+  quotaBytes: number
+): Promise<{ departmentId: string; storageQuotaBytes: number; storageQuotaGB: number }> {
+  const response = await apiClient.put<any, any>(
+    API_ENDPOINTS.TENANTS.DEPARTMENT_QUOTA(tenantId, departmentId),
+    { quotaBytes }
+  );
+  return response?.value || response?.data || response;
+}
+

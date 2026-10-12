@@ -1,6 +1,8 @@
-import React from 'react';
-import { UserPlus, Building2, Crown, Mail, ShieldAlert, RefreshCw, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { UserPlus, Building2, Crown, Mail, ShieldAlert, RefreshCw, Loader2, HardDrive } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
+import { Department } from '@/features/tenants/types';
+import { AllocateDepartmentQuotaModal } from '@/features/tenants/components';
 
 interface TenantDepartmentsViewProps {
   onBackToOverview: () => void;
@@ -12,6 +14,7 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
   onCreateDepartmentUser,
 }) => {
   const { departments, users, isLoadingDepartments, refreshDepartments } = useTenantContext();
+  const [selectedDeptForQuota, setSelectedDeptForQuota] = useState<Department | null>(null);
 
   // Find Department Admins who are not yet assigned to any specific department
   const unassignedAdmins = users.filter(
@@ -158,13 +161,30 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
 
                 <div className="mt-4 flex items-center justify-between text-xs pt-3 border-t border-slate-200/60">
                   <span className="text-slate-500 font-medium">{dept.headCount} Members</span>
-                  <span className="font-semibold text-blue-600 tabular-nums">{dept.allocatedStorageGB} GB</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-blue-600 tabular-nums">{dept.allocatedStorageGB} GB</span>
+                    <button
+                      onClick={() => setSelectedDeptForQuota(dept)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-md transition-colors cursor-pointer"
+                      title="Cấp / Điều chỉnh Quota lưu trữ cho phòng ban này"
+                    >
+                      <HardDrive className="w-3 h-3 text-slate-500 hover:text-blue-600" />
+                      <span>Cấp Quota</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Modal điều chỉnh Quota phòng ban */}
+      <AllocateDepartmentQuotaModal
+        isOpen={!!selectedDeptForQuota}
+        onClose={() => setSelectedDeptForQuota(null)}
+        department={selectedDeptForQuota}
+      />
     </div>
   );
 };

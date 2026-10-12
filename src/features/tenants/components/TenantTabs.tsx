@@ -11,6 +11,7 @@ export const TenantTabs: React.FC<TenantTabsProps> = ({
   onTabChange,
 }) => {
   const tabs: { id: ActiveTab; label: string }[] = [
+    { id: 'hub', label: 'Trung tâm điều khiển' },
     { id: 'overview', label: 'Overview' },
     { id: 'users', label: 'Users' },
     { id: 'departments', label: 'Departments' },

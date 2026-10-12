@@ -21,7 +21,8 @@ import {
   Server,
   Cloud,
   Check,
-  CheckCircle
+  CheckCircle,
+  Layers
 } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
 import { useTenantContext } from '@/context/TenantContext';
@@ -147,6 +148,48 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
         } as StorageProviderItem,
       ];
 
+  // Helper lấy thông tin Quota & Usage chi tiết của từng Storage Provider riêng biệt
+  const getProviderStorageStats = (p: StorageProviderItem) => {
+    // Xác định xem đây có phải là kho chính được Admin chỉ định cấp Quota cho Tenant không
+    const isAssigned = Boolean(
+      (p.id && quotaStats.providerId && p.id.toLowerCase() === quotaStats.providerId.toLowerCase()) ||
+      (quotaStats.providerName && p.name && p.name.toLowerCase() === quotaStats.providerName.toLowerCase()) ||
+      (displayProviders.length === 1)
+    );
+
+    // Tính tổng dung lượng và số lượng tệp tin của Tenant đã lưu trên riêng kho này
+    const tenantFilesOnProvider = files.filter((f) => 
+      (f.storageProviderId && f.storageProviderId.toLowerCase() === p.id?.toLowerCase()) ||
+      (f.storageProviderName && f.storageProviderName.toLowerCase() === p.name?.toLowerCase())
+    );
+    const tenantUsedBytes = tenantFilesOnProvider.reduce((sum, f) => sum + (f.sizeBytes || 0), 0);
+
+    // Dung lượng gốc của riêng kho này (Từ Provider DTO)
+    const providerCapacityStr = p.totalCapacityBytes && p.totalCapacityBytes > 0
+      ? formatBytes(p.totalCapacityBytes)
+      : (p.capacity || '15 GB');
+
+    // Hạn mức quota hiển thị cho storage:
+    // - Kho chính được cấp: hiển thị hạn ngạch Quota cấp cho Tenant (ví dụ: 3 GB)
+    // - Kho khác: hiển thị dung lượng của chính kho đó (ví dụ: 5 GB hoặc 15 GB)
+    const quotaLabel = isAssigned ? 'Hạn mức cấp:' : 'Dung lượng kho:';
+    const quotaValue = isAssigned ? formatBytes(quotaStats.quotaBytes) : providerCapacityStr;
+
+    return {
+      isAssigned,
+      tenantFilesCount: tenantFilesOnProvider.length,
+      tenantUsedBytes,
+      tenantUsedFormatted: formatBytes(tenantUsedBytes),
+      providerCapacityStr,
+      quotaLabel,
+      quotaValue,
+      badgeText: isAssigned ? 'Kho được cấp' : 'Kho khả dụng',
+      badgeClass: isAssigned 
+        ? 'bg-blue-100 text-blue-700 border-blue-200' 
+        : 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    };
+  };
+
   // Handle file upload through 5-step routing flow
   const handleUpload = async (fileList: FileList | File[]) => {
     if (!fileList || fileList.length === 0) return;
@@ -184,7 +227,20 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
       setUploadMessage('BƯỚC 5: Cập nhật cơ sở dữ liệu và hạn ngạch Quota thành công!');
       await new Promise((r) => setTimeout(r, 300));
 
-      setSuccessMessage(`Đã tải lên thành công ${result.length || fileList.length} tệp tin vào ${targetProviderName}!`);
+      const successCount = result.uploaded?.length ?? (Array.isArray(result) ? (result as any).length : fileList.length);
+      const failedCount = result.failed?.length ?? 0;
+
+      if (failedCount > 0) {
+        const failReasons = result.failed.map((f: any) => `${f.fileName} (${f.error})`).join(', ');
+        if (successCount > 0) {
+          setSuccessMessage(`Đã tải lên ${successCount} tệp thành công!`);
+          setErrorMessage(`Có ${failedCount} tệp thất bại: ${failReasons}`);
+        } else {
+          setErrorMessage(`Tải lên thất bại cho toàn bộ ${failedCount} tệp: ${failReasons}`);
+        }
+      } else {
+        setSuccessMessage(`Đã tải lên thành công toàn bộ ${successCount} tệp tin vào ${targetProviderName}!`);
+      }
       loadFiles();
     } catch (err: any) {
       const msg = err.response?.data?.error || err.response?.data?.errors?.[0] || err.message || 'Quá trình tải lên thất bại.';
@@ -451,6 +507,83 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* KHỐI THỐNG KÊ CHI TIẾT TỪNG KHO LƯU TRỮ (PER-STORAGE QUOTA BREAKDOWN) */}
+        {displayProviders.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs mt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-3">
+              <div>
+                <h5 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Chi tiết Hạn ngạch & Dung lượng từng Kho Lưu Trữ Đám Mây</span>
+                </h5>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Phân biệt hạn ngạch riêng của từng kho Cloud kết nối với hệ thống thay vì gộp chung tổng Quota.
+                </p>
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {displayProviders.length} kho lưu trữ khả dụng
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {displayProviders.map((p) => {
+                const stats = getProviderStorageStats(p);
+                const isOneDrive = p.type?.toLowerCase().includes('onedrive');
+                const percent = stats.isAssigned && quotaStats.quotaBytes > 0
+                  ? Math.min(100, Math.round((stats.tenantUsedBytes / quotaStats.quotaBytes) * 100))
+                  : p.totalCapacityBytes && p.totalCapacityBytes > 0
+                  ? Math.min(100, Math.round((stats.tenantUsedBytes / p.totalCapacityBytes) * 100))
+                  : 0;
+
+                return (
+                  <div key={p.id} className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-1.5 rounded-lg ${isOneDrive ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            <Cloud className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-bold text-slate-900 truncate" title={p.name}>
+                            {p.name}
+                          </span>
+                        </div>
+                        <span className={`text-[9px] px-2 py-0.5 rounded font-semibold border ${stats.badgeClass}`}>
+                          {stats.badgeText}
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline justify-between text-xs mt-2">
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          Tenant đã dùng: <strong className="text-slate-900">{stats.tenantUsedFormatted}</strong>
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          {stats.quotaLabel}{' '}
+                          <strong className="text-blue-700 font-bold">{stats.quotaValue}</strong>
+                        </span>
+                      </div>
+
+                      <div className="w-full bg-slate-200/80 rounded-full h-2 mt-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            isOneDrive ? 'bg-blue-600' : 'bg-emerald-600'
+                          }`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Loại kho: <strong className="text-slate-700">{p.type}</strong></span>
+                      <span className="font-mono text-[10px] text-slate-400">{stats.tenantFilesCount} files đã lưu</span>
+                      <span>Dung lượng gốc: <strong className="text-slate-700">{stats.providerCapacityStr}</strong></span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Luồng 3: Multi-Cloud File Upload Dropzone */}
@@ -491,8 +624,7 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
             {displayProviders.map((p) => {
               const isSelected = p.id === selectedUploadProviderId;
-              const isDefault = (p.id && quotaStats.providerId && p.id.toLowerCase() === quotaStats.providerId.toLowerCase())
-                || displayProviders.length === 1;
+              const stats = getProviderStorageStats(p);
               const isOneDrive = p.type?.toLowerCase().includes('onedrive');
 
               return (
@@ -506,19 +638,24 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className={`p-2 rounded-lg shrink-0 ${isOneDrive ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
                       <Cloud className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs font-bold text-slate-900 truncate" title={p.name}>{p.name}</span>
-                        <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold shrink-0">
-                          Được cấp
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold shrink-0 border ${stats.badgeClass}`}>
+                          {stats.badgeText}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        <span>{p.type} • Hạn mức: <strong className="text-blue-700 font-bold">{formatBytes(quotaStats.quotaBytes)}</strong></span>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>
+                          {p.type} • {stats.quotaLabel} <strong className="text-blue-700 font-bold">{stats.quotaValue}</strong>
+                        </span>
+                        <span className="text-slate-400">
+                          ({stats.tenantFilesCount} files • {stats.tenantUsedFormatted})
+                        </span>
                       </div>
                     </div>
                   </div>

@@ -4,7 +4,7 @@
 export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/auth/login',
-    REFRESH: '/auth/refresh-token',
+    REFRESH: '/auth/refresh',
     LOGOUT: '/auth/logout',
   },
   TENANTS: {
@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
     USERS: (tenantId: string) => `/tenants/${tenantId}/users`,
     USER_DETAIL: (tenantId: string, userId: string) => `/tenants/${tenantId}/users/${userId}`,
     DEPARTMENTS: (tenantId: string) => `/tenant/${tenantId}/departments`,
+    DEPARTMENT_QUOTA: (tenantId: string, departmentId: string) => `/tenant/${tenantId}/departments/${departmentId}/quota`,
     DEPARTMENT_ADMINS: (tenantId: string) => `/tenant/${tenantId}/department-admins`,
     STORAGE: (tenantId: string) => `/tenants/${tenantId}/storage`,
     ACTIVITY: (tenantId: string) => `/tenants/${tenantId}/activity`,

@@ -220,14 +220,17 @@ export const getTenantStorageQuotaApi = async (
 /**
  * Get system audit logs
  */
-export const getAuditLogsApi = async (): Promise<AuditLogEntry[]> => {
+export const getAuditLogsApi = async (pageNumber: number = 1, pageSize: number = 50, searchTerm?: string): Promise<AuditLogEntry[]> => {
   try {
-    const response: any = await axiosClient.get('/admin/audit-logs');
-    if (response?.value?.items) return response.value.items;
-    if (response?.data?.items) return response.data.items;
+    const response: any = await axiosClient.get('/admin/audit-logs', {
+      params: { pageNumber, pageSize, searchTerm: searchTerm || undefined }
+    });
+    if (response?.items && Array.isArray(response.items)) return response.items;
+    if (response?.value?.items && Array.isArray(response.value.items)) return response.value.items;
+    if (response?.data?.items && Array.isArray(response.data.items)) return response.data.items;
     if (Array.isArray(response)) return response;
-  } catch {
-    // Fallback
+  } catch (error) {
+    console.warn('Backend API /admin/audit-logs error, falling back to cached logs.', error);
   }
   return AUDIT_LOGS;
 };

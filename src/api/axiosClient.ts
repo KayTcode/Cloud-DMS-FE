@@ -25,18 +25,108 @@ apiClient.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
-// Response Interceptor: Định dạng lỗi từ .NET Web API / FluentValidation
+// Trạng thái xoay vòng Refresh Token (tránh race condition nhiều request 401 cùng lúc)
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Response Interceptor: Định dạng lỗi từ .NET Web API & Xoay vòng Refresh Token (FE-07 / P3-02)
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response.data,
-  (error: AxiosError<ProblemDetails>) => {
+  async (error: AxiosError<ProblemDetails>) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
     if (error.response) {
       const { status, data } = error.response;
 
-      if (status === 401) {
-        // Token hết hạn hoặc không hợp lệ
-        localStorage.removeItem('access_token');
-        // Chuyển hướng về trang đăng nhập
-        window.location.href = '/login';
+      // Xử lý 401: Tự động Refresh Token xoay vòng (FE-07)
+      if (status === 401 && originalRequest && !originalRequest._retry) {
+        // Không lặp lại nếu chính route refresh / login bị 401
+        if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/login')) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+
+        if (isRefreshing) {
+          // Nếu đang có request refresh đang chạy ngầm, xếp hàng chờ token mới
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then((newToken) => {
+              if (originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              }
+              return apiClient(originalRequest);
+            })
+            .catch((err) => Promise.reject(err));
+        }
+
+        originalRequest._retry = true;
+        isRefreshing = true;
+
+        try {
+          // Gọi API refresh độc lập bằng axios để không chạy qua interceptor này
+          const refreshRes = await axios.post(`${BASE_URL}/auth/refresh`, {
+            refreshToken,
+          });
+
+          const newAccessToken = refreshRes.data.accessToken;
+          const newRefreshToken = refreshRes.data.refreshToken;
+
+          localStorage.setItem('access_token', newAccessToken);
+          if (newRefreshToken) {
+            localStorage.setItem('refresh_token', newRefreshToken);
+          }
+
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          }
+
+          processQueue(null, newAccessToken);
+          return apiClient(originalRequest);
+        } catch (refreshErr) {
+          processQueue(refreshErr, null);
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+          return Promise.reject(refreshErr);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+
+      // Xử lý 403: Không có quyền truy cập
+      if (status === 403) {
+        const forbiddenMsg = (data as any)?.detail || (data as any)?.message || 'Bạn không có quyền thực hiện thao tác này.';
+        return Promise.reject(new Error(forbiddenMsg));
+      }
+
+      // Xử lý 429: Vượt ngưỡng Rate Limit (P3-01 / BUG-17)
+      if (status === 429) {
+        return Promise.reject(new Error('Hệ thống đang bận hoặc bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ 1 phút rồi thử lại.'));
       }
 
       if (status === 400 && data?.errors) {

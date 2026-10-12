@@ -9,7 +9,8 @@ import {
   LogOut,
   Building2,
   Users,
-  FolderTree
+  FolderTree,
+  Layers
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -87,6 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Menu cho Quản trị viên toàn hệ thống
     if (isSysAdmin) {
       return [
+        { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
         { id: 'tenants', label: 'Tenants', icon: Database },
         { id: 'storage-providers', label: 'Storage Providers', icon: HardDrive },
@@ -97,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Menu cho Quản trị viên Tenant (Công ty / Khách hàng doanh nghiệp)
     if (isTenantAdmin) {
       return [
+        { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tenant Overview', icon: LayoutGrid },
         { id: 'tenants', label: 'Phòng ban & Nhân viên', icon: Building2 },
         { id: 'storage-providers', label: 'Kho lưu trữ', icon: HardDrive },

@@ -30,49 +30,62 @@ export interface TenantStorageSummaryDto {
   storageProviderName?: string | null;
   storageProviderType?: string | null;
   files: FileItemDto[];
+  totalCount?: number;
+  pageNumber?: number;
+  pageSize?: number;
+}
+
+export interface FileUploadFailureDto {
+  fileName: string;
+  fileSize: number;
+  error: string;
+}
+
+export interface MultipleFileUploadResultDto {
+  uploaded: FileItemDto[];
+  failed: FileUploadFailureDto[];
+  allSucceeded: boolean;
+  totalFiles: number;
 }
 
 export async function uploadTenantFilesApi(
   files: FileList | File[],
-  tenantId?: string,
+  _tenantId?: string,
   folderId?: string,
-  storageProviderId?: string,
-  userId?: string
-): Promise<FileItemDto[]> {
+  _storageProviderId?: string,
+  _userId?: string
+): Promise<MultipleFileUploadResultDto> {
   const formData = new FormData();
   Array.from(files).forEach((f) => formData.append('files', f));
-  if (tenantId) formData.append('tenantId', tenantId);
   if (folderId) formData.append('folderId', folderId);
-  if (storageProviderId) formData.append('storageProviderId', storageProviderId);
-
-  // Auto fallback to current authenticated user ID if not provided explicitly
-  let effectiveUserId = userId;
-  if (!effectiveUserId) {
-    try {
-      const authUserStr = localStorage.getItem('auth_user');
-      if (authUserStr) {
-        const authUser = JSON.parse(authUserStr);
-        effectiveUserId = authUser?.id;
-      }
-    } catch {
-      // Ignore
-    }
-  }
-  if (effectiveUserId) formData.append('userId', effectiveUserId);
 
   const response = await apiClient.post<any, any>(API_ENDPOINTS.FILES.UPLOAD, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
-  // Handle both standard Result wrapper and raw array
-  if (response?.value) return response.value;
-  if (Array.isArray(response)) return response;
-  return response?.data || [];
+  const data = response?.value || response?.data || response;
+  if (data?.uploaded) return data;
+  if (Array.isArray(data)) return { uploaded: data, failed: [], allSucceeded: true, totalFiles: data.length };
+  return { uploaded: [], failed: [], allSucceeded: true, totalFiles: 0 };
 }
 
-export async function getTenantFilesApi(tenantId?: string, folderId?: string): Promise<TenantStorageSummaryDto> {
+export async function getTenantFilesApi(
+  tenantId?: string, 
+  folderId?: string,
+  pageNumber: number = 1,
+  pageSize: number = 20,
+  searchTerm?: string
+): Promise<TenantStorageSummaryDto> {
+  const params: Record<string, any> = {
+    pageNumber,
+    pageSize,
+  };
+  if (tenantId) params.tenantId = tenantId;
+  if (folderId) params.folderId = folderId;
+  if (searchTerm) params.searchTerm = searchTerm;
+
   const response = await apiClient.get<any, any>(API_ENDPOINTS.FILES.LIST, {
-    params: { tenantId, folderId },
+    params,
   });
 
   if (response?.value) return response.value;

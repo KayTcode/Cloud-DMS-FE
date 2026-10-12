@@ -6,7 +6,7 @@ import { SystemAdminPortal } from '@/features/system-admin';
 import { TenantPortal } from '@/features/tenants';
 import { DepartmentAdminPortal } from '@/features/department-admin';
 import { UserPortal } from '@/features/user';
-import { LoginPage, AcceptInvitationPage } from '@/features/auth';
+import { LoginPage, AcceptInvitationPage, GoogleOAuthCallback } from '@/features/auth';
 
 import { OneDriveOAuthCallback } from '@/features/system-admin/components/OneDriveOAuthCallback';
 
@@ -19,6 +19,14 @@ const AppContent: React.FC = () => {
   // If path is OneDrive OAuth callback
   if (window.location.pathname.startsWith('/oauth/onedrive/callback')) {
     return <OneDriveOAuthCallback />;
+  }
+
+  // If path is Google OAuth callback
+  if (
+    window.location.pathname.startsWith('/auth/google/callback') ||
+    window.location.pathname.startsWith('/oauth/google/callback')
+  ) {
+    return <GoogleOAuthCallback />;
   }
 
   // If path is /accept-invitation, render AcceptInvitationPage

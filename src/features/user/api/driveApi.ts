@@ -2,13 +2,16 @@ import axiosClient from '@/api/axiosClient';
 import { DriveItem } from '../types';
 
 export const driveApi = {
-  // Fetch files and folders for current user (optionally by folderId)
+  // Fetch files and folders for current user
   getDriveItems: async (folderId?: string | null): Promise<DriveItem[]> => {
     try {
-      const response = await axiosClient.get('/api/drive/items', {
+      const response = await axiosClient.get('/files', {
         params: { folderId: folderId || undefined },
       });
-      return response.data;
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      if (data?.items && Array.isArray(data.items)) return data.items;
+      return [];
     } catch {
       return [];
     }
@@ -20,7 +23,7 @@ export const driveApi = {
     Array.from(files).forEach((f) => formData.append('files', f));
     if (folderId) formData.append('folderId', folderId);
 
-    const response = await axiosClient.post('/api/drive/upload', formData, {
+    const response = await axiosClient.post('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -28,7 +31,7 @@ export const driveApi = {
 
   // Create folder
   createFolder: async (name: string, parentId?: string | null): Promise<DriveItem> => {
-    const response = await axiosClient.post('/api/drive/folders', {
+    const response = await axiosClient.post('/folders', {
       name,
       parentId: parentId || null,
     });
@@ -37,22 +40,44 @@ export const driveApi = {
 
   // Toggle star
   toggleStar: async (itemId: string, starred: boolean): Promise<void> => {
-    await axiosClient.put(`/api/drive/items/${itemId}/star`, { starred });
+    await axiosClient.put(`/files/${itemId}/star`, { starred });
   },
 
-  // Move to trash or restore
+  // Move to trash
+  moveToTrash: async (itemId: string): Promise<void> => {
+    await axiosClient.delete(`/files/${itemId}`);
+  },
+
+  // Restore from trash
+  restoreFile: async (itemId: string): Promise<void> => {
+    await axiosClient.post(`/files/${itemId}/restore`);
+  },
+
+  // Move to trash or restore helper
   trashToggle: async (itemId: string, trashed: boolean): Promise<void> => {
-    await axiosClient.put(`/api/drive/items/${itemId}/trash`, { trashed });
+    if (trashed) {
+      await axiosClient.delete(`/files/${itemId}`);
+    } else {
+      await axiosClient.post(`/files/${itemId}/restore`);
+    }
   },
 
-  // Permanently delete
+  // Permanently delete (xóa hẳn khỏi Cloud và DB, giải phóng quota)
   deletePermanently: async (itemId: string): Promise<void> => {
-    await axiosClient.delete(`/api/drive/items/${itemId}`);
+    await axiosClient.delete(`/files/${itemId}/permanent`);
+  },
+
+  // Fetch trash files list
+  getTrashFiles: async (pageNumber = 1, pageSize = 50, searchTerm?: string): Promise<any> => {
+    const res = await axiosClient.get('/files/trash', {
+      params: { pageNumber, pageSize, searchTerm }
+    });
+    return res.data?.value || res.data;
   },
 
   // Share item
   shareItem: async (itemId: string, emails: string[]): Promise<void> => {
-    await axiosClient.post(`/api/drive/items/${itemId}/share`, { emails });
+    await axiosClient.post(`/files/${itemId}/share`, { emails });
   },
 };
 

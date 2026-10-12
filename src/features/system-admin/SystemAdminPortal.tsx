@@ -33,7 +33,8 @@ import {
   TenantManagementView, 
   StorageProvidersView, 
   AuditLogsView, 
-  SettingsView 
+  SettingsView,
+  AdminHubView 
 } from './views';
 import { 
   CreateTenantModal, 
@@ -185,13 +186,20 @@ export const SystemAdminPortal: React.FC = () => {
     }
   }, [activeNav]);
 
+  // Trigger 5: Tự động nạp Storage Providers khi mở CreateTenantModal nếu chưa có
+  useEffect(() => {
+    if (isCreateModalOpen && providers.length === 0) {
+      refreshProviders();
+    }
+  }, [isCreateModalOpen, providers.length, refreshProviders]);
+
   // ---------------------------------------------------------------------------------------
   // 5. COMMAND HANDLERS (Tương đương các API CUD: Create, Update, Delete)
   // - Gọi API xuống BE, sau đó cập nhật trực tiếp State ở Client hoặc fetch lại để đồng bộ UI.
   // ---------------------------------------------------------------------------------------
 
   // [POST API] Tạo tài khoản Admin Tenant mới -> POST /api/admin/users
-  const handleCreateUser = async (payload: CreateAdminUserPayload, plan: PlanType) => {
+  const handleCreateUser = async (payload: CreateAdminUserPayload) => {
     try {
       const newUser = await createAdminUserApi(payload);
       addToast('success', `Đã tạo thành công tài khoản cho ${newUser.fullName} (${newUser.email})!`);
@@ -199,7 +207,7 @@ export const SystemAdminPortal: React.FC = () => {
       // Ghi log hoạt động phía client để hiển thị tức thời (Optimistic UI Update)
       const newActivity: SystemActivityItem = {
         id: `act-${Date.now()}`,
-        title: `Account ${newUser.fullName} created (${plan} plan)`,
+        title: `Account ${newUser.fullName} created`,
         timeAgo: 'Just now',
         actor: 'alex.mercer',
         type: 'upgrade',
@@ -283,6 +291,31 @@ export const SystemAdminPortal: React.FC = () => {
   // =======================================================================================
   return (
     <div className="system-admin-portal">
+      {/* --------------------------------------------------------------------------------- */}
+      {/* THANH ĐIỀU HƯỚNG QUAY LẠI HUB KHI ĐANG Ở CÁC PHÂN HỆ CHI TIẾT                     */}
+      {/* --------------------------------------------------------------------------------- */}
+      {activeNav !== 'hub' && !deepDetailTenantId && (
+        <div className="mb-5 flex items-center justify-between">
+          <button
+            onClick={() => setActiveNav('hub')}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>← Quay lại Trung tâm điều khiển</span>
+          </button>
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------------------------- */}
+      {/* SUB-VIEW 0: Màn hình Trung tâm Điều khiển (Bảng chọn chức năng - 0 API load)      */}
+      {/* --------------------------------------------------------------------------------- */}
+      {(activeNav === 'hub' || !activeNav) && (
+        <AdminHubView
+          onNavigate={(nav) => setActiveNav(nav)}
+          onOpenCreateTenantModal={() => setIsCreateModalOpen(true)}
+        />
+      )}
+
       {/* --------------------------------------------------------------------------------- */}
       {/* SUB-VIEW 1: Màn hình Tổng quan Dashboard (Thống kê tài nguyên & Hoạt động)        */}
       {/* --------------------------------------------------------------------------------- */}
@@ -389,6 +422,7 @@ export const SystemAdminPortal: React.FC = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateUser}
+        providers={providers}
       />
 
       <EditUserModal

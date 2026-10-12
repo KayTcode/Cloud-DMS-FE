@@ -59,6 +59,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const getHeaderTitle = () => {
     if (role === 'TenantAdmin') {
       switch (activeNav) {
+        case 'hub':
+          return 'Trung tâm điều khiển';
         case 'tenants':
           return 'Phòng ban & Nhân viên';
         case 'storage-providers':
@@ -106,6 +108,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
     // Default SystemAdmin (Quản trị viên toàn hệ thống)
     switch (activeNav) {
+      case 'hub':
+        return 'Trung tâm điều khiển';
       case 'tenants':
         return 'Tenant & Account Management';
       case 'storage-providers':
