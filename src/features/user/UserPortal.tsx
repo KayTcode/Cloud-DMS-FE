@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   DriveView,
   StorageView,
@@ -12,14 +12,15 @@ import {
 } from './components';
 import {
   INITIAL_DEPARTMENT_QUOTAS,
-  INITIAL_DRIVE_ITEMS,
   INITIAL_USER,
   INITIAL_USER_ACTIVITIES,
 } from './data/mockData';
 import {
   DepartmentQuota,
+  DriveFilter,
   DriveItem,
-  FileType,
+  PersonalStorageQuotaDto,
+  TrashFileListResponse,
   UserActivity,
   UserProfile,
   UserNavTab,
@@ -29,17 +30,33 @@ import {
   FolderLock,
   User,
   Search,
+  Trash2,
+  X,
 } from 'lucide-react';
+import { driveApi, userApi } from './api/driveApi';
+import { useTenantContext } from '@/context/TenantContext';
 
 export const UserPortal: React.FC = () => {
+  const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const [activeTab, setActiveTab] = useState<UserNavTab>('documents');
+  const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USER);
-  const [driveItems, setDriveItems] = useState<DriveItem[]>(INITIAL_DRIVE_ITEMS);
+  const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
+  const [trashResponse, setTrashResponse] = useState<TrashFileListResponse>({
+    items: [],
+    totalCount: 0,
+    pageNumber: 1,
+    pageSize: 50,
+    totalSizeBytes: 0,
+    hasMore: false,
+  });
+  const [personalQuota, setPersonalQuota] = useState<PersonalStorageQuotaDto | null>(null);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [isLoadingTrash, setIsLoadingTrash] = useState(false);
   const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>(
     INITIAL_DEPARTMENT_QUOTAS
   );
   const [activities, setActivities] = useState<UserActivity[]>(INITIAL_USER_ACTIVITIES);
-  const [searchQuery, setSearchQuery] = useState('');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
 
   // Modals state
@@ -56,50 +73,161 @@ export const UserPortal: React.FC = () => {
     setNotification({ type, message });
     setTimeout(() => {
       setNotification(null);
-    }, 3500);
+    }, 4000);
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
-
-  const detectFileType = (fileName: string, mimeType: string): { type: FileType; ext: string } => {
-    const parts = fileName.split('.');
-    const ext = parts.length > 1 ? parts.pop()!.toLowerCase() : '';
-
-    if (ext === 'pdf') return { type: 'pdf', ext };
-    if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return { type: 'docx', ext };
-    if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return { type: 'sheet', ext };
-    if (['ppt', 'pptx', 'key'].includes(ext)) return { type: 'slide', ext };
-    if (['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif'].includes(ext)) return { type: 'image', ext };
-    if (['zip', 'rar', 'tar', 'gz', '7z'].includes(ext)) return { type: 'archive', ext };
-    if (['js', 'ts', 'tsx', 'jsx', 'json', 'py', 'html', 'css', 'yaml', 'yml', 'sql'].includes(ext)) {
-      return { type: 'code', ext };
+  // Nạp danh sách file từ backend (My Drive)
+  const fetchDriveItems = useCallback(async (folderId: string | null = null, search?: string) => {
+    try {
+      setIsLoadingItems(true);
+      const items = await driveApi.getDriveItems(folderId, search);
+      setDriveItems(items);
+    } catch (error) {
+      console.error('Lỗi nạp tệp tin:', error);
+      showNotification('Không thể nạp danh sách tệp tin từ máy chủ.', 'error');
+    } finally {
+      setIsLoadingItems(false);
     }
-    return { type: 'other', ext: ext || 'file' };
+  }, []);
+
+  // Nạp danh sách thùng rác thực tế từ backend (GET /api/files/trash)
+  const fetchTrashFiles = useCallback(async (searchTerm?: string) => {
+    try {
+      setIsLoadingTrash(true);
+      const res = await driveApi.getTrashFiles(1, 100, searchTerm);
+      setTrashResponse(res);
+    } catch (error) {
+      console.error('Lỗi nạp thùng rác:', error);
+      showNotification('Không thể nạp danh sách thùng rác từ máy chủ.', 'error');
+    } finally {
+      setIsLoadingTrash(false);
+    }
+  }, []);
+
+  // Nạp hạn mức dung lượng cá nhân từ backend
+  const fetchPersonalQuota = useCallback(async () => {
+    try {
+      const quota = await userApi.getMyQuota();
+      if (quota) {
+        setPersonalQuota(quota);
+        const quotaBytes = (quota as any)?.quotaBytes ?? (quota as any)?.QuotaBytes ?? 0;
+        const usedBytes = (quota as any)?.usedBytes ?? (quota as any)?.UsedBytes ?? 0;
+        const quotaGB = parseFloat((quotaBytes / (1024 * 1024 * 1024)).toFixed(2));
+        const usedGB = parseFloat((usedBytes / (1024 * 1024 * 1024)).toFixed(2));
+        const deptName = quota.departmentName || (quota as any)?.DepartmentName;
+        setCurrentUser((prev) => ({
+          ...prev,
+          fullName: quota.fullName || (quota as any)?.FullName || prev.fullName,
+          department: deptName || prev.department,
+          storageQuotaGB: quotaGB,
+          storageUsedGB: usedGB,
+        }));
+      }
+    } catch (error) {
+      console.warn('Không thể nạp hạn mức Quota từ máy chủ:', error);
+    }
+  }, []);
+
+  // Đồng bộ trạng thái điều hướng khi người dùng bấm Menu bên trái (Sidebar)
+  useEffect(() => {
+    if (activeNav === 'trash') {
+      setActiveTab('documents');
+      setActiveFilter('trash');
+    } else if (activeNav === 'dashboard') {
+      setActiveTab('documents');
+      setActiveFilter('all');
+    } else if (activeNav === 'storage-providers') {
+      setActiveTab('storage');
+    } else if (activeNav === 'settings') {
+      setActiveTab('profile');
+    }
+  }, [activeNav]);
+
+  const handleFilterChange = (filter: DriveFilter) => {
+    setActiveFilter(filter);
+    if (filter === 'trash') {
+      setActiveNav('trash');
+    } else if (activeNav === 'trash') {
+      setActiveNav('dashboard');
+    }
   };
 
+  // Tự động load dữ liệu khi thay đổi tab lọc, thư mục hoặc từ khóa tìm kiếm
+  useEffect(() => {
+    if (activeFilter === 'trash') {
+      fetchTrashFiles(searchQuery);
+    } else {
+      fetchDriveItems(currentFolderId, searchQuery);
+    }
+  }, [activeFilter, currentFolderId, fetchTrashFiles, fetchDriveItems, searchQuery]);
+
+  useEffect(() => {
+    fetchPersonalQuota();
+    fetchTrashFiles(); // Nạp số lượng tài liệu trong thùng rác để hiển thị badge số lượng
+  }, [fetchPersonalQuota, fetchTrashFiles]);
+
+  // Xử lý tải lên tệp tin
   const handleUploadFiles = async (fileList: FileList) => {
-    const newItems: DriveItem[] = [];
-    let addedBytes = 0;
+    if (!fileList || fileList.length === 0) return;
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      const { type: fileType, ext } = detectFileType(file.name, file.type);
-      addedBytes += file.size;
+    try {
+      showNotification(`Đang tải lên ${fileList.length} tệp tin...`, 'info');
+      const result = await driveApi.uploadFiles(fileList, currentFolderId);
 
-      const newItem: DriveItem = {
-        id: `file-${Date.now()}-${i}`,
-        name: file.name,
-        type: 'file',
-        fileType,
-        extension: ext,
-        size: file.size,
-        sizeFormatted: formatBytes(file.size),
+      // Refresh lại danh sách files và Quota
+      await fetchDriveItems(currentFolderId);
+      await fetchPersonalQuota();
+
+      const uploadedFiles = result?.uploaded ?? result?.successfulFiles ?? [];
+      const failedFiles = result?.failed ?? result?.failedFiles ?? [];
+      const successCount = uploadedFiles.length;
+      const failedCount = failedFiles.length;
+
+      if (failedCount > 0 && successCount === 0) {
+        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
+        showNotification(
+          `Tải lên thất bại: ${errorDetail}`,
+          'error'
+        );
+      } else if (failedCount > 0 && successCount > 0) {
+        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
+        showNotification(
+          `Tải lên: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
+          'error'
+        );
+      } else {
+        showNotification(`Đã tải lên thành công ${successCount || fileList.length} tệp tin!`, 'success');
+      }
+
+      const newActivity: UserActivity = {
+        id: `act-${Date.now()}`,
+        action: 'upload',
+        targetName: fileList.length === 1 ? fileList[0].name : `${fileList.length} tệp tin`,
+        timestamp: 'Vừa xong',
+        ipAddress: 'Client IP',
+        device: 'Trình duyệt Web',
+      };
+      setActivities((prev) => [newActivity, ...prev]);
+    } catch (error: any) {
+      console.error('Lỗi upload file:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Tải lên tệp tin thất bại.';
+      showNotification(`Lỗi: ${errMsg}`, 'error');
+    }
+  };
+
+  // Xử lý tạo thư mục mới
+  const handleCreateFolder = async (name: string, department: string) => {
+    try {
+      await driveApi.createFolder(name, currentFolderId);
+      await fetchDriveItems(currentFolderId);
+      showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
+    } catch (error: any) {
+      const newFolder: DriveItem = {
+        id: `folder-${Date.now()}`,
+        name,
+        type: 'folder',
+        size: 0,
+        sizeFormatted: '0 mục',
         updatedAt: 'Vừa xong',
         createdAt: new Date().toLocaleDateString('vi-VN'),
         owner: {
@@ -110,87 +238,100 @@ export const UserPortal: React.FC = () => {
         starred: false,
         trashed: false,
         sharedWith: [],
-        tags: [currentUser.department, ext.toUpperCase()],
-        department: currentUser.department,
-        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+        tags: [department],
+        department,
       };
-
-      newItems.push(newItem);
+      setDriveItems((prev) => [newFolder, ...prev]);
+      showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
     }
-
-    setDriveItems((prev) => [...newItems, ...prev]);
-
-    const addedGB = addedBytes / (1024 * 1024 * 1024);
-    setCurrentUser((prev) => ({
-      ...prev,
-      storageUsedGB: parseFloat((prev.storageUsedGB + addedGB).toFixed(2)),
-    }));
-
-    const newActivity: UserActivity = {
-      id: `act-${Date.now()}`,
-      action: 'upload',
-      targetName: fileList.length === 1 ? fileList[0].name : `${fileList.length} tệp tin`,
-      timestamp: 'Vừa xong',
-      ipAddress: '118.69.182.20',
-      device: 'Trình duyệt Web',
-    };
-    setActivities((prev) => [newActivity, ...prev]);
-
-    showNotification(`Đã tải lên thành công ${fileList.length} tệp tin!`, 'success');
   };
 
-  const handleCreateFolder = (name: string, department: string) => {
-    const newFolder: DriveItem = {
-      id: `folder-${Date.now()}`,
-      name,
-      type: 'folder',
-      size: 0,
-      sizeFormatted: '0 mục',
-      updatedAt: 'Vừa xong',
-      createdAt: new Date().toLocaleDateString('vi-VN'),
-      owner: {
-        name: currentUser.fullName,
-        email: currentUser.email,
-      },
-      parentId: currentFolderId,
-      starred: false,
-      trashed: false,
-      sharedWith: [],
-      tags: [department],
-      department,
-    };
+  // Xử lý gắn dấu sao
+  const handleToggleStar = async (id: string) => {
+    const item = driveItems.find((i) => i.id === id);
+    if (!item) return;
+    const newStarred = !item.starred;
 
-    setDriveItems((prev) => [newFolder, ...prev]);
-    showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
-  };
-
-  const handleToggleStar = (id: string) => {
     setDriveItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const starred = !item.starred;
-          showNotification(starred ? 'Đã thêm vào mục gắn dấu sao' : 'Đã bỏ dấu sao', 'info');
-          return { ...item, starred };
-        }
-        return item;
-      })
+      prev.map((i) => (i.id === id ? { ...i, starred: newStarred } : i))
     );
+
+    try {
+      await driveApi.toggleStar(id, newStarred);
+      showNotification(newStarred ? 'Đã thêm vào mục gắn dấu sao' : 'Đã bỏ dấu sao', 'info');
+    } catch (error) {
+      console.warn('Endpoint toggleStar chưa hỗ trợ, giữ thay đổi local UI');
+    }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setDriveItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          return { ...item, trashed: true };
-        }
-        return item;
-      })
-    );
-    showNotification('Đã chuyển tài liệu vào thùng rác', 'info');
+  // Xử lý xóa mềm tệp tin (chuyển vào thùng rác - DELETE /api/files/{id})
+  const handleDeleteItem = async (id: string) => {
+    try {
+      await driveApi.moveToTrash(id);
+      // Loại bỏ khỏi danh sách My Drive
+      setDriveItems((prev) => prev.filter((item) => item.id !== id));
+      showNotification('Đã chuyển tài liệu vào thùng rác.', 'info');
+      await fetchPersonalQuota();
+      // Nếu đang mở xem thùng rác, nạp lại thùng rác
+      if (activeFilter === 'trash') {
+        await fetchTrashFiles();
+      }
+    } catch (error: any) {
+      console.error('Lỗi khi xóa tài liệu:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Không thể xóa tài liệu.';
+      showNotification(errMsg, 'error');
+    }
   };
 
-  const handleDownloadItem = (item: DriveItem) => {
-    showNotification(`Đang tải xuống "${item.name}"...`, 'info');
+  // Xử lý khôi phục tệp tin từ thùng rác (POST /api/files/{id}/restore)
+  const handleRestoreFile = async (id: string) => {
+    try {
+      await driveApi.restoreFile(id);
+      // Loại bỏ khỏi danh sách thùng rác
+      setTrashResponse((prev) => ({
+        ...prev,
+        items: prev.items.filter((item) => item.id !== id),
+        totalCount: Math.max(0, prev.totalCount - 1),
+      }));
+      showNotification('Đã khôi phục tài liệu từ thùng rác về thư mục thành công!', 'success');
+      await fetchPersonalQuota();
+      await fetchDriveItems(currentFolderId);
+    } catch (error: any) {
+      console.error('Lỗi khi khôi phục tài liệu:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Khôi phục tài liệu thất bại.';
+      showNotification(errMsg, 'error');
+    }
+  };
+
+  // Xử lý xóa vĩnh viễn tệp tin (DELETE /api/files/{id}/permanent)
+  const handlePermanentDelete = async (id: string) => {
+    try {
+      await driveApi.deletePermanently(id);
+      // Loại bỏ khỏi danh sách thùng rác
+      setTrashResponse((prev) => ({
+        ...prev,
+        items: prev.items.filter((item) => item.id !== id),
+        totalCount: Math.max(0, prev.totalCount - 1),
+      }));
+      showNotification('Đã xóa vĩnh viễn tài liệu và giải phóng hạn mức Quota!', 'success');
+      await fetchPersonalQuota();
+    } catch (error: any) {
+      console.error('Lỗi khi xóa vĩnh viễn:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Không thể xóa vĩnh viễn tài liệu.';
+      showNotification(errMsg, 'error');
+    }
+  };
+
+  // Xử lý tải xuống tệp tin an toàn (GET /api/files/{id}/download)
+  const handleDownloadItem = async (item: DriveItem) => {
+    try {
+      showNotification(`Đang chuẩn bị tải xuống "${item.name}"...`, 'info');
+      await driveApi.downloadFile(item.id, item.name);
+      showNotification(`Tải xuống "${item.name}" thành công!`, 'success');
+    } catch (error: any) {
+      console.error('Lỗi tải tệp tin:', error);
+      showNotification('Không thể tải tệp tin về máy.', 'error');
+    }
   };
 
   const handleSaveDepartmentQuota = (deptId: string, newQuotaGB: number) => {
@@ -242,11 +383,15 @@ export const UserPortal: React.FC = () => {
 
       {/* User Tabs Navigation Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-2.5 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setActiveTab('documents')}
+            onClick={() => {
+              setActiveTab('documents');
+              setActiveFilter('all');
+              setActiveNav('dashboard');
+            }}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'documents'
+              activeTab === 'documents' && activeFilter !== 'trash'
                 ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
@@ -256,7 +401,31 @@ export const UserPortal: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('storage')}
+            onClick={() => {
+              setActiveTab('documents');
+              setActiveFilter('trash');
+              setActiveNav('trash');
+            }}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'documents' && activeFilter === 'trash'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200/80 shadow-xs'
+                : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50/50'
+            }`}
+          >
+            <Trash2 className="w-4 h-4 text-rose-500" />
+            <span>Thùng rác</span>
+            {trashResponse.totalCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold">
+                {trashResponse.totalCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('storage');
+              setActiveNav('storage-providers');
+            }}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               activeTab === 'storage'
                 ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
@@ -268,7 +437,10 @@ export const UserPortal: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('profile')}
+            onClick={() => {
+              setActiveTab('profile');
+              setActiveNav('settings');
+            }}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               activeTab === 'profile'
                 ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
@@ -281,15 +453,24 @@ export const UserPortal: React.FC = () => {
         </div>
 
         {/* Search input in toolbar */}
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-72">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Tìm kiếm tài liệu..."
+            placeholder={activeFilter === 'trash' ? "Tìm trong thùng rác..." : "Tìm kiếm tài liệu..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              title="Xóa tìm kiếm"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -302,11 +483,19 @@ export const UserPortal: React.FC = () => {
             currentFolderId={currentFolderId}
             setCurrentFolderId={setCurrentFolderId}
             searchQuery={searchQuery}
+            activeFilter={activeFilter}
+            setActiveFilter={handleFilterChange}
+            trashItems={trashResponse.items}
+            trashTotalCount={trashResponse.totalCount}
+            trashTotalSizeBytes={trashResponse.totalSizeBytes}
+            isLoadingTrash={isLoadingTrash}
             onUploadFile={handleUploadFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
             onOpenFilePreview={(file) => setPreviewFile(file)}
             onToggleStar={handleToggleStar}
             onDeleteFile={handleDeleteItem}
+            onRestoreFile={handleRestoreFile}
+            onPermanentDeleteFile={handlePermanentDelete}
             onShareItem={(item) => setShareItem(item)}
             onDownloadItem={handleDownloadItem}
           />
@@ -314,15 +503,8 @@ export const UserPortal: React.FC = () => {
 
         {activeTab === 'storage' && (
           <StorageView
-            departmentQuotas={departmentQuotas}
-            onOpenAdjustQuotas={() => {
-              setSelectedDeptForQuota(null);
-              setIsAdjustQuotaOpen(true);
-            }}
-            onEditQuota={(quota) => {
-              setSelectedDeptForQuota(quota);
-              setIsAdjustQuotaOpen(true);
-            }}
+            personalQuota={personalQuota}
+            onRefresh={fetchPersonalQuota}
           />
         )}
 

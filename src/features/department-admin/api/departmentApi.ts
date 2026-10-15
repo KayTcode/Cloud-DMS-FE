@@ -1,61 +1,92 @@
-import axiosClient from '@/api/axiosClient';
-import { DepartmentInfo, DepartmentMember, QuotaRequest, StorageAlert, StorageGrowthPoint } from '../types';
+import apiClient from '@/api/axiosClient';
+import { API_ENDPOINTS } from '@/api/endpoints';
+import {
+  DepartmentUsersQuotaSummaryDto,
+  UserStorageQuotaDto,
+  DepartmentEmployeeDto,
+  PaginatedResult,
+  CreateEmployeePayload,
+  AllocateUserQuotaPayload,
+  SetupDepartmentPayload,
+  DepartmentDto,
+  DepartmentSetupInfoDto,
+} from '../types';
 
 export const departmentApi = {
-  // Department Overview & Storage
-  getOverview: async (deptId?: string): Promise<DepartmentInfo> => {
-    try {
-      const response = await axiosClient.get(`/api/departments/${deptId || 'current'}/overview`);
-      return response.data;
-    } catch {
-      // Fallback mock if backend endpoint is in development
-      return {
-        name: 'Engineering',
-        tenantName: 'ACME CORPORATION',
-        adminName: 'Alex Mercer',
-        adminRole: 'Department Admin',
-        adminEmail: 'alex.mercer@acmecorp.internal',
-        totalAllocatedGB: 350,
-        tenantPoolLimitGB: 500,
-        usedSpaceGB: 285,
-        filesStorageGB: 228,
-        backupsStorageGB: 42,
-        otherStorageGB: 15,
-        growthDeltaSinceAprGB: 65,
-      };
+  /**
+   * Lấy tổng quan Quota phòng ban và danh sách Quota của từng nhân viên
+   * Khớp BE: GET /api/department/{departmentId}/quota/users
+   */
+  getQuotaSummary: async (departmentId: string): Promise<DepartmentUsersQuotaSummaryDto> => {
+    const res: any = await apiClient.get(API_ENDPOINTS.DEPARTMENT.QUOTA_USERS(departmentId));
+    return res?.value ?? res?.data ?? res;
+  },
+
+  /**
+   * Lấy danh sách nhân viên phòng ban phân trang
+   * Khớp BE: GET /api/department/{departmentId}/employees
+   */
+  getEmployees: async (
+    departmentId: string,
+    pageNumber: number = 1,
+    pageSize: number = 50,
+    searchTerm?: string
+  ): Promise<PaginatedResult<DepartmentEmployeeDto>> => {
+    const params: Record<string, any> = { pageNumber, pageSize };
+    if (searchTerm && searchTerm.trim()) {
+      params.searchTerm = searchTerm.trim();
     }
+    const res: any = await apiClient.get(API_ENDPOINTS.DEPARTMENT.EMPLOYEES(departmentId), { params });
+    return res?.value ?? res?.data ?? res;
   },
 
-  // Staff members in department
-  getMembers: async (deptId?: string): Promise<DepartmentMember[]> => {
-    try {
-      const response = await axiosClient.get(`/api/departments/${deptId || 'current'}/members`);
-      return response.data;
-    } catch {
-      return [];
-    }
+  /**
+   * Điều chỉnh hạn mức Quota cá nhân cho nhân viên
+   * Khớp BE: PUT /api/department/{departmentId}/quota/users/{userId}
+   */
+  allocateUserQuota: async (
+    departmentId: string,
+    userId: string,
+    quotaBytes: number
+  ): Promise<UserStorageQuotaDto> => {
+    const payload: AllocateUserQuotaPayload = { quotaBytes };
+    const res: any = await apiClient.put(
+      API_ENDPOINTS.DEPARTMENT.ALLOCATE_USER_QUOTA(departmentId, userId),
+      payload
+    );
+    return res?.value ?? res?.data ?? res;
   },
 
-  // Update member allocated quota
-  updateMemberQuota: async (memberId: string, quotaGB: number): Promise<void> => {
-    await axiosClient.put(`/api/departments/members/${memberId}/quota`, { quotaGB });
+  /**
+   * Tạo nhân viên mới trong phòng ban (Mời qua Email với token 48h)
+   * Khớp BE: POST /api/department/{departmentId}/employees
+   */
+  createEmployee: async (
+    departmentId: string,
+    payload: CreateEmployeePayload
+  ): Promise<DepartmentEmployeeDto> => {
+    const res: any = await apiClient.post(
+      API_ENDPOINTS.DEPARTMENT.EMPLOYEES(departmentId),
+      payload
+    );
+    return res?.value ?? res?.data ?? res;
   },
 
-  // Quota Requests
-  getRequests: async (deptId?: string): Promise<QuotaRequest[]> => {
-    try {
-      const response = await axiosClient.get(`/api/departments/${deptId || 'current'}/requests`);
-      return response.data;
-    } catch {
-      return [];
-    }
+  /**
+   * Lấy thông tin ví Quota ban đầu của Trưởng phòng trước khi khởi tạo phòng ban
+   * Khớp BE: GET /api/department/setup-info
+   */
+  getSetupInfo: async (): Promise<DepartmentSetupInfoDto> => {
+    const res: any = await apiClient.get(API_ENDPOINTS.DEPARTMENT.SETUP_INFO);
+    return res?.value ?? res?.data ?? res;
   },
 
-  approveRequest: async (requestId: string, note?: string): Promise<void> => {
-    await axiosClient.post(`/api/departments/requests/${requestId}/approve`, { note });
-  },
-
-  rejectRequest: async (requestId: string, reason?: string): Promise<void> => {
-    await axiosClient.post(`/api/departments/requests/${requestId}/reject`, { reason });
+  /**
+   * Trưởng phòng tự thiết lập phòng ban từ ví Quota ban đầu
+   * Khớp BE: POST /api/department/setup
+   */
+  setupDepartment: async (payload: SetupDepartmentPayload): Promise<DepartmentDto> => {
+    const res: any = await apiClient.post(API_ENDPOINTS.DEPARTMENT.SETUP, payload);
+    return res?.value ?? res?.data ?? res;
   },
 };

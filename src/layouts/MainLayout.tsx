@@ -78,14 +78,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
     if (role === 'DepartmentAdmin') {
       switch (activeNav) {
+        case 'hub':
+          return 'Trung tâm điều khiển';
+        case 'dashboard':
+          return 'Kho tài liệu & Upload';
         case 'tenants':
           return 'Quản lý nhân viên';
-        case 'storage-providers':
-          return 'Phê duyệt yêu cầu';
-        case 'dashboard':
-          return 'Tổng quan dung lượng';
-        case 'settings':
-          return 'Cài đặt phòng ban';
+        case 'audit-logs':
+          return 'Nhật ký nhân viên';
         default:
           return 'Department Portal';
       }
@@ -95,6 +95,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       switch (activeNav) {
         case 'dashboard':
           return 'Tài liệu & My Drive';
+        case 'trash':
+          return 'Thùng rác';
         case 'storage-providers':
           return 'Dung lượng lưu trữ';
         case 'audit-logs':

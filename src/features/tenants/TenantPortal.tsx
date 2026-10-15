@@ -131,68 +131,68 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
         <div className="tab-content-area">
           {/* Tab 1: Tổng quan số liệu Tenant (Dung lượng, Số user, Hoạt động gần đây) */}
           {activeTab === 'overview' && (
-          <TenantOverviewView
-            tenant={tenant}
-            events={events}
-            onImpersonate={() => setIsImpersonateModalOpen(true)}
-            onDownloadBackup={handleDownloadBackup}
-            onNavigateTab={(tab) => setActiveTab(tab)}
-            onCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
-          />
-        )}
+            <TenantOverviewView
+              tenant={tenant}
+              events={events}
+              onImpersonate={() => setIsImpersonateModalOpen(true)}
+              onDownloadBackup={handleDownloadBackup}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
+            />
+          )}
 
-        {/* Tab 2: Quản lý danh sách nhân viên thuộc Tenant */}
-        {activeTab === 'users' && (
-          <TenantUsersView
-            users={users}
-            onBackToOverview={() => setActiveTab('overview')}
-            onCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
-          />
-        )}
+          {/* Tab 2: Quản lý danh sách nhân viên thuộc Tenant */}
+          {activeTab === 'users' && (
+            <TenantUsersView
+              users={users}
+              onBackToOverview={() => setActiveTab('overview')}
+              onCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
+            />
+          )}
 
-        {/* Tab 3: Quản lý cơ cấu các phòng ban (Departments) */}
-        {activeTab === 'departments' && (
-          <TenantDepartmentsView
-            onBackToOverview={() => setActiveTab('overview')}
-            onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
-          />
-        )}
+          {/* Tab 3: Quản lý cơ cấu các phòng ban (Departments) */}
+          {activeTab === 'departments' && (
+            <TenantDepartmentsView
+              onBackToOverview={() => setActiveTab('overview')}
+              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+            />
+          )}
 
-        {/* Tab 3B: Form tạo mới nhân viên cho một phòng ban cụ thể */}
-        {activeTab === 'create-department-user' && (
-          <CreateDepartmentUserView
-            onBack={() => setActiveTab('departments')}
-            onUserCreated={handleUserCreated}
-            defaultDepartment={targetDeptForCreate}
-          />
-        )}
+          {/* Tab 3B: Form tạo mới nhân viên cho một phòng ban cụ thể */}
+          {activeTab === 'create-department-user' && (
+            <CreateDepartmentUserView
+              onBack={() => setActiveTab('departments')}
+              onUserCreated={handleUserCreated}
+              defaultDepartment={targetDeptForCreate}
+            />
+          )}
 
-        {/* Tab 4: Quản lý phân bổ dung lượng Cloud Storage cho từng phòng ban & tệp tin */}
-        {activeTab === 'storage' && (
-          <TenantStorageView
-            tenant={tenant}
-            onBackToOverview={() => setActiveTab('overview')}
-            onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
-          />
-        )}
+          {/* Tab 4: Quản lý phân bổ dung lượng Cloud Storage cho từng phòng ban & tệp tin */}
+          {activeTab === 'storage' && (
+            <TenantStorageView
+              tenant={tenant}
+              onBackToOverview={() => setActiveTab('overview')}
+              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+            />
+          )}
 
-        {/* Tab 5: Nhật ký thao tác của người dùng trong Tenant */}
-        {activeTab === 'activity' && (
-          <TenantActivityView
-            events={events}
-            onBackToOverview={() => setActiveTab('overview')}
-          />
-        )}
+          {/* Tab 5: Nhật ký thao tác của người dùng trong Tenant */}
+          {activeTab === 'activity' && (
+            <TenantActivityView
+              events={events}
+              onBackToOverview={() => setActiveTab('overview')}
+            />
+          )}
 
-        {/* Tab 6: Cài đặt cấu hình riêng của Tenant (Tên, logo, liên hệ) */}
-        {activeTab === 'settings' && (
-          <TenantSettingsView
-            tenant={tenant}
-            onUpdateTenant={handleUpdateTenant}
-            onBackToOverview={() => setActiveTab('overview')}
-          />
-        )}
-      </div>
+          {/* Tab 6: Cài đặt cấu hình riêng của Tenant (Tên, logo, liên hệ) */}
+          {activeTab === 'settings' && (
+            <TenantSettingsView
+              tenant={tenant}
+              onUpdateTenant={handleUpdateTenant}
+              onBackToOverview={() => setActiveTab('overview')}
+            />
+          )}
+        </div>
       )}
 
       {/* --------------------------------------------------------------------------------- */}

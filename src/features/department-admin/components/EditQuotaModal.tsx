@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
-import { X, HardDrive, AlertTriangle, Check, Sliders } from 'lucide-react';
-import { DepartmentMember, DepartmentInfo } from '../types';
+import React, { useState, useEffect } from 'react';
+import { X, Sliders, AlertTriangle, Check, ShieldCheck } from 'lucide-react';
+import { DepartmentMember } from '../types';
 
 interface EditQuotaModalProps {
   member: DepartmentMember | null;
-  department: DepartmentInfo;
+  departmentName: string;
+  deptAvailableGB: number;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (memberId: string, newQuotaGB: number) => void;
+  onSave: (memberId: string, newQuotaGB: number) => Promise<void>;
 }
 
 export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
   member,
-  department,
+  departmentName,
+  deptAvailableGB,
   isOpen,
   onClose,
   onSave,
@@ -20,22 +22,53 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
   if (!isOpen || !member) return null;
 
   const [quota, setQuota] = useState<number>(member.allocatedQuotaGB);
-  const minQuota = Math.max(10, member.usedSpaceGB);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (member) {
+      setQuota(member.allocatedQuotaGB);
+      setErrorMessage(null);
+    }
+  }, [member]);
+
+  const minQuota = Math.max(1, Math.ceil(member.usedSpaceGB));
   const quotaDifference = quota - member.allocatedQuotaGB;
-  const deptAvailable = department.totalAllocatedGB - department.usedSpaceGB;
-  const maxAllowable = member.allocatedQuotaGB + deptAvailable;
+  const maxAllowable = Math.max(member.allocatedQuotaGB, member.allocatedQuotaGB + deptAvailableGB);
 
-  const isExceedingDept = quotaDifference > deptAvailable;
-  const presets = [20, 35, 50, 70, 100];
+  const isExceedingDept = quotaDifference > deptAvailableGB;
+  const isLowerThanUsed = quota < member.usedSpaceGB;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isExceedingDept) return;
-    onSave(member.id, quota);
-    onClose();
+    setErrorMessage(null);
+
+    if (isLowerThanUsed) {
+      setErrorMessage(`Không thể hạ hạn mức xuống thấp hơn dung lượng người dùng đã tải lên (${member.usedSpaceGB} GB).`);
+      return;
+    }
+
+    if (isExceedingDept) {
+      setErrorMessage(`Phòng ban không còn đủ hạn mức để cấp thêm ${quotaDifference} GB.`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onSave(member.id, quota);
+      onClose();
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể cập nhật hạn mức. Vui lòng kiểm tra lại.';
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const newPercent = Math.round((member.usedSpaceGB / quota) * 100);
+  const newPercent = quota > 0 ? Math.round((member.usedSpaceGB / quota) * 100) : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
@@ -48,24 +81,30 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-base">Điều chỉnh hạn mức lưu trữ</h3>
-              <p className="text-xs text-slate-500">Thành viên: {member.name}</p>
+              <p className="text-xs text-slate-500">Phòng ban: {departmentName} · Thành viên: {member.name}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {errorMessage && (
+          <div className="mx-5 mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs">
+            {errorMessage}
+          </div>
+        )}
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Member Overview Box */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Chức vụ:</span>
-              <strong className="text-slate-800">{member.role}</strong>
+              <span className="text-slate-500">Email:</span>
+              <strong className="text-slate-800 font-mono">{member.email}</strong>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Đã dùng thực tế:</span>
@@ -75,19 +114,29 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
               <span className="text-slate-500">Hạn mức hiện tại:</span>
               <strong className="text-slate-800 font-mono">{member.allocatedQuotaGB} GB</strong>
             </div>
+            <div className="flex items-center justify-between border-t border-slate-200/60 pt-1.5">
+              <span className="text-slate-500">Quỹ phòng ban còn trống:</span>
+              <strong className="text-emerald-700 font-mono">+{deptAvailableGB} GB</strong>
+            </div>
           </div>
 
           {/* Slider & Number Input */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
               <label className="font-semibold text-slate-700">Hạn mức mới đề xuất:</label>
-              <span className="font-bold text-blue-600 font-mono text-sm">{quota} GB</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-bold text-blue-600 font-mono text-base">{quota} GB</span>
+                <span className={`text-[11px] font-semibold ${newPercent >= 90 ? 'text-rose-600' : 'text-slate-500'}`}>
+                  ({newPercent}% dung lượng)
+                </span>
+              </div>
             </div>
 
             <input
               type="range"
               min={minQuota}
-              max={Math.max(120, maxAllowable)}
+              max={Math.max(minQuota + 10, maxAllowable)}
+              step={1}
               value={quota}
               onChange={(e) => setQuota(Number(e.target.value))}
               className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
@@ -99,98 +148,39 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
             </div>
           </div>
 
-          {/* Preset Buttons */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Chọn nhanh gói dung lượng chuẩn:
-            </label>
-            <div className="grid grid-cols-5 gap-1.5">
-              {presets.map((preset) => {
-                const disabled = preset < minQuota;
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => setQuota(preset)}
-                    className={`py-1.5 text-xs font-mono rounded-lg border transition-all cursor-pointer ${
-                      quota === preset
-                        ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs'
-                        : disabled
-                        ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    {preset}G
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quota Health Simulator */}
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Tỷ lệ chiếm dụng sau điều chỉnh:</span>
-              <span
-                className={`font-bold font-mono ${
-                  newPercent >= 90
-                    ? 'text-rose-600'
-                    : newPercent >= 75
-                    ? 'text-amber-600'
-                    : 'text-emerald-600'
-                }`}
-              >
-                {newPercent}%
-              </span>
-            </div>
-            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  newPercent >= 90
-                    ? 'bg-rose-500'
-                    : newPercent >= 75
-                    ? 'bg-amber-500'
-                    : 'bg-emerald-500'
-                }`}
-                style={{ width: `${Math.min(100, newPercent)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Exceed Department Warning */}
+          {/* Warning / Validation Notice */}
           {isExceedingDept && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-rose-700 text-xs">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                <strong>Vượt quá hạn mức phòng ban!</strong>
-                <p className="mt-0.5 text-[11px]">
-                  Phòng ban chỉ còn dư {deptAvailable} GB khả dụng. Bạn cần xin Tenant cấp thêm trước.
-                </p>
-              </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                Yêu cầu tăng thêm +{quotaDifference} GB vượt quá dung lượng phòng ban còn lại ({deptAvailableGB} GB).
+              </span>
             </div>
           )}
 
-          {/* Actions */}
+          {/* Submit */}
           <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             >
               Huỷ
             </button>
             <button
               type="submit"
-              disabled={isExceedingDept}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg text-white transition-colors cursor-pointer ${
-                isExceedingDept
-                  ? 'bg-slate-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
-              }`}
+              disabled={isExceedingDept || isLowerThanUsed || isSubmitting}
+              className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              <Check className="w-3.5 h-3.5" />
-              <span>Xác nhận cập nhật</span>
+              {isSubmitting ? (
+                'Đang lưu...'
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Cập nhật hạn mức</span>
+                </>
+              )}
             </button>
           </div>
         </form>

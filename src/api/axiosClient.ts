@@ -13,13 +13,25 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
-// Request Interceptor: Thêm JWT Bearer Token vào header của request
+// Request Interceptor: Thêm JWT Bearer Token vào header của request & tự động bổ sung Idempotency-Key
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Tự động gán Idempotency-Key cho các request thay đổi dữ liệu (POST, PUT, PATCH, DELETE) nếu chưa có
+    const method = config.method?.toLowerCase();
+    if (config.headers && ['post', 'put', 'patch', 'delete'].includes(method || '')) {
+      if (!config.headers['Idempotency-Key']) {
+        config.headers['Idempotency-Key'] =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      }
+    }
+
     return config;
   },
   (error: AxiosError) => Promise.reject(error)

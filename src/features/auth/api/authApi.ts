@@ -7,12 +7,15 @@ export interface InvitationValidationResponse {
   email?: string;
   fullName?: string;
   tenantName?: string;
+  role?: string;
+  departmentName?: string;
+  tokenType?: string;
 }
 
 export interface AcceptInvitationPayload {
   token: string;
   email: string;
-  newPassword: string;
+  newPassword?: string;
 }
 
 export interface RefreshTokenPayload {

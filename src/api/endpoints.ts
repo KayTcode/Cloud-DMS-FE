@@ -28,4 +28,11 @@ export const API_ENDPOINTS = {
     DOWNLOAD: (id: string) => `/files/${id}/download`,
     DELETE: (id: string) => `/files/${id}`,
   },
+  DEPARTMENT: {
+    SETUP: '/department/setup',
+    SETUP_INFO: '/department/setup-info',
+    QUOTA_USERS: (deptId: string) => `/department/${deptId}/quota/users`,
+    ALLOCATE_USER_QUOTA: (deptId: string, userId: string) => `/department/${deptId}/quota/users/${userId}`,
+    EMPLOYEES: (deptId: string) => `/department/${deptId}/employees`,
+  },
 } as const;

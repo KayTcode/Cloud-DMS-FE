@@ -9,6 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (payload: LoginPayload) => Promise<AuthUser>;
   setSession: (response: any) => AuthUser;
+  updateUser: (partial: Partial<AuthUser>) => void;
   logout: () => void;
 }
 
@@ -18,13 +19,44 @@ const TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'auth_user';
 
+const extractDepartmentIdFromToken = (jwtToken: string | null): string | null => {
+  if (!jwtToken) return null;
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length === 3) {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const parsed = JSON.parse(jsonPayload);
+      return parsed.departmentId || parsed.DepartmentId || null;
+    }
+  } catch {
+    // ignore decode error
+  }
+  return null;
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<AuthUser | null>(() => {
     const savedUser = localStorage.getItem(USER_KEY);
+    const savedToken = localStorage.getItem(TOKEN_KEY);
     if (savedUser) {
       try {
-        return JSON.parse(savedUser) as AuthUser;
+        const parsed = JSON.parse(savedUser) as AuthUser;
+        if (!parsed.departmentId && savedToken) {
+          const deptFromToken = extractDepartmentIdFromToken(savedToken);
+          if (deptFromToken) {
+            parsed.departmentId = deptFromToken;
+            localStorage.setItem(USER_KEY, JSON.stringify(parsed));
+          }
+        }
+        return parsed;
       } catch {
         return null;
       }
@@ -47,12 +79,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await loginApi(payload);
       
+      const tokenDeptId = response.accessToken ? extractDepartmentIdFromToken(response.accessToken) : null;
+      const resolvedDeptId = response.departmentId || (response as any).DepartmentId || tokenDeptId || null;
+
       const authUser: AuthUser = {
         id: response.userId,
         email: response.email,
         fullName: response.fullName || response.email,
         role: (response.role as UserRole) || 'Employee',
         tenantId: response.tenantId,
+        departmentId: resolvedDeptId,
         permissions: response.permissions || [],
       };
 
@@ -72,12 +108,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const setSession = (response: any): AuthUser => {
+    const tokenDeptId = response.accessToken ? extractDepartmentIdFromToken(response.accessToken) : null;
+    const resolvedDeptId = response.departmentId || response.DepartmentId || tokenDeptId || null;
+
     const authUser: AuthUser = {
       id: response.userId,
       email: response.email,
       fullName: response.fullName || response.email,
       role: (response.role as UserRole) || 'TenantAdmin',
       tenantId: response.tenantId,
+      departmentId: resolvedDeptId,
       permissions: response.permissions || [],
     };
 
@@ -91,6 +131,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem(USER_KEY, JSON.stringify(authUser));
 
     return authUser;
+  };
+
+  const updateUser = (partial: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...partial };
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const logout = () => {
@@ -110,6 +159,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         login,
         setSession,
+        updateUser,
         logout,
       }}
     >

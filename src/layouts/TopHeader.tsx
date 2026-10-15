@@ -84,10 +84,22 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold ${
           isSysAdmin
             ? 'bg-blue-50 border-blue-200 text-blue-700'
-            : 'bg-indigo-50 border-indigo-200 text-indigo-700'
+            : user?.role === 'TenantAdmin'
+            ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+            : user?.role === 'DepartmentAdmin'
+            ? 'bg-purple-50 border-purple-200 text-purple-700'
+            : 'bg-emerald-50 border-emerald-200 text-emerald-700'
         }`}>
           {isSysAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <Building2 className="w-3.5 h-3.5" />}
-          <span>{isSysAdmin ? 'System Admin' : 'Tenant Admin'}</span>
+          <span>
+            {isSysAdmin
+              ? 'System Admin'
+              : user?.role === 'TenantAdmin'
+              ? 'Tenant Admin'
+              : user?.role === 'DepartmentAdmin'
+              ? 'Dept Admin'
+              : 'Team Member'}
+          </span>
         </div>
 
         {/* Nút Chuông thông báo (kèm chấm đỏ nếu có thông báo mới) */}

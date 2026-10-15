@@ -12,7 +12,16 @@ export const GoogleOAuthCallback: React.FC = () => {
   const [message, setMessage] = useState('Đang hoàn tất đăng nhập bằng tài khoản Google...');
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
+    const hashParams = new URLSearchParams(hash);
+    const searchParams = new URLSearchParams(window.location.search);
+    const params = hashParams.get('accessToken') || hashParams.get('error') ? hashParams : searchParams;
+
+    // Ngay lập tức xóa sạch token khỏi URL thanh địa chỉ và lịch sử duyệt web để chống rò rỉ (OWASP A02 / A04)
+    if (window.location.hash || window.location.search) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     const error = params.get('error') || params.get('message');
     const accessToken = params.get('accessToken');
     const refreshToken = params.get('refreshToken');

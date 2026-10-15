@@ -1,15 +1,15 @@
 import React from 'react';
-import { 
-  Building2, 
-  Users, 
-  HardDrive, 
-  LayoutGrid, 
-  FileText, 
-  Settings, 
-  UserPlus, 
-  CreditCard, 
-  Download, 
-  ArrowRight, 
+import {
+  Building2,
+  Users,
+  HardDrive,
+  LayoutGrid,
+  FileText,
+  Settings,
+  UserPlus,
+  CreditCard,
+  Download,
+  ArrowRight,
   Sparkles,
   ShieldCheck,
   Briefcase,
@@ -64,16 +64,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
       iconBg: 'bg-blue-50 text-blue-600 border-blue-200/60',
       badge: 'Nhân sự & Phân quyền',
       actionText: 'Quản lý Nhân viên',
-    },
-    {
-      id: 'storage',
-      title: 'Hạn ngạch & Kho Lưu trữ Cloud',
-      subtitle: 'Cloud Storage & Quota Allocation',
-      description: 'Kiểm tra hạn ngạch dung lượng doanh nghiệp được cấp, tỷ lệ tiêu thụ thực tế, điều chỉnh phân bổ dung lượng giữa các phòng ban.',
-      icon: HardDrive,
-      iconBg: 'bg-emerald-50 text-emerald-600 border-emerald-200/60',
-      badge: 'Tài nguyên lưu trữ',
-      actionText: 'Chi tiết Kho Lưu trữ',
     },
     {
       id: 'overview',
@@ -266,10 +256,10 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
             Xem Phòng ban
           </button>
           <button
-            onClick={() => onNavigateTab('storage')}
+            onClick={() => onNavigateTab('overview')}
             className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-medium transition-colors cursor-pointer"
           >
-            Xem Dung lượng
+            Xem Tổng quan
           </button>
         </div>
       </div>

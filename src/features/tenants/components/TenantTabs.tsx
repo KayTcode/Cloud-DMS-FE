@@ -32,11 +32,10 @@ export const TenantTabs: React.FC<TenantTabsProps> = ({
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                isActive
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${isActive
                   ? 'border border-blue-200 bg-blue-50/70 text-blue-600'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
-              }`}
+                }`}
             >
               {tab.label}
             </button>

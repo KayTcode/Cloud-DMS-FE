@@ -29,6 +29,7 @@ export interface TenantInfo {
   storageQuotaBytes?: number;
   storageUsedBytes?: number;
   availableBytes?: number;
+  storageProviderId?: string;
   storageProviderName?: string;
   usagePercentage?: number;
 }

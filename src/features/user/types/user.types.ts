@@ -1,3 +1,13 @@
+export interface PersonalStorageQuotaDto {
+  userId: string;
+  fullName: string;
+  quotaBytes: number;
+  usedBytes: number;
+  availableBytes: number;
+  usagePercent: number;
+  departmentName?: string;
+}
+
 export interface DepartmentQuota {
   id: string;
   departmentName: string;
@@ -7,6 +17,7 @@ export interface DepartmentQuota {
   usagePercent: number;
   color?: string;
 }
+
 
 export interface UserProfile {
   id: string;
@@ -36,4 +47,4 @@ export interface UserActivity {
   device: string;
 }
 
-export type UserNavTab = 'documents' | 'storage' | 'profile';
+export type UserNavTab = 'documents' | 'trash' | 'storage' | 'profile';

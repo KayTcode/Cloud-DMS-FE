@@ -45,6 +45,7 @@ export interface StorageAlert {
 }
 
 export interface DepartmentInfo {
+  id?: string;
   name: string;
   tenantName: string;
   adminName: string;
@@ -59,4 +60,15 @@ export interface DepartmentInfo {
   growthDeltaSinceAprGB: number;
 }
 
-export type DepartmentNavTab = 'storage' | 'staff' | 'requests' | 'settings';
+export type DepartmentNavTab = 'hub' | 'files' | 'staff' | 'logs' | 'storage' | 'settings';
+
+export interface DepartmentActivityLog {
+  id: string;
+  timestamp: string;
+  actor: string;
+  actorEmail?: string;
+  action: 'upload' | 'download' | 'delete' | 'quota_change' | 'member_invited' | 'login' | 'system';
+  details: string;
+  ipAddress?: string;
+  status: 'SUCCESS' | 'WARNING' | 'FAILED';
+}

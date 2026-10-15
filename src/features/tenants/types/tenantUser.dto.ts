@@ -19,7 +19,6 @@ export interface CreateTenantUserRequest {
 
 export interface CreateDepartmentAdminPayload {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   phoneNumber?: string;

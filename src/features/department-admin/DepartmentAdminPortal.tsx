@@ -1,44 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  StorageOverviewView,
+  DepartmentHubView,
+  DepartmentFilesView,
+  DepartmentLogsView,
   StaffManagementView,
-  RequestApprovalsView,
+  SetupDepartmentView,
 } from './views';
 import {
   AddMemberModal,
-  AdjustDepartmentModal,
   EditQuotaModal,
-  RequestDetailsModal,
 } from './components';
 import {
-  initialDepartment,
-  initialMembers,
-  initialRequests,
-  initialAlerts,
-  storageGrowthData,
-} from './data/mockData';
-import { DepartmentMember, QuotaRequest, DepartmentInfo, DepartmentNavTab } from './types';
-import {
-  Database,
-  Users,
-  CheckCircle2,
-  Settings,
-} from 'lucide-react';
+  DepartmentMember,
+  DepartmentInfo,
+  DepartmentNavTab,
+  CreateEmployeePayload,
+} from './types';
+import { DepartmentProvider, useDepartment } from './context/DepartmentContext';
+import { useAuth } from '@/context/AuthContext';
+import { useTenantContext } from '@/context/TenantContext';
+import { bytesToGB, gbToBytes } from './utils/quotaUtils';
 
-export const DepartmentAdminPortal: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<DepartmentNavTab>('storage');
-  const [department, setDepartment] = useState<DepartmentInfo>(initialDepartment);
-  const [members, setMembers] = useState<DepartmentMember[]>(initialMembers);
-  const [requests, setRequests] = useState<QuotaRequest[]>(initialRequests);
-  const [alerts] = useState(initialAlerts);
-  const [growthData] = useState(storageGrowthData);
+const DepartmentAdminPortalContent: React.FC = () => {
+  const { user } = useAuth();
+  const { activeNav, setActiveNav } = useTenantContext();
+  const {
+    hasDepartment,
+    summary,
+    employees,
+    isLoading,
+    refreshData,
+    allocateQuota,
+    createEmployee,
+  } = useDepartment();
+
+  const [activeTab, setActiveTab] = useState<DepartmentNavTab>('hub');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [isAdjustDeptOpen, setIsAdjustDeptOpen] = useState(false);
-  const [selectedRequestForDetails, setSelectedRequestForDetails] = useState<QuotaRequest | null>(null);
 
   // Toast / Status notification
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -47,119 +48,133 @@ export const DepartmentAdminPortal: React.FC = () => {
     setNotification({ type, message });
     setTimeout(() => {
       setNotification(null);
-    }, 3500);
+    }, 4000);
   };
 
-  const pendingRequestsCount = requests.filter((r) => r.status === 'pending').length;
+  // Sync activeNav from Sidebar with activeTab
+  useEffect(() => {
+    if (activeNav === 'hub') {
+      setActiveTab('hub');
+    } else if (activeNav === 'dashboard') {
+      setActiveTab('files');
+    } else if (activeNav === 'tenants') {
+      setActiveTab('staff');
+    } else if (activeNav === 'audit-logs') {
+      setActiveTab('logs');
+    }
+  }, [activeNav]);
+
+  const handleNavigateTab = (tab: DepartmentNavTab) => {
+    setActiveTab(tab);
+    if (tab === 'hub') {
+      setActiveNav('hub');
+    } else if (tab === 'files') {
+      setActiveNav('dashboard');
+    } else if (tab === 'staff') {
+      setActiveNav('tenants');
+    } else if (tab === 'logs') {
+      setActiveNav('audit-logs');
+    }
+  };
+
+  // If department not yet set up -> render Self-Setup View
+  if (!hasDepartment) {
+    return <SetupDepartmentView />;
+  }
+
+  // Map summary to DepartmentInfo
+  const departmentInfo: DepartmentInfo = {
+    id: user?.departmentId || summary?.departmentId || '',
+    name: summary?.departmentName || 'Phòng ban',
+    tenantName: 'Tổ chức Doanh nghiệp',
+    adminName: user?.fullName || 'Trưởng phòng',
+    adminRole: 'Department Admin',
+    adminEmail: user?.email || '',
+    totalAllocatedGB: bytesToGB(summary?.departmentQuotaBytes),
+    tenantPoolLimitGB: bytesToGB(summary?.departmentQuotaBytes),
+    usedSpaceGB: bytesToGB(summary?.departmentUsedBytes),
+    filesStorageGB: bytesToGB(summary?.departmentUsedBytes),
+    backupsStorageGB: 0,
+    otherStorageGB: 0,
+    growthDeltaSinceAprGB: 0,
+  };
+
+  // Map summary.users + employees to DepartmentMember list
+  const colors = [
+    'bg-blue-600',
+    'bg-indigo-600',
+    'bg-emerald-600',
+    'bg-amber-600',
+    'bg-purple-600',
+    'bg-rose-600',
+    'bg-teal-600',
+    'bg-cyan-600',
+  ];
+
+  const members: DepartmentMember[] = (summary?.users || []).map((u, idx) => {
+    const words = (u.fullName || u.email).trim().split(' ');
+    const initials =
+      words.length > 1
+        ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
+        : (u.fullName || 'NV').slice(0, 2).toUpperCase();
+
+    const matchingEmp = employees.find((e) => e.id === u.userId || e.email.toLowerCase() === u.email.toLowerCase());
+    const role = matchingEmp?.roles?.[0] || 'Employee';
+
+    return {
+      id: u.userId,
+      name: u.fullName || u.email,
+      email: u.email,
+      role: role === 'DepartmentAdmin' ? 'Trưởng phòng' : 'Nhân viên',
+      subTeam: summary?.departmentName || 'Phòng ban',
+      allocatedQuotaGB: bytesToGB(u.quotaBytes),
+      usedSpaceGB: bytesToGB(u.usedBytes),
+      fileCount: u.fileCount || (u as any).FileCount || 0,
+
+      lastActive: matchingEmp?.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
+      status: u.usagePercentage >= 90 ? 'warning' : 'active',
+      avatarInitials: initials,
+      avatarColor: colors[idx % colors.length],
+    };
+  });
 
   // Handlers
-  const handleSaveMemberQuota = (memberId: string, newQuotaGB: number) => {
-    setMembers((prev) =>
-      prev.map((m) => {
-        if (m.id === memberId) {
-          const percent = (m.usedSpaceGB / newQuotaGB) * 100;
-          return {
-            ...m,
-            allocatedQuotaGB: newQuotaGB,
-            status: percent >= 90 ? 'warning' : 'active',
-          };
-        }
-        return m;
-      })
-    );
-    const updatedMember = members.find((m) => m.id === memberId);
-    showNotification(
-      'success',
-      `Đã cập nhật hạn mức cho ${updatedMember?.name || 'thành viên'} lên ${newQuotaGB} GB.`
-    );
-  };
-
-  const handleAddMember = (
-    newMemberData: Omit<DepartmentMember, 'id' | 'lastActive' | 'status' | 'fileCount' | 'usedSpaceGB'>
-  ) => {
-    const newMember: DepartmentMember = {
-      ...newMemberData,
-      id: `mem-${Date.now()}`,
-      usedSpaceGB: 0,
-      fileCount: 0,
-      lastActive: 'Vừa tạo tài khoản',
-      status: 'active',
-    };
-    setMembers((prev) => [newMember, ...prev]);
-    showNotification(
-      'success',
-      `Đã thêm nhân viên ${newMember.name} vào phòng ban với hạn mức ${newMember.allocatedQuotaGB} GB.`
-    );
-  };
-
-  const handleToggleMemberStatus = (memberId: string) => {
-    setMembers((prev) =>
-      prev.map((m) => {
-        if (m.id === memberId) {
-          const nextStatus = m.status === 'paused' ? 'active' : 'paused';
-          return { ...m, status: nextStatus };
-        }
-        return m;
-      })
-    );
-    const member = members.find((m) => m.id === memberId);
-    showNotification(
-      'info',
-      `Đã chuyển trạng thái của ${member?.name} sang ${
-        member?.status === 'paused' ? 'Đang hoạt động' : 'Tạm dừng đồng bộ'
-      }.`
-    );
-  };
-
-  const handleApproveRequest = (requestId: string, note?: string) => {
-    const targetReq = requests.find((r) => r.id === requestId);
-    if (!targetReq) return;
-
-    if (targetReq.requestType === 'quota_increase' && targetReq.requestedQuotaGB) {
-      handleSaveMemberQuota(targetReq.memberId, targetReq.requestedQuotaGB);
+  const handleSaveMemberQuota = async (memberId: string, newQuotaGB: number) => {
+    try {
+      await allocateQuota(memberId, gbToBytes(newQuotaGB));
+      const targetMember = members.find((m) => m.id === memberId);
+      showNotification(
+        'success',
+        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${newQuotaGB} GB.`
+      );
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể cập nhật hạn mức. Vui lòng kiểm tra lại.';
+      showNotification('error', msg);
+      throw err;
     }
-
-    setRequests((prev) =>
-      prev.map((r) => {
-        if (r.id === requestId) {
-          return {
-            ...r,
-            status: 'approved',
-            adminNote: note || 'Đã được phê duyệt bởi Department Admin.',
-          };
-        }
-        return r;
-      })
-    );
-    showNotification('success', `Đã phê duyệt yêu cầu #${requestId} của ${targetReq.memberName}`);
   };
 
-  const handleRejectRequest = (requestId: string, reason?: string) => {
-    setRequests((prev) =>
-      prev.map((r) => {
-        if (r.id === requestId) {
-          return {
-            ...r,
-            status: 'rejected',
-            adminNote: reason || 'Từ chối bởi Department Admin.',
-          };
-        }
-        return r;
-      })
-    );
-    showNotification('info', `Đã từ chối yêu cầu #${requestId}`);
+  const handleAddMember = async (payload: CreateEmployeePayload) => {
+    try {
+      await createEmployee(payload);
+      showNotification(
+        'success',
+        `Đã tạo tài khoản và gửi email mời kích hoạt (48 giờ) tới ${payload.email}.`
+      );
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể thêm nhân viên. Vui lòng kiểm tra lại.';
+      showNotification('error', msg);
+      throw err;
+    }
   };
 
-  const handleRequestMoreTenantQuota = (additionalGB: number, reason: string) => {
-    setDepartment((prev) => ({
-      ...prev,
-      totalAllocatedGB: prev.totalAllocatedGB + additionalGB,
-    }));
-    showNotification(
-      'success',
-      `Đã gửi đề xuất xin cấp thêm +${additionalGB} GB tới Quản trị viên Tenant. Lý do: "${reason}"`
-    );
-  };
+  const availableDeptGB = bytesToGB(summary?.unallocatedDepartmentQuotaBytes);
 
   return (
     <div className="space-y-6">
@@ -184,92 +199,52 @@ export const DepartmentAdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* Department Tabs Bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-2 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab('storage')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'storage'
-                ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <Database className="w-4 h-4" />
-            <span>Tổng quan dung lượng</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('staff')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'staff'
-                ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Quản lý nhân viên ({members.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('requests')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'requests'
-                ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Phê duyệt yêu cầu</span>
-            {pendingRequestsCount > 0 && (
-              <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-bold">
-                {pendingRequestsCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
-          <span>Phòng: <strong className="text-slate-800">{department.name}</strong></span>
-          <span>·</span>
-          <span>Tenant: <strong className="text-slate-800">{department.tenantName}</strong></span>
-        </div>
-      </div>
-
-      {/* Main Tab Content */}
+      {/* Main Content Router */}
       <div className="tab-content-area">
-        {activeTab === 'storage' && (
-          <StorageOverviewView
-            department={department}
-            members={members}
-            alerts={alerts}
-            growthData={growthData}
-            onOpenAdjustModal={() => setIsAdjustDeptOpen(true)}
-            onEditMemberQuota={(m) => setSelectedMemberForQuota(m)}
-            searchFilter={searchQuery}
+        {/* 1. MÀN HÌNH KHỞI TẠO: TRUNG TÂM ĐIỀU KHIỂN VỚI CÁC NÚT ĐỂ NGƯỜI DÙNG TỰ CHỌN */}
+        {activeTab === 'hub' && (
+          <DepartmentHubView
+            department={departmentInfo}
+            membersCount={members.length}
+            availableQuotaGB={availableDeptGB}
+            onNavigateTab={handleNavigateTab}
+            onOpenAddMember={() => setIsAddMemberOpen(true)}
+            onRefreshData={refreshData}
+            isLoading={isLoading}
           />
         )}
 
+        {/* 2. CHỨC NĂNG 1: QUẢN LÝ TÀI LIỆU & TẢI TỆP LÊN */}
+        {activeTab === 'files' && (
+          <DepartmentFilesView
+            department={departmentInfo}
+            availableQuotaGB={availableDeptGB}
+            onBackToHub={() => handleNavigateTab('hub')}
+            onQuotaUpdated={refreshData}
+            onAddToast={showNotification}
+          />
+        )}
+
+        {/* 3. CHỨC NĂNG 2: QUẢN LÝ NHÂN SỰ PHÒNG BAN */}
         {activeTab === 'staff' && (
           <StaffManagementView
             members={members}
-            department={department}
+            department={departmentInfo}
             onEditQuota={(m) => setSelectedMemberForQuota(m)}
             onAddMember={() => setIsAddMemberOpen(true)}
-            onToggleStatus={handleToggleMemberStatus}
+            onToggleStatus={() => {}}
             searchFilter={searchQuery}
             onSearchChange={setSearchQuery}
+            onBackToHub={() => handleNavigateTab('hub')}
           />
         )}
 
-        {activeTab === 'requests' && (
-          <RequestApprovalsView
-            requests={requests}
-            department={department}
-            onApprove={handleApproveRequest}
-            onReject={handleRejectRequest}
-            onViewDetails={(req) => setSelectedRequestForDetails(req)}
-            searchFilter={searchQuery}
+        {/* 4. CHỨC NĂNG 3: NHẬT KÝ HOẠT ĐỘNG NHÂN VIÊN */}
+        {activeTab === 'logs' && (
+          <DepartmentLogsView
+            department={departmentInfo}
+            members={members}
+            onBackToHub={() => handleNavigateTab('hub')}
           />
         )}
       </div>
@@ -278,34 +253,29 @@ export const DepartmentAdminPortal: React.FC = () => {
       <AddMemberModal
         isOpen={isAddMemberOpen}
         onClose={() => setIsAddMemberOpen(false)}
-        department={department}
+        departmentName={departmentInfo.name}
+        availableQuotaGB={availableDeptGB}
         onAdd={handleAddMember}
-      />
-
-      <AdjustDepartmentModal
-        isOpen={isAdjustDeptOpen}
-        onClose={() => setIsAdjustDeptOpen(false)}
-        department={department}
-        onRequestMoreQuota={handleRequestMoreTenantQuota}
-        onUpdateCeiling={() => showNotification('success', 'Đã lưu cấu hình ngưỡng cảnh báo.')}
       />
 
       <EditQuotaModal
         isOpen={!!selectedMemberForQuota}
         member={selectedMemberForQuota}
-        department={department}
+        departmentName={departmentInfo.name}
+        deptAvailableGB={availableDeptGB}
         onClose={() => setSelectedMemberForQuota(null)}
         onSave={handleSaveMemberQuota}
-      />
-
-      <RequestDetailsModal
-        isOpen={!!selectedRequestForDetails}
-        request={selectedRequestForDetails}
-        department={department}
-        onClose={() => setSelectedRequestForDetails(null)}
-        onApprove={handleApproveRequest}
-        onReject={handleRejectRequest}
       />
     </div>
   );
 };
+
+export const DepartmentAdminPortal: React.FC = () => {
+  return (
+    <DepartmentProvider>
+      <DepartmentAdminPortalContent />
+    </DepartmentProvider>
+  );
+};
+
+export default DepartmentAdminPortal;

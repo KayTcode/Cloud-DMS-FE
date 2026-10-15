@@ -6,6 +6,7 @@ export interface AuthUser {
   fullName: string;
   role: UserRole;
   tenantId?: string | null;
+  departmentId?: string | null;
   permissions: string[];
 }
 
@@ -23,5 +24,6 @@ export interface LoginResponse {
   fullName: string;
   role: string;
   tenantId?: string | null;
+  departmentId?: string | null;
   permissions: string[];
 }

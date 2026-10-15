@@ -10,7 +10,8 @@ import {
   Building2,
   Users,
   FolderTree,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -110,15 +111,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Menu cho Trưởng phòng ban (Department Admin)
     if (isDeptAdmin) {
       return [
-        { id: 'dashboard', label: 'Tổng quan dung lượng', icon: HardDrive },
+        { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
+        { id: 'dashboard', label: 'Tài liệu & Upload', icon: FolderTree },
         { id: 'tenants', label: 'Quản lý nhân viên', icon: Users },
-        { id: 'storage-providers', label: 'Phê duyệt yêu cầu', icon: FileText },
-        { id: 'settings', label: 'Cài đặt phòng ban', icon: Settings },
+        { id: 'audit-logs', label: 'Nhật ký nhân viên', icon: FileText },
       ];
     }
     // Menu cho Nhân viên thông thường (End User / Employee)
     return [
       { id: 'dashboard', label: 'Tài liệu & My Drive', icon: FolderTree },
+      { id: 'trash', label: 'Thùng rác', icon: Trash2 },
       { id: 'storage-providers', label: 'Dung lượng lưu trữ', icon: HardDrive },
       { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },
       { id: 'settings', label: 'Hồ sơ & Cài đặt', icon: Settings },
@@ -145,9 +147,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-slate-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-slate-200/90 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:translate-x-0 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         {/* Top brand header */}
         <div>
@@ -155,15 +156,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex items-center gap-3">
               {/* CloudDMS Icon */}
               <div
-                className={`w-10 h-10 rounded-xl ${
-                  isSysAdmin
+                className={`w-10 h-10 rounded-xl ${isSysAdmin
                     ? 'bg-blue-600'
                     : isTenantAdmin
-                    ? 'bg-indigo-600'
-                    : isDeptAdmin
-                    ? 'bg-emerald-600'
-                    : 'bg-violet-600'
-                } flex items-center justify-center text-white shadow-xs shrink-0`}
+                      ? 'bg-indigo-600'
+                      : isDeptAdmin
+                        ? 'bg-emerald-600'
+                        : 'bg-violet-600'
+                  } flex items-center justify-center text-white shadow-xs shrink-0`}
               >
                 <svg
                   className="w-5 h-5 text-white"
@@ -185,15 +185,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   CloudDMS
                 </div>
                 <div
-                  className={`text-[10px] font-bold ${
-                    isSysAdmin
+                  className={`text-[10px] font-bold ${isSysAdmin
                       ? 'text-blue-600'
                       : isTenantAdmin
-                      ? 'text-indigo-600'
-                      : isDeptAdmin
-                      ? 'text-emerald-600'
-                      : 'text-violet-600'
-                  } tracking-wider uppercase mt-0.5`}
+                        ? 'text-indigo-600'
+                        : isDeptAdmin
+                          ? 'text-emerald-600'
+                          : 'text-violet-600'
+                    } tracking-wider uppercase mt-0.5`}
                 >
                   {getPortalLabel()}
                 </div>
@@ -229,30 +228,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onSelectNav(item.id); // Bắn sự kiện chuyển tab ra ngoài
                     if (onCloseMobile) onCloseMobile();
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left cursor-pointer ${
-                    isActive
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors text-left cursor-pointer ${isActive
                       ? isSysAdmin
                         ? 'bg-[#EEF4FF] text-blue-600'
                         : isTenantAdmin
-                        ? 'bg-indigo-50 text-indigo-600'
-                        : isDeptAdmin
-                        ? 'bg-emerald-50 text-emerald-600'
-                        : 'bg-violet-50 text-violet-600'
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : isDeptAdmin
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : 'bg-violet-50 text-violet-600'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   <Icon
-                    className={`w-4 h-4 shrink-0 ${
-                      isActive
+                    className={`w-4 h-4 shrink-0 ${isActive
                         ? isSysAdmin
                           ? 'text-blue-600'
                           : isTenantAdmin
-                          ? 'text-indigo-600'
-                          : isDeptAdmin
-                          ? 'text-emerald-600'
-                          : 'text-violet-600'
+                            ? 'text-indigo-600'
+                            : isDeptAdmin
+                              ? 'text-emerald-600'
+                              : 'text-violet-600'
                         : 'text-slate-500'
-                    }`}
+                      }`}
                   />
                   <span>{item.label}</span>
                 </button>
@@ -270,15 +267,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-2.5 rounded-xl border border-slate-200/90 bg-slate-50/50 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className={`w-8 h-8 rounded-lg ${
-                  isSysAdmin
+                className={`w-8 h-8 rounded-lg ${isSysAdmin
                     ? 'bg-blue-100 text-blue-700'
                     : isTenantAdmin
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : isDeptAdmin
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-violet-100 text-violet-700'
-                } font-bold text-xs flex items-center justify-center shrink-0`}
+                      ? 'bg-indigo-100 text-indigo-700'
+                      : isDeptAdmin
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-violet-100 text-violet-700'
+                  } font-bold text-xs flex items-center justify-center shrink-0`}
               >
                 {getInitials(user?.fullName)}
               </div>

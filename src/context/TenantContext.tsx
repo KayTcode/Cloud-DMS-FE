@@ -93,7 +93,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       case 'TenantAdmin':
         return 'hub'; // TenantAdmin: Màn hình chọn chức năng (0 API load ban đầu)
       case 'DepartmentAdmin':
-        return 'tenants'; // DeptAdmin: Quản lý nhân viên
+        return 'hub'; // DeptAdmin: Trung tâm điều khiển (0 API load ban đầu)
       case 'User':
       case 'Employee':
       default:
@@ -107,13 +107,13 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (authUser?.role) {
       const initial = getInitialNav(authUser.role);
       setActiveNav(initial);
-      if (authUser.role === 'TenantAdmin') {
+      if (authUser.role === 'TenantAdmin' || authUser.role === 'DepartmentAdmin') {
         setActiveTab('hub');
       }
     }
   }, [authUser?.role, getInitialNav]);
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => 
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() =>
     authUser?.role === 'TenantAdmin' ? 'hub' : 'overview'
   );
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
@@ -268,12 +268,15 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Initial load when tenantId is available from Auth user (e.g. Tenant Admin)
   useEffect(() => {
-    if (authUser?.tenantId && authUser.tenantId !== tenant.id) {
-      setCurrentTenantId(authUser.tenantId);
-    } else if (authUser?.tenantId) {
-      refreshTenantData(authUser.tenantId);
+    const isRegularUser = authUser?.role === 'User' || authUser?.role === 'Employee';
+    if (!isRegularUser) {
+      if (authUser?.tenantId && authUser.tenantId !== tenant.id) {
+        setCurrentTenantId(authUser.tenantId);
+      } else if (authUser?.tenantId) {
+        refreshTenantData(authUser.tenantId);
+      }
     }
-  }, [authUser?.tenantId, setCurrentTenantId, refreshTenantData]);
+  }, [authUser?.tenantId, authUser?.role, setCurrentTenantId, refreshTenantData]);
 
   const handleDownloadBackup = async () => {
     addToast('info', `Preparing database backup export for ${tenant.name}...`);
@@ -331,7 +334,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const handleCreateDepartmentAdmin = async (payload: CreateDepartmentAdminPayload): Promise<boolean> => {
     try {
       const createdAdmin = await createDepartmentAdminApi(tenant.id, payload);
-      
+
       // Update Users list
       setUsers((prev) => [createdAdmin, ...prev]);
 
@@ -367,7 +370,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       };
       setEvents((prev) => [newEvent, ...prev]);
 
-      addToast('success', `Đã tạo tài khoản Department Admin cho ${createdAdmin.name} thành công!`);
+      addToast('success', `Đã gửi thư mời kích hoạt tài khoản Department Admin cho ${createdAdmin.name} qua email thành công!`);
       setActiveTab('departments');
       return true;
     } catch (err: any) {

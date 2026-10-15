@@ -74,13 +74,15 @@ export async function getTenantFilesApi(
   folderId?: string,
   pageNumber: number = 1,
   pageSize: number = 20,
-  searchTerm?: string
+  searchTerm?: string,
+  departmentId?: string
 ): Promise<TenantStorageSummaryDto> {
   const params: Record<string, any> = {
     pageNumber,
     pageSize,
   };
   if (tenantId) params.tenantId = tenantId;
+  if (departmentId) params.departmentId = departmentId;
   if (folderId) params.folderId = folderId;
   if (searchTerm) params.searchTerm = searchTerm;
 

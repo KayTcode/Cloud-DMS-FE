@@ -1,99 +1,280 @@
-import axiosClient from '@/api/axiosClient';
-import { DriveItem } from '../types';
+import apiClient from '@/api/axiosClient';
+import {
+  DriveItem,
+  FileType,
+  FileTextResult,
+  PersonalStorageQuotaDto,
+  PreviewResult,
+  TrashFileListResponse,
+} from '../types';
+
+export const formatBytes = (bytes: number): string => {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+export const detectFileType = (fileName: string, mimeType?: string): { type: FileType; ext: string } => {
+  const parts = fileName ? fileName.split('.') : [];
+  const ext = parts.length > 1 ? parts.pop()!.toLowerCase() : '';
+
+  if (['pdf'].includes(ext)) return { type: 'pdf', ext };
+  if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return { type: 'docx', ext };
+  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return { type: 'sheet', ext };
+  if (['ppt', 'pptx', 'key'].includes(ext)) return { type: 'slide', ext };
+  if (['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif'].includes(ext)) return { type: 'image', ext };
+  if (['zip', 'rar', 'tar', 'gz', '7z'].includes(ext)) return { type: 'archive', ext };
+  if (['js', 'ts', 'tsx', 'jsx', 'json', 'py', 'html', 'css', 'yaml', 'yml', 'sql', 'c', 'cpp', 'cs'].includes(ext)) {
+    return { type: 'code', ext };
+  }
+  return { type: 'other', ext: ext || 'file' };
+};
+
+export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem => {
+  const name = dto.name || dto.fileName || 'Tệp không tên';
+  const { type: fileType, ext } = detectFileType(name, dto.contentType);
+  const sizeBytes = dto.sizeBytes ?? dto.size ?? 0;
+
+  return {
+    id: dto.id,
+    name,
+    type: 'file',
+    fileType,
+    extension: ext,
+    size: sizeBytes,
+    sizeFormatted: formatBytes(sizeBytes),
+    updatedAt: dto.deletedAt
+      ? new Date(dto.deletedAt).toLocaleDateString('vi-VN') + ' ' + new Date(dto.deletedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+      : dto.updatedAt
+      ? new Date(dto.updatedAt).toLocaleDateString('vi-VN')
+      : new Date(dto.createdAt || Date.now()).toLocaleDateString('vi-VN'),
+    createdAt: dto.createdAt
+      ? new Date(dto.createdAt).toLocaleDateString('vi-VN')
+      : new Date().toLocaleDateString('vi-VN'),
+    deletedAt: dto.deletedAt
+      ? new Date(dto.deletedAt).toLocaleDateString('vi-VN') + ' ' + new Date(dto.deletedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+      : undefined,
+    deletedBy: dto.deletedByName || undefined,
+    storageProvider: dto.storageProviderName || dto.storageProvider || undefined,
+    owner: {
+      name: dto.ownerName || 'Tôi',
+      email: dto.ownerEmail || '',
+    },
+    parentId: dto.folderId || null,
+    starred: Boolean(dto.isStarred),
+    trashed: isTrash || Boolean(dto.isDeleted),
+    sharedWith: [],
+    tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
+    department: dto.departmentName || '',
+    previewUrl: dto.previewUrl,
+  };
+};
 
 export const driveApi = {
-  // Fetch files and folders for current user
-  getDriveItems: async (folderId?: string | null): Promise<DriveItem[]> => {
+  // Fetch files and folders for current user (My Drive)
+  getDriveItems: async (folderId?: string | null, searchTerm?: string): Promise<DriveItem[]> => {
     try {
-      const response = await axiosClient.get('/files', {
-        params: { folderId: folderId || undefined },
+      const res: any = await apiClient.get('/files', {
+        params: {
+          folderId: folderId || undefined,
+          searchTerm: searchTerm?.trim() || undefined,
+        },
       });
-      const data = response.data;
-      if (Array.isArray(data)) return data;
-      if (data?.items && Array.isArray(data.items)) return data.items;
-      return [];
-    } catch {
+      const data = res?.value ?? res?.data ?? res;
+      const fileList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.files)
+        ? data.files
+        : Array.isArray(data?.items)
+        ? data.items
+        : [];
+
+      return fileList.map((item: any) => mapFileEntryToDriveItem(item, false));
+    } catch (error) {
+      console.error('Lỗi khi tải danh sách tệp tin:', error);
       return [];
     }
   },
 
   // Upload files to current directory
-  uploadFiles: async (files: FileList | File[], folderId?: string | null): Promise<DriveItem[]> => {
+  uploadFiles: async (files: FileList | File[], folderId?: string | null): Promise<any> => {
     const formData = new FormData();
     Array.from(files).forEach((f) => formData.append('files', f));
     if (folderId) formData.append('folderId', folderId);
 
-    const response = await axiosClient.post('/files/upload', formData, {
+    const res: any = await apiClient.post('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data;
+    return res?.value ?? res?.data ?? res;
   },
 
   // Create folder
   createFolder: async (name: string, parentId?: string | null): Promise<DriveItem> => {
-    const response = await axiosClient.post('/folders', {
+    const res: any = await apiClient.post('/folders', {
       name,
       parentId: parentId || null,
     });
-    return response.data;
+    return res?.value ?? res?.data ?? res;
   },
 
   // Toggle star
   toggleStar: async (itemId: string, starred: boolean): Promise<void> => {
-    await axiosClient.put(`/files/${itemId}/star`, { starred });
+    await apiClient.put(`/files/${itemId}/star`, { starred });
   },
 
-  // Move to trash
-  moveToTrash: async (itemId: string): Promise<void> => {
-    await axiosClient.delete(`/files/${itemId}`);
+  // Move to trash (Soft Delete - DELETE /api/files/{id})
+  moveToTrash: async (itemId: string): Promise<any> => {
+    return await apiClient.delete(`/files/${itemId}`);
   },
 
-  // Restore from trash
-  restoreFile: async (itemId: string): Promise<void> => {
-    await axiosClient.post(`/files/${itemId}/restore`);
+  // Restore from trash (POST /api/files/{id}/restore)
+  restoreFile: async (itemId: string): Promise<any> => {
+    return await apiClient.post(`/files/${itemId}/restore`);
   },
 
-  // Move to trash or restore helper
-  trashToggle: async (itemId: string, trashed: boolean): Promise<void> => {
-    if (trashed) {
-      await axiosClient.delete(`/files/${itemId}`);
-    } else {
-      await axiosClient.post(`/files/${itemId}/restore`);
+  // Permanently delete (DELETE /api/files/{id}/permanent)
+  deletePermanently: async (itemId: string): Promise<any> => {
+    return await apiClient.delete(`/files/${itemId}/permanent`);
+  },
+
+  // Fetch trash files list with summary (GET /api/files/trash)
+  getTrashFiles: async (
+    pageNumber = 1,
+    pageSize = 50,
+    searchTerm?: string
+  ): Promise<TrashFileListResponse> => {
+    try {
+      const res: any = await apiClient.get('/files/trash', {
+        params: { pageNumber, pageSize, searchTerm: searchTerm || undefined },
+      });
+      const data = res?.value ?? res?.data ?? res;
+      const rawItems = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.files)
+        ? data.files
+        : [];
+
+      return {
+        items: rawItems.map((dto: any) => mapFileEntryToDriveItem(dto, true)),
+        totalCount: data?.totalCount ?? rawItems.length,
+        pageNumber: data?.pageNumber ?? pageNumber,
+        pageSize: data?.pageSize ?? pageSize,
+        totalSizeBytes: data?.totalSizeBytes ?? 0,
+        hasMore: data?.hasMore ?? false,
+      };
+    } catch (error) {
+      console.error('Lỗi khi tải thùng rác:', error);
+      return {
+        items: [],
+        totalCount: 0,
+        pageNumber: 1,
+        pageSize,
+        totalSizeBytes: 0,
+        hasMore: false,
+      };
     }
   },
 
-  // Permanently delete (xóa hẳn khỏi Cloud và DB, giải phóng quota)
-  deletePermanently: async (itemId: string): Promise<void> => {
-    await axiosClient.delete(`/files/${itemId}/permanent`);
+  // Get file preview (GET /api/files/{id}/preview, with fallback to POST /api/files/{id}/preview)
+  getFilePreview: async (fileId: string): Promise<PreviewResult> => {
+    try {
+      const res: any = await apiClient.get(`/files/${fileId}/preview`);
+      const preview = res?.value ?? res?.data ?? res;
+      if (preview && preview.status === 'ready') {
+        return preview;
+      }
+      // If pending or no url, trigger request preview to ensure background worker renders it
+      if (!preview || preview.status === 'pending') {
+        await apiClient.post(`/files/${fileId}/preview`).catch(() => {});
+      }
+      return preview ?? { status: 'pending', documentVersion: 0, reason: 'PENDING' };
+    } catch (error: any) {
+      // If 404/unavailable or not yet triggered, trigger preview request
+      try {
+        const postRes: any = await apiClient.post(`/files/${fileId}/preview`);
+        return postRes?.value ?? postRes?.data ?? postRes;
+      } catch (innerErr: any) {
+        return {
+          status: 'unavailable',
+          documentVersion: 0,
+          reason: innerErr?.message || 'Xem trước không khả dụng',
+        };
+      }
+    }
   },
 
-  // Fetch trash files list
-  getTrashFiles: async (pageNumber = 1, pageSize = 50, searchTerm?: string): Promise<any> => {
-    const res = await axiosClient.get('/files/trash', {
-      params: { pageNumber, pageSize, searchTerm }
+  // Trigger preview generation explicitly (POST /api/files/{id}/preview)
+  requestFilePreview: async (fileId: string): Promise<PreviewResult> => {
+    const res: any = await apiClient.post(`/files/${fileId}/preview`);
+    return res?.value ?? res?.data ?? res;
+  },
+
+  // Get extracted text chunks (GET /api/files/{id}/text)
+  getFileText: async (
+    fileId: string,
+    limit = 20,
+    cursor?: string | null
+  ): Promise<FileTextResult> => {
+    try {
+      const res: any = await apiClient.get(`/files/${fileId}/text`, {
+        params: { limit, cursor: cursor || undefined },
+      });
+      return res?.value ?? res?.data ?? res;
+    } catch (error: any) {
+      return {
+        status: 'unavailable',
+        documentVersion: 0,
+        items: [],
+        reason: error?.message || 'Không thể trích xuất văn bản.',
+      };
+    }
+  },
+
+  // Download file securely with Bearer token (GET /api/files/{id}/download)
+  downloadFile: async (fileId: string, fileName = 'download'): Promise<void> => {
+    const res: any = await apiClient.get(`/files/${fileId}/download`, {
+      responseType: 'blob',
     });
-    return res.data?.value || res.data;
+    const blob = new Blob([res]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 
   // Share item
   shareItem: async (itemId: string, emails: string[]): Promise<void> => {
-    await axiosClient.post(`/files/${itemId}/share`, { emails });
+    await apiClient.post(`/files/${itemId}/share`, { emails });
   },
 };
 
 export const userApi = {
+  // Lấy hạn mức dung lượng lưu trữ cá nhân
+  getMyQuota: async (): Promise<PersonalStorageQuotaDto> => {
+    const res: any = await apiClient.get('/users/me/quota');
+    return res?.value ?? res?.data ?? res;
+  },
+
   getProfile: async () => {
-    const response = await axiosClient.get('/api/users/profile');
-    return response.data;
+    const res: any = await apiClient.get('/users/profile');
+    return res?.value ?? res?.data ?? res;
   },
 
   updateProfile: async (payload: any) => {
-    const response = await axiosClient.put('/api/users/profile', payload);
-    return response.data;
+    const res: any = await apiClient.put('/users/profile', payload);
+    return res?.value ?? res?.data ?? res;
   },
 
   requestQuotaIncrease: async (payload: { requestedGB: number; reason: string }) => {
-    const response = await axiosClient.post('/api/users/request-quota', payload);
-    return response.data;
+    const res: any = await apiClient.post('/users/request-quota', payload);
+    return res?.value ?? res?.data ?? res;
   },
 };

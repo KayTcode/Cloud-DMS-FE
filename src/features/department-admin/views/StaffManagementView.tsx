@@ -3,6 +3,7 @@ import {
   UserPlus,
   Search,
   Sliders,
+  ArrowLeft,
 } from 'lucide-react';
 import { DepartmentMember, DepartmentInfo } from '../types';
 
@@ -14,6 +15,7 @@ interface StaffManagementViewProps {
   onToggleStatus: (memberId: string) => void;
   searchFilter: string;
   onSearchChange: (q: string) => void;
+  onBackToHub?: () => void;
 }
 
 export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
@@ -24,6 +26,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   onToggleStatus,
   searchFilter,
   onSearchChange,
+  onBackToHub,
 }) => {
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -60,6 +63,16 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          {onBackToHub && (
+            <button
+              onClick={onBackToHub}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer mb-3"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>← Quay lại Trung tâm điều khiển phòng ban</span>
+            </button>
+          )}
+
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
             Quản lý nhân viên phòng {department.name}
           </h2>
