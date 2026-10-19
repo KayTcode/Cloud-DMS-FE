@@ -1,0 +1,6 @@
+{
+  "name": "CloudDMS - SysAdmin Portal",
+  "description": "Enterprise tenant management and system administration portal for CloudDMS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
