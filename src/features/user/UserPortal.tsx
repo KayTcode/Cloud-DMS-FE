@@ -3,6 +3,7 @@ import {
   DriveView,
   StorageView,
   ProfileView,
+  SharedFilesView,
 } from './views';
 import {
   AdjustQuotaModal,
@@ -155,6 +156,9 @@ export const UserPortal: React.FC = () => {
       setActiveTab('storage');
     } else if (activeNav === 'settings') {
       setActiveTab('profile');
+    } else if (activeNav === 'shared') {
+      setActiveTab('shared');
+      setActiveFilter('all');
     }
   }, [activeNav]);
 
@@ -566,6 +570,14 @@ export const UserPortal: React.FC = () => {
           />
         )}
 
+        {activeTab === 'shared' && (
+          <SharedFilesView
+            onOpenFilePreview={setPreviewFile}
+            onDownloadItem={handleDownloadItem}
+            onShowToast={showNotification}
+          />
+        )}
+
         {activeTab === 'storage' && (
           <StorageView
             personalQuota={personalQuota}
@@ -595,9 +607,11 @@ export const UserPortal: React.FC = () => {
       />
 
       <ShareModal
+        key={shareItem?.id}
         item={shareItem}
         onClose={() => setShareItem(null)}
         onShareSuccess={(msg) => showNotification(msg, 'success')}
+        onChanged={() => { void fetchDriveItems(currentFolderId, searchQuery); }}
       />
 
       <NewFolderModal

@@ -6,6 +6,8 @@ import {
   FileTextResult,
   PersonalStorageQuotaDto,
   PreviewResult,
+  SharedFileItem,
+  SharedFileListResponse,
   TrashFileListResponse,
 } from '../types';
 
@@ -70,6 +72,41 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
     department: dto.departmentName || '',
     previewUrl: dto.previewUrl,
+  };
+};
+
+export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
+  const name = dto.name || dto.fileName || 'Tệp không tên';
+  const { type: fileType, ext } = detectFileType(name, dto.contentType);
+  const sizeBytes = dto.sizeBytes ?? dto.size ?? 0;
+  const sharedAt = dto.sharedAt || dto.createdAt || new Date().toISOString();
+
+  return {
+    id: dto.id,
+    name,
+    type: 'file',
+    fileType,
+    extension: ext,
+    size: sizeBytes,
+    sizeFormatted: formatBytes(sizeBytes),
+    ownerId: dto.ownerId,
+    owner: {
+      name: dto.ownerName || 'Unknown',
+      email: dto.ownerEmail || '',
+    },
+    sharedAt,
+    sharedAtFormatted: new Date(sharedAt).toLocaleDateString('vi-VN') + ' ' + new Date(sharedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    expiresAt: dto.expiresAt,
+    expiresAtFormatted: dto.expiresAt ? new Date(dto.expiresAt).toLocaleDateString('vi-VN') + ' ' + new Date(dto.expiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : undefined,
+    permissionLevel: dto.permissionLevel || (dto.canWrite ? 'Editor' : 'Viewer'),
+    canRead: dto.canRead ?? true,
+    canWrite: Boolean(dto.canWrite),
+    canDelete: Boolean(dto.canDelete),
+    storageProvider: dto.storageProviderName || undefined,
+    storageProviderType: dto.storageProviderType || undefined,
+    department: dto.departmentName || undefined,
+    createdAt: dto.createdAt ? new Date(dto.createdAt).toLocaleDateString('vi-VN') : '',
+    scanStatus: dto.scanStatus || 'Clean',
   };
 };
 
@@ -315,11 +352,85 @@ export const driveApi = {
     window.URL.revokeObjectURL(url);
   },
 
-  // Share item
+  // Lấy danh sách tệp tin được chia sẻ với người dùng hiện tại
+  getSharedFiles: async (params?: {
+    pageNumber?: number;
+    pageSize?: number;
+    searchTerm?: string;
+    fileType?: string;
+    sharedBy?: string;
+    sortBy?: string;
+    sortDirection?: string;
+  }): Promise<SharedFileListResponse> => {
+    try {
+      const res: any = await apiClient.get('/files/shared', {
+        params: {
+          pageNumber: params?.pageNumber ?? 1,
+          pageSize: params?.pageSize ?? 20,
+          searchTerm: params?.searchTerm?.trim() || undefined,
+          fileType: params?.fileType || undefined,
+          sharedBy: params?.sharedBy?.trim() || undefined,
+          sortBy: params?.sortBy || 'date',
+          sortDirection: params?.sortDirection || 'desc',
+        },
+      });
+      const data = res?.value ?? res?.data ?? res;
+      const rawItems = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : [];
+      const items = rawItems.map(mapSharedFileItemDto);
+
+      return {
+        items,
+        totalCount: data?.totalCount ?? items.length,
+        pageNumber: data?.pageNumber ?? 1,
+        pageSize: data?.pageSize ?? 20,
+        hasMore: Boolean(data?.hasMore),
+      };
+    } catch (error) {
+      console.error('Lỗi khi tải danh sách tệp tin chia sẻ:', error);
+      throw error;
+    }
+  },
+
+  getFileShares: async (fileId: string): Promise<FileShareRecipient[]> => {
+    const res: any = await apiClient.get(`/files/${fileId}/shares`);
+    return res?.value ?? res?.data ?? res;
+  },
+
+  // Chia sẻ tệp tin cho đồng nghiệp trong tổ chức
+  shareFile: async (fileId: string, email: string, role: string = 'Viewer', expiresAt?: string): Promise<any> => {
+    const res: any = await apiClient.post(`/files/${fileId}/share`, {
+      email,
+      role,
+      expiresAt: expiresAt || null,
+    });
+    return res?.value ?? res?.data ?? res;
+  },
+
+  // Thu hồi quyền chia sẻ tệp tin
+  revokeShare: async (fileId: string, recipientId: string): Promise<any> => {
+    const res: any = await apiClient.delete(`/files/${fileId}/share/${recipientId}`);
+    return res?.value ?? res?.data ?? res;
+  },
+
+  // Backward compatibility alias for share
   shareItem: async (itemId: string, emails: string[]): Promise<void> => {
-    await apiClient.post(`/files/${itemId}/share`, { emails });
+    if (emails.length > 0) {
+      await apiClient.post(`/files/${itemId}/share`, { email: emails[0], role: 'Viewer' });
+    }
   },
 };
+
+export interface FileShareRecipient {
+  recipientId: string;
+  email: string;
+  name: string;
+  role: 'Viewer' | 'Editor';
+  expiresAt?: string;
+}
 
 export const userApi = {
   // Lấy hạn mức dung lượng lưu trữ cá nhân

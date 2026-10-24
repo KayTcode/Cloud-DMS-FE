@@ -1,136 +1,140 @@
-import React, { useState } from 'react';
-import { X, Share2, Copy, Check } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, Share2 } from 'lucide-react';
 import { DriveItem } from '../types';
+import { driveApi, FileShareRecipient } from '../api/driveApi';
 
 interface ShareModalProps {
   item: DriveItem | null;
   onClose: () => void;
   onShareSuccess: (message: string) => void;
+  onChanged?: () => void;
 }
 
-export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSuccess }) => {
-  const [copied, setCopied] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [permission, setPermission] = useState('viewer');
+const errorMessage = (error: unknown): string => {
+  const response = (error as any)?.response?.data;
+  return response?.error || response?.errors?.[0] || (error instanceof Error ? error.message : '') || 'Không thể cập nhật chia sẻ. Vui lòng thử lại.';
+};
+
+export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSuccess, onChanged }) => {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'Viewer' | 'Editor'>('Viewer');
+  const [recipients, setRecipients] = useState<FileShareRecipient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const currentFile = useRef(item?.id);
+  currentFile.current = item?.id;
+
+  useEffect(() => {
+    let cancelled = false;
+    setEmail('');
+    setRole('Viewer');
+    setRecipients([]);
+    setError('');
+    setLoadError('');
+    setLoading(true);
+    setBusy(false);
+    if (item) {
+      driveApi.getFileShares(item.id).then((data) => {
+        if (!cancelled) setRecipients(data);
+      }).catch((err) => {
+        if (!cancelled) setLoadError(errorMessage(err));
+      }).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [item?.id]);
 
   if (!item) return null;
 
-  const shareUrl = `https://clouddms.acme.corp/drive/share/${item.id}`;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    onShareSuccess('Đã sao chép liên kết chia sẻ vào bộ nhớ tạm!');
-  };
-
-  const handleInvite = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteEmail) return;
-    onShareSuccess(`Đã gửi lời mời cộng tác tới ${inviteEmail}!`);
-    setInviteEmail('');
+  const mutate = async (action: () => Promise<unknown>, message: string) => {
+    if (busy) return;
+    const fileId = item.id;
+    setBusy(true);
+    setError('');
+    try {
+      await action();
+      onChanged?.();
+      onShareSuccess(message);
+      if (currentFile.current !== fileId) return;
+      setEmail('');
+      try {
+        const data = await driveApi.getFileShares(fileId);
+        if (currentFile.current === fileId) {
+          setRecipients(data);
+          setLoadError('');
+        }
+      } catch {
+        if (currentFile.current === fileId) setLoadError('Đã lưu thay đổi nhưng chưa thể tải lại danh sách. Hãy mở lại cửa sổ chia sẻ.');
+      }
+    } catch (err) {
+      if (currentFile.current === fileId) setError(errorMessage(err));
+    } finally {
+      if (currentFile.current === fileId) setBusy(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+      <div role="dialog" aria-modal="true" aria-labelledby="share-title" onKeyDown={(event) => {
+        if (event.key === 'Escape' && !busy) onClose();
+        if (event.key === 'Tab') {
+          const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)'));
+          const first = controls[0];
+          const last = controls[controls.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }
+      }} className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl p-6">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Share2 className="w-4 h-4" />
-            </div>
+            <Share2 className="w-5 h-5 text-blue-600" />
             <div>
-              <h3 className="text-base font-bold text-slate-900">Chia sẻ tài liệu</h3>
+              <h3 id="share-title" className="font-bold text-slate-900">Chia sẻ tài liệu</h3>
               <p className="text-xs text-slate-500 truncate max-w-xs">{item.name}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <button autoFocus disabled={busy} aria-label="Đóng cửa sổ chia sẻ" onClick={onClose}><X className="w-5 h-5" /></button>
         </div>
-
-        <form onSubmit={handleInvite} className="mt-5 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Thêm người hoặc nhóm nội bộ
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="nhan-vien@acmecorp.com..."
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <select
-                value={permission}
-                onChange={(e) => setPermission(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-xs rounded-lg px-2 text-slate-700"
-              >
-                <option value="viewer">Xem</option>
-                <option value="commenter">Nhận xét</option>
-                <option value="editor">Chỉnh sửa</option>
-              </select>
-              <button
-                type="submit"
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                Gửi
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-2">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Liên kết chia sẻ nội bộ
-            </label>
-            <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
-              <input
-                type="text"
-                readOnly
-                value={shareUrl}
-                className="flex-1 bg-transparent text-xs text-slate-600 outline-none font-mono"
-              />
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-md flex items-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Đã chép' : 'Sao chép'}</span>
-              </button>
-            </div>
-          </div>
-
-          {item.sharedWith && item.sharedWith.length > 0 && (
-            <div className="pt-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Đang được chia sẻ với
-              </label>
-              <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                {item.sharedWith.map((email) => (
-                  <div
-                    key={email}
-                    className="flex items-center justify-between text-xs py-1 px-2.5 bg-slate-50 rounded-lg"
-                  >
-                    <span className="text-slate-700 font-mono text-[11px]">{email}</span>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase">Được cấp quyền</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            >
-              Đóng
-            </button>
+        <p className="mt-4 text-xs text-slate-500">Chỉ chia sẻ với tài khoản trong cùng tổ chức. Người nhận sẽ thấy tài liệu trong mục “Được chia sẻ”.</p>
+        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+        {loadError && <p role="alert" className="mt-3 text-sm text-red-600">{loadError}</p>}
+        <form className="mt-4 space-y-3" onSubmit={(event) => {
+          event.preventDefault();
+          const normalized = email.trim();
+          if (normalized) void mutate(() => driveApi.shareFile(item.id, normalized, role), 'Đã chia sẻ tài liệu thành công.');
+        }}>
+          <label htmlFor="share-email" className="block text-xs font-semibold">Email người nhận</label>
+          <input id="share-email" required type="email" maxLength={254} disabled={busy || loading || !!loadError} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dongnghiep@congty.vn" className="w-full border rounded-lg px-3 py-2 text-sm" />
+          <div className="flex gap-2">
+            <select aria-label="Quyền người nhận" disabled={busy} value={role} onChange={(e) => setRole(e.target.value as 'Viewer' | 'Editor')} className="border rounded-lg px-3 py-2 text-sm">
+              <option value="Viewer">Xem</option>
+              <option value="Editor">Chỉnh sửa</option>
+            </select>
+            <button type="submit" disabled={busy || loading || !!loadError || !email.trim()} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Đang lưu…' : 'Chia sẻ'}</button>
           </div>
         </form>
+        <div className="mt-5 border-t pt-4" aria-busy={loading || busy}>
+          <h4 className="text-xs font-semibold mb-3">Người đang được chia sẻ trực tiếp</h4>
+          {loading ? <p role="status" className="text-sm text-slate-500">Đang tải…</p> : !loadError && recipients.length === 0 ? <p className="text-sm text-slate-500">Chưa chia sẻ với ai.</p> : null}
+          <ul className="space-y-3 max-h-60 overflow-auto">
+            {recipients.map((recipient) => (
+              <li key={recipient.recipientId} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="flex-1 min-w-0 break-all" title={recipient.email}>{recipient.email}</span>
+                <select aria-label={`Quyền của ${recipient.email}`} disabled={busy || !!loadError} value={recipient.role} onChange={(event) => {
+                  const nextRole = event.target.value;
+                  void mutate(() => driveApi.shareFile(item.id, recipient.email, nextRole, recipient.expiresAt), 'Đã cập nhật quyền chia sẻ.');
+                }} className="border rounded px-2 py-1">
+                  <option value="Viewer">Xem</option><option value="Editor">Chỉnh sửa</option>
+                </select>
+                <button type="button" aria-label={`Thu hồi chia sẻ với ${recipient.email}`} disabled={busy || !!loadError} onClick={() => void mutate(() => driveApi.revokeShare(item.id, recipient.recipientId), 'Đã thu hồi quyền chia sẻ.')} className="text-red-600 disabled:opacity-50">Thu hồi</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex justify-end mt-5 border-t pt-3"><button disabled={busy} onClick={onClose} className="text-sm px-4 py-2 rounded hover:bg-slate-100">Đóng</button></div>
       </div>
     </div>
   );
