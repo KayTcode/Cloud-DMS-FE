@@ -24,12 +24,29 @@ apiClient.interceptors.request.use(
     // Tự động gán Idempotency-Key cho các request thay đổi dữ liệu (POST, PUT, PATCH, DELETE) nếu chưa có
     const method = config.method?.toLowerCase();
     if (config.headers && ['post', 'put', 'patch', 'delete'].includes(method || '')) {
-      if (!config.headers['Idempotency-Key']) {
-        config.headers['Idempotency-Key'] =
+      const existingKey = typeof (config.headers as any).get === 'function'
+        ? (config.headers as any).get('Idempotency-Key')
+        : config.headers['Idempotency-Key'];
+
+      if (!existingKey) {
+        const generatedKey =
           typeof crypto !== 'undefined' && crypto.randomUUID
             ? crypto.randomUUID()
             : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+        if (typeof (config.headers as any).set === 'function') {
+          (config.headers as any).set('Idempotency-Key', generatedKey);
+        }
+        config.headers['Idempotency-Key'] = generatedKey;
       }
+    }
+
+    // Nếu gửi FormData (upload file), xóa Content-Type để Axios và Browser tự tính kèm boundary chuẩn
+    if (config.data instanceof FormData && config.headers) {
+      if (typeof (config.headers as any).delete === 'function') {
+        (config.headers as any).delete('Content-Type');
+      }
+      delete config.headers['Content-Type'];
     }
 
     return config;

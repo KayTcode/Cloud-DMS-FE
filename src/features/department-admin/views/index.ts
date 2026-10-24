@@ -4,3 +4,4 @@ export * from './DepartmentLogsView';
 export * from './StaffManagementView';
 export * from './StorageOverviewView';
 export * from './SetupDepartmentView';
+export * from './DepartmentStorageReportView';

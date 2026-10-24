@@ -1,4 +1,5 @@
 import apiClient from '@/api/axiosClient';
+import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
 import {
   DriveItem,
   FileType,
@@ -65,7 +66,7 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     parentId: dto.folderId || null,
     starred: Boolean(dto.isStarred),
     trashed: isTrash || Boolean(dto.isDeleted),
-    sharedWith: [],
+    sharedWith: dto.isShared ? ['shared'] : (dto.sharedWith || []),
     tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
     department: dto.departmentName || '',
     previewUrl: dto.previewUrl,
@@ -73,22 +74,24 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
 };
 
 export const driveApi = {
-  // Fetch files and folders for current user (My Drive)
-  getDriveItems: async (folderId?: string | null, searchTerm?: string): Promise<DriveItem[]> => {
+  // Fetch files and folders for current user (My Drive) from dedicated endpoint
+  getDriveItems: async (folderId?: string | null, searchTerm?: string, filter?: string): Promise<DriveItem[]> => {
     try {
-      const res: any = await apiClient.get('/files', {
+      const res: any = await apiClient.get('/users/me/files', {
         params: {
           folderId: folderId || undefined,
           searchTerm: searchTerm?.trim() || undefined,
+          filter: filter || undefined,
+          pageSize: 100,
         },
       });
       const data = res?.value ?? res?.data ?? res;
       const fileList = Array.isArray(data)
         ? data
-        : Array.isArray(data?.files)
-        ? data.files
         : Array.isArray(data?.items)
         ? data.items
+        : Array.isArray(data?.files)
+        ? data.files
         : [];
 
       return fileList.map((item: any) => mapFileEntryToDriveItem(item, false));
@@ -98,16 +101,57 @@ export const driveApi = {
     }
   },
 
-  // Upload files to current directory
+  // Upload files to current directory (Traditional / Legacy Stream through Backend)
   uploadFiles: async (files: FileList | File[], folderId?: string | null): Promise<any> => {
     const formData = new FormData();
     Array.from(files).forEach((f) => formData.append('files', f));
     if (folderId) formData.append('folderId', folderId);
 
-    const res: any = await apiClient.post('/files/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const res: any = await apiClient.post('/files/upload', formData);
     return res?.value ?? res?.data ?? res;
+  },
+
+  // Upload files using Direct-to-Storage (Google Drive / OneDrive / S3 - New Method)
+  uploadDirectFiles: async (
+    files: FileList | File[],
+    folderId?: string | null,
+    onProgress?: (fileName: string, progress: DirectUploadProgress) => void
+  ): Promise<any> => {
+    const fileArray = Array.from(files);
+    const uploaded: any[] = [];
+    const failed: any[] = [];
+
+    for (const file of fileArray) {
+      try {
+        const result = await CloudDirectUploader.upload({
+          file,
+          folderId: folderId || null,
+          onProgress: (p) => onProgress?.(file.name, p),
+        });
+        uploaded.push({
+          id: result.fileId,
+          fileName: file.name,
+          name: file.name,
+          sizeBytes: file.size,
+          size: file.size,
+          documentVersion: result.documentVersion,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err: any) {
+        failed.push({
+          fileName: file.name,
+          fileSize: file.size,
+          error: err?.message || 'Tải trực tiếp lên Cloud thất bại',
+        });
+      }
+    }
+
+    return {
+      uploaded,
+      failed,
+      allSucceeded: failed.length === 0,
+      totalFiles: fileArray.length,
+    };
   },
 
   // Create folder
@@ -126,28 +170,49 @@ export const driveApi = {
 
   // Move to trash (Soft Delete - DELETE /api/files/{id})
   moveToTrash: async (itemId: string): Promise<any> => {
-    return await apiClient.delete(`/files/${itemId}`);
+    const key = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return await apiClient.delete(`/files/${itemId}`, {
+      headers: { 'Idempotency-Key': key },
+    });
   },
 
   // Restore from trash (POST /api/files/{id}/restore)
   restoreFile: async (itemId: string): Promise<any> => {
-    return await apiClient.post(`/files/${itemId}/restore`);
+    const key = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return await apiClient.post(`/files/${itemId}/restore`, null, {
+      headers: { 'Idempotency-Key': key },
+    });
   },
 
   // Permanently delete (DELETE /api/files/{id}/permanent)
   deletePermanently: async (itemId: string): Promise<any> => {
-    return await apiClient.delete(`/files/${itemId}/permanent`);
+    const key = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return await apiClient.delete(`/files/${itemId}/permanent`, {
+      headers: { 'Idempotency-Key': key },
+    });
   },
 
   // Fetch trash files list with summary (GET /api/files/trash)
   getTrashFiles: async (
     pageNumber = 1,
     pageSize = 50,
-    searchTerm?: string
+    searchTerm?: string,
+    departmentId?: string
   ): Promise<TrashFileListResponse> => {
     try {
       const res: any = await apiClient.get('/files/trash', {
-        params: { pageNumber, pageSize, searchTerm: searchTerm || undefined },
+        params: {
+          pageNumber,
+          pageSize,
+          searchTerm: searchTerm || undefined,
+          departmentId: departmentId || undefined,
+        },
       });
       const data = res?.value ?? res?.data ?? res;
       const rawItems = Array.isArray(data)
@@ -163,7 +228,7 @@ export const driveApi = {
         totalCount: data?.totalCount ?? rawItems.length,
         pageNumber: data?.pageNumber ?? pageNumber,
         pageSize: data?.pageSize ?? pageSize,
-        totalSizeBytes: data?.totalSizeBytes ?? 0,
+        totalSizeBytes: data?.totalTrashSizeBytes ?? data?.totalSizeBytes ?? 0,
         hasMore: data?.hasMore ?? false,
       };
     } catch (error) {

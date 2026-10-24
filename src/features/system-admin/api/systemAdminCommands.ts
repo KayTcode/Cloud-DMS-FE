@@ -219,6 +219,17 @@ export const connectStorageProviderApi = async (
 };
 
 /**
+ * 8b. Update an existing Storage Provider configuration and refresh token (PUT /api/admin/storage-providers/{id})
+ */
+export const updateStorageProviderApi = async (
+  id: string,
+  payload: { name?: string; configJson: string }
+): Promise<any> => {
+  const response: any = await axiosClient.put(`/admin/storage-providers/${id}`, payload);
+  return response?.value || response?.data || response;
+};
+
+/**
  * 9. Delete/Disconnect a Storage Provider (DELETE /api/admin/storage-providers/{id})
  */
 export const deleteStorageProviderApi = async (id: string): Promise<boolean> => {

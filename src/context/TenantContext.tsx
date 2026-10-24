@@ -217,8 +217,14 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setTenant((prev) => {
         const qBytes = loadedQuota?.storageQuotaBytes ?? prev.storageQuotaBytes ?? 0;
         const uBytes = loadedQuota?.storageUsedBytes ?? prev.storageUsedBytes ?? 0;
+        const allocDeptsBytes = loadedQuota?.allocatedToDepartmentsBytes
+          ?? loadedDepts.reduce((acc, d) => acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3))), 0);
+        const effectiveAllocatedBytes = Math.max(allocDeptsBytes, uBytes);
+        const availBytes = Math.max(0, qBytes - effectiveAllocatedBytes);
+        const usagePct = qBytes > 0 ? Math.round((effectiveAllocatedBytes / qBytes) * 100) : 0;
+
         const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
-        const usedTB = Number((uBytes / (1024 ** 4)).toFixed(3));
+        const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
 
         return {
           ...prev,
@@ -230,9 +236,10 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
           storageQuotaBytes: qBytes,
           storageUsedBytes: uBytes,
-          availableBytes: loadedQuota?.availableBytes,
+          allocatedToDepartmentsBytes: effectiveAllocatedBytes,
+          availableBytes: availBytes,
           storageProviderName: loadedQuota?.storageProviderName,
-          usagePercentage: loadedQuota?.usagePercentage,
+          usagePercentage: usagePct,
         };
       });
     } catch (err) {

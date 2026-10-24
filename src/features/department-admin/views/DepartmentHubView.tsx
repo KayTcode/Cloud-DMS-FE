@@ -12,6 +12,7 @@ import {
   RefreshCw,
   FolderTree,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { DepartmentInfo, DepartmentNavTab } from '../types';
 
@@ -55,6 +56,21 @@ export const DepartmentHubView: React.FC<DepartmentHubViewProps> = ({
       statValue: `${department.usedSpaceGB} / ${department.totalAllocatedGB} GB`,
     },
     {
+      id: 'trash' as DepartmentNavTab,
+      title: 'Thùng rác Phòng ban',
+      subtitle: 'Department Recycle Bin & Recovery',
+      description:
+        'Xem và phục hồi các tài liệu đã xóa của phòng ban hoặc xóa vĩnh viễn để giải phóng dung lượng Quota lưu trữ.',
+      icon: Trash2,
+      color: 'rose',
+      gradient: 'from-rose-600 to-pink-600',
+      iconBg: 'bg-rose-50 text-rose-600 border-rose-200/60',
+      badge: 'Thùng rác & Phục hồi',
+      actionText: 'Xem Thùng rác Phòng ban',
+      statLabel: 'Tối ưu bộ nhớ',
+      statValue: 'Khôi phục / Xóa vĩnh viễn',
+    },
+    {
       id: 'staff' as DepartmentNavTab,
       title: 'Quản lý Nhân sự & Phân quyền Quota',
       subtitle: 'Staff Directory & Member Allocation',
@@ -83,6 +99,21 @@ export const DepartmentHubView: React.FC<DepartmentHubViewProps> = ({
       actionText: 'Xem Nhật ký Hoạt động',
       statLabel: 'Trạng thái giám sát',
       statValue: 'Ghi log tự động 24/7',
+    },
+    {
+      id: 'report' as DepartmentNavTab,
+      title: 'Báo cáo & Kiểm toán Tệp tin',
+      subtitle: 'Department Storage & User Files Audit',
+      description:
+        'Kiểm tra và đối soát toàn diện mọi tệp tin do nhân viên trong phòng tải lên: xem người upload, dung lượng, chứng nhận ClamAV, mã SHA-256 và xuất báo cáo CSV.',
+      icon: HardDrive,
+      color: 'indigo',
+      gradient: 'from-indigo-600 to-purple-600',
+      iconBg: 'bg-indigo-50 text-indigo-600 border-indigo-200/60',
+      badge: 'Kiểm toán & Báo cáo',
+      actionText: 'Xem Báo cáo Tệp tin',
+      statLabel: 'Kiểm tra tệp nhân viên',
+      statValue: 'Báo cáo chi tiết + CSV',
     },
   ];
 
@@ -165,8 +196,8 @@ export const DepartmentHubView: React.FC<DepartmentHubViewProps> = ({
           </div>
         </div>
 
-        {/* 3 Large Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* 4 Large Action Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {cards.map((card) => {
             const Icon = card.icon;
             return (

@@ -92,3 +92,17 @@ export interface PaginatedResult<T> {
   hasPreviousPage: boolean;
   hasNextPage: boolean;
 }
+
+export interface DepartmentAuditLogDto {
+  id: string;
+  timestamp: string;
+  action: string;
+  actor: string;
+  actorEmail?: string;
+  ipAddress: string;
+  status: 'SUCCESS' | 'WARNING' | 'FAILED' | string;
+  details: string;
+  tenantId?: string;
+  tenantName?: string;
+}
+

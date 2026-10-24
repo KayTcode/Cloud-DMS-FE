@@ -23,6 +23,7 @@ export interface CreateDepartmentAdminPayload {
   lastName: string;
   phoneNumber?: string;
   departmentId?: string; // Optional: Có thể gán hoặc để trống
+  storageQuotaBytes?: number;
 }
 
 export interface Department {
@@ -30,6 +31,10 @@ export interface Department {
   name: string;
   headCount: number;
   lead: string;
+  adminId?: string;
+  adminIsActive?: boolean;
   allocatedStorageGB: number;
   adminEmail?: string;
+  storageQuotaBytes?: number;
+  storageUsedBytes?: number;
 }

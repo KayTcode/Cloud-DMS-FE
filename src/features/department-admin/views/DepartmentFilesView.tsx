@@ -11,6 +11,7 @@ import {
   Presentation,
   Download,
   Trash2,
+  RotateCcw,
   MoreVertical,
   ChevronRight,
   ArrowUpDown,
@@ -29,36 +30,61 @@ import {
   Star,
   ExternalLink,
   Loader2,
+  Database,
+  FolderLock,
+  AlertTriangle,
+  RefreshCw,
+  ChevronUp,
+  Layers,
+  UploadCloud,
+  Server,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
 import { FilePreviewModal } from '@/features/user/components/FilePreviewModal';
 import {
-  getTenantFilesApi,
+  getDepartmentFilesApi,
   uploadTenantFilesApi,
+  uploadDirectTenantFilesApi,
   downloadTenantFileApi,
   deleteTenantFileApi,
   TenantStorageSummaryDto,
 } from '@/features/tenants/api/fileApi';
+import { driveApi, formatBytes } from '@/features/user/api/driveApi';
 
 interface DepartmentFilesViewProps {
   department: DepartmentInfo;
   availableQuotaGB: number;
+  initialTab?: 'files' | 'trash';
   onBackToHub: () => void;
   onQuotaUpdated?: () => void;
   onAddToast?: (type: 'success' | 'error' | 'info', message: string) => void;
+  onTabChange?: (tab: 'files' | 'trash') => void;
+  onNavigateToReport?: () => void;
 }
 
 export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   department,
   availableQuotaGB,
+  initialTab = 'files',
   onBackToHub,
   onQuotaUpdated,
   onAddToast,
+  onTabChange,
+  onNavigateToReport,
 }) => {
+  const [activeTab, setActiveTab] = useState<'files' | 'trash'>(initialTab);
   const [items, setItems] = useState<DriveItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [storageSummary, setStorageSummary] = useState<TenantStorageSummaryDto | null>(null);
+
+  // Trash states
+  const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
+  const [trashTotalCount, setTrashTotalCount] = useState<number>(0);
+  const [trashTotalSizeBytes, setTrashTotalSizeBytes] = useState<number>(0);
+  const [isLoadingTrash, setIsLoadingTrash] = useState<boolean>(false);
+  const [confirmPermanentItem, setConfirmPermanentItem] = useState<DriveItem | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -81,8 +107,10 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isStorageOverviewOpen, setIsStorageOverviewOpen] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const directFileInputRef = useRef<HTMLInputElement>(null);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -102,13 +130,12 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const fetchDepartmentFiles = async () => {
     try {
       setIsLoading(true);
-      const res = await getTenantFilesApi(
-        undefined,
+      const res = await getDepartmentFilesApi(
+        department.id || '',
         currentFolderId || undefined,
         1,
         100,
-        searchQuery.trim() || undefined,
-        department.id
+        searchQuery.trim() || undefined
       );
       setStorageSummary(res);
 
@@ -146,7 +173,26 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         };
       });
 
-      setItems(apiFiles);
+      const apiFolders: DriveItem[] = (res.folders || []).map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        type: 'folder',
+        size: 0,
+        sizeFormatted: '0 mục',
+        updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
+        createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
+        owner: {
+          name: department.adminName || 'Phòng ban',
+          email: department.adminEmail || '',
+        },
+        parentId: f.parentFolderId || null,
+        starred: false,
+        trashed: false,
+        sharedWith: [],
+        tags: ['Thư mục phòng ban'],
+      }));
+
+      setItems([...apiFolders, ...apiFiles]);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách tệp của phòng ban:', err);
       setItems([]);
@@ -155,9 +201,90 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
+  // Fetch trash files for department
+  const fetchTrashFiles = async (search?: string) => {
+    try {
+      setIsLoadingTrash(true);
+      const res = await driveApi.getTrashFiles(1, 100, search || undefined, department.id);
+      setTrashItems(res.items || []);
+      setTrashTotalCount(res.totalCount || 0);
+      setTrashTotalSizeBytes(res.totalSizeBytes || 0);
+    } catch (err) {
+      console.error('Lỗi khi tải thùng rác phòng ban:', err);
+      if (onAddToast) onAddToast('error', 'Không thể tải danh sách thùng rác phòng ban.');
+    } finally {
+      setIsLoadingTrash(false);
+    }
+  };
+
+  // Sync activeTab when initialTab prop changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  // Load department files & trash summary on mount or department change
   useEffect(() => {
     fetchDepartmentFiles();
+    fetchTrashFiles();
   }, [department.id, currentFolderId]);
+
+  // Reload when switching tab or searching
+  useEffect(() => {
+    if (activeTab === 'trash') {
+      fetchTrashFiles(searchQuery);
+    } else {
+      fetchDepartmentFiles();
+    }
+  }, [activeTab, searchQuery]);
+
+  const handleSwitchTab = (tab: 'files' | 'trash') => {
+    setActiveTab(tab);
+    if (onTabChange) onTabChange(tab);
+  };
+
+  // Restore file from trash
+  const handleRestoreFile = async (id: string, name?: string) => {
+    try {
+      setIsProcessingAction(true);
+      await driveApi.restoreFile(id);
+      setTrashItems((prev) => prev.filter((item) => item.id !== id));
+      setTrashTotalCount((prev) => Math.max(0, prev - 1));
+      if (onAddToast) {
+        onAddToast('success', `Đã khôi phục "${name || 'tài liệu'}" về danh mục phòng ban thành công!`);
+      }
+      fetchDepartmentFiles();
+      if (onQuotaUpdated) onQuotaUpdated();
+    } catch (error: any) {
+      console.error('Lỗi khi khôi phục tài liệu:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Khôi phục tài liệu thất bại.';
+      if (onAddToast) onAddToast('error', errMsg);
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  // Permanently delete file from trash
+  const handlePermanentDelete = async (id: string, name?: string) => {
+    try {
+      setIsProcessingAction(true);
+      await driveApi.deletePermanently(id);
+      setTrashItems((prev) => prev.filter((item) => item.id !== id));
+      setTrashTotalCount((prev) => Math.max(0, prev - 1));
+      setConfirmPermanentItem(null);
+      if (onAddToast) {
+        onAddToast('success', `Đã xóa vĩnh viễn "${name || 'tài liệu'}" và giải phóng dung lượng phòng ban!`);
+      }
+      if (onQuotaUpdated) onQuotaUpdated();
+    } catch (error: any) {
+      console.error('Lỗi khi xóa vĩnh viễn:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Không thể xóa vĩnh viễn tài liệu.';
+      if (onAddToast) onAddToast('error', errMsg);
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
 
   // Current folder hierarchy
   const currentFolder = items.find((i) => i.id === currentFolderId && i.type === 'folder');
@@ -191,7 +318,24 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
     // Match current folder hierarchy
     if (!searchQuery.trim()) {
-      return item.parentId === currentFolderId;
+      if (currentFolderId) {
+        return item.parentId === currentFolderId;
+      }
+
+      // Ở thư mục gốc (currentFolderId === null):
+      if (item.type === 'folder') {
+        // Chỉ hiển thị thư mục gốc của phòng ban (parentId === null hoặc parentId không nằm trong danh sách thư mục hiển thị)
+        const isChildOfOtherDepartmentFolder = items.some(
+          (i) => i.type === 'folder' && i.id !== item.id && i.id === item.parentId
+        );
+        return !isChildOfOtherDepartmentFolder;
+      } else {
+        // Tệp tin: hiển thị nếu không có parentId HOẶC parentId của tệp không nằm trong danh sách thư mục hiển thị (để tránh bị ẩn tệp)
+        const isInsideListedFolder = items.some(
+          (i) => i.type === 'folder' && i.id === item.parentId
+        );
+        return item.parentId === null || !isInsideListedFolder;
+      }
     }
 
     return true;
@@ -218,14 +362,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const folders = sortedItems.filter((i) => i.type === 'folder');
   const files = sortedItems.filter((i) => i.type === 'file');
 
-  // Format bytes
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-  };
+  // Sort trash items
+  const sortedTrashItems = [...trashItems].sort((a, b) => {
+    let comparison = 0;
+    if (sortField === 'name') {
+      comparison = a.name.localeCompare(b.name);
+    } else if (sortField === 'size') {
+      comparison = a.size - b.size;
+    } else {
+      const dateA = a.deletedAt || a.updatedAt || '';
+      const dateB = b.deletedAt || b.updatedAt || '';
+      comparison = dateA.localeCompare(dateB);
+    }
+    return sortAsc ? comparison : -comparison;
+  });
 
   // Google Drive file type icon
   const getGoogleDriveIcon = (fileType?: FileType, ext?: string) => {
@@ -317,6 +467,55 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
+  // Direct Cloud Upload handler (Direct-to-Storage: Google Drive / OneDrive / S3)
+  const handleUploadDirectFiles = async (fileList: FileList | File[]) => {
+    if (!fileList || fileList.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress(20);
+    setUploadStepMsg('Khởi tạo phiên Direct Upload & giữ chỗ Quota phòng ban...');
+
+    try {
+      setUploadProgress(40);
+      setUploadStepMsg('Tải trực tiếp lên Cloud Storage (Google Drive / OneDrive / S3)...');
+
+      const result = await uploadDirectTenantFilesApi(
+        fileList,
+        undefined,
+        currentFolderId || undefined,
+        undefined,
+        undefined,
+        (fileName: string, progress: any) => {
+          const percent = progress?.percent ?? 0;
+          setUploadProgress(40 + Math.floor(percent * 0.5));
+          setUploadStepMsg(`Đang tải trực tiếp "${fileName}" lên Cloud (${percent}%)...`);
+        }
+      );
+
+      setUploadProgress(100);
+      setUploadStepMsg('Direct Cloud Upload hoàn tất!');
+      await new Promise((r) => setTimeout(r, 250));
+
+      await fetchDepartmentFiles();
+      if (onQuotaUpdated) onQuotaUpdated();
+
+      if (onAddToast) {
+        if (result.failed && result.failed.length > 0) {
+          onAddToast('error', `Tải trực tiếp Cloud: ${result.uploaded.length} tệp thành công, thất bại ${result.failed.length} tệp.`);
+        } else {
+          onAddToast('success', `Đã tải trực tiếp ${result.uploaded.length || fileList.length} tệp tin lên Cloud thành công.`);
+        }
+      }
+    } catch (err: any) {
+      if (onAddToast) onAddToast('error', err?.response?.data?.error || err?.message || 'Có lỗi khi tải trực tiếp tệp tin lên Cloud.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      setUploadStepMsg('');
+      if (directFileInputRef.current) directFileInputRef.current.value = '';
+    }
+  };
+
   // Create folder handler
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) return;
@@ -359,6 +558,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       if (onQuotaUpdated) onQuotaUpdated();
       if (onAddToast) onAddToast('success', `Đã chuyển "${name}" vào thùng rác.`);
       await fetchDepartmentFiles();
+      fetchTrashFiles();
     } catch (err: any) {
       if (onAddToast) onAddToast('error', 'Không thể xóa tệp tin.');
     }
@@ -381,6 +581,30 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     } catch (err: any) {
       if (onAddToast) onAddToast('error', 'Không thể tải xuống tệp tin.');
     }
+  };
+
+  // Storage Quota calculations matching StorageView.tsx
+  const quotaBytes = storageSummary?.quotaBytes ?? (department.totalAllocatedGB * 1024 * 1024 * 1024);
+  const usedBytes = storageSummary?.usedBytes ?? (department.usedSpaceGB * 1024 * 1024 * 1024);
+  const availableBytes = storageSummary?.availableBytes ?? Math.max(0, quotaBytes - usedBytes);
+  const usagePercent = storageSummary?.usagePercentage !== undefined
+    ? Math.round(storageSummary.usagePercentage)
+    : (quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0);
+
+  const isCritical = usagePercent >= 95;
+  const isWarning = usagePercent >= 80 && usagePercent < 95;
+
+  const getStatusColor = () => {
+    if (isCritical) return { bg: 'bg-rose-500', text: 'text-rose-600', ring: 'ring-rose-200', border: 'border-rose-200', lightBg: 'bg-rose-50' };
+    if (isWarning) return { bg: 'bg-amber-500', text: 'text-amber-600', ring: 'ring-amber-200', border: 'border-amber-200', lightBg: 'bg-amber-50' };
+    return { bg: 'bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-100', border: 'border-blue-200', lightBg: 'bg-blue-50' };
+  };
+
+  const statusColor = getStatusColor();
+
+  const handleManualRefresh = () => {
+    fetchDepartmentFiles();
+    if (onQuotaUpdated) onQuotaUpdated();
   };
 
   return (
@@ -408,6 +632,15 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           if (e.target.files) handleUploadFiles(e.target.files);
         }}
       />
+      <input
+        ref={directFileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) handleUploadDirectFiles(e.target.files);
+        }}
+      />
 
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
@@ -425,61 +658,272 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       )}
 
       {/* TOP NAVIGATION & GOOGLE DRIVE HEADER */}
-      <div className="flex flex-col gap-3">
-        {/* Row 1: Back to Hub + Storage Quota indicator */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onBackToHub}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>← Quay lại Trung tâm điều khiển phòng ban</span>
-          </button>
+      <div className="flex flex-col gap-4">
+        {/* Row 1: Header bar with Back button & Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={onBackToHub}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-blue-600 border border-slate-200 rounded-lg shadow-2xs transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>← Quay lại Trung tâm điều khiển</span>
+            </button>
 
-          <div className="flex items-center gap-3 text-xs text-slate-600 font-medium bg-white px-3.5 py-1.5 rounded-full border border-slate-200 shadow-2xs">
-            <HardDrive className="w-3.5 h-3.5 text-blue-600" />
-            <span>
-              Bộ nhớ phòng ban:{' '}
-              <strong className="text-slate-900">
-                {storageSummary
-                  ? formatBytes(storageSummary.usedBytes)
-                  : `${department.usedSpaceGB} GB`}
-              </strong>{' '}
-              /{' '}
-              {storageSummary
-                ? formatBytes(storageSummary.quotaBytes)
-                : `${department.totalAllocatedGB} GB`}
+            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+              Phòng ban: {department.name}
             </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-emerald-600 font-semibold">
-              Còn trống{' '}
-              {storageSummary
-                ? formatBytes(storageSummary.availableBytes)
-                : `${availableQuotaGB} GB`}
-            </span>
+            {storageSummary?.storageProviderName && (
+              <span className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
+                {storageSummary.storageProviderName}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              title="Làm mới dung lượng và danh sách tệp tin"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+              <span>Làm mới dữ liệu</span>
+            </button>
+
+            <button
+              onClick={() => setIsStorageOverviewOpen(!isStorageOverviewOpen)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              <span>{isStorageOverviewOpen ? 'Thu gọn hạn mức' : 'Xem hạn mức dung lượng'}</span>
+              {isStorageOverviewOpen ? (
+                <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Row 2: Google Drive Title Breadcrumb & Action Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
-          {/* Breadcrumb Title "My Drive ▾" */}
+        {/* Row 1.5: Segmented Navigation: Tài liệu phòng ban VS Thùng rác phòng ban */}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 cursor-pointer group">
+            <button
+              onClick={() => handleSwitchTab('files')}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                activeTab === 'files'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <FolderLock className="w-4 h-4" />
+              <span>Tài liệu phòng ban</span>
+            </button>
+
+            <button
+              onClick={() => handleSwitchTab('trash')}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                activeTab === 'trash'
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
+                  : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50/50'
+              }`}
+            >
+              <Trash2 className="w-4 h-4 text-rose-500" />
+              <span>Thùng rác phòng ban</span>
+              {trashTotalCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold">
+                  {trashTotalCount}
+                </span>
+              )}
+            </button>
+
+            {onNavigateToReport && (
               <button
-                onClick={() => setCurrentFolderId(null)}
-                className="text-2xl font-bold text-slate-900 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                onClick={onNavigateToReport}
+                className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-all cursor-pointer shadow-2xs"
+                title="Xem Báo cáo Lưu trữ & Quản lý Tệp tin của các User trong phòng"
               >
-                <span>My Drive</span>
-                <ChevronDown className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition-transform group-hover:translate-y-0.5" />
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <span>Báo cáo & Đối soát Tệp tin</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-600 text-white font-bold">
+                  Mới
+                </span>
               </button>
+            )}
+          </div>
+
+          <div className="text-xs text-slate-500 flex items-center gap-1.5">
+            {activeTab === 'trash' ? (
+              <span className="text-rose-600 font-medium">
+                {trashTotalCount} tài liệu trong thùng rác · {formatBytes(trashTotalSizeBytes)}
+              </span>
+            ) : (
+              <span>
+                {items.length} tài liệu trong phòng ban
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: Dung lượng lưu trữ phòng ban (3 Metric Cards & Progress Bar giống hệt StorageView.tsx của User) */}
+        {isStorageOverviewOpen && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* 3 Metric Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Card 1: Tổng hạn mức được cấp */}
+              <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Hạn mức phòng ban</p>
+                  <Database className="w-4 h-4 text-slate-400" />
+                </div>
+                <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
+                  {isLoading ? 'Đang tải...' : formatBytes(quotaBytes)}
+                </p>
+                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Được phân bổ bởi Quản trị tổ chức (Tenant Admin)</span>
+                </p>
+              </div>
+
+              {/* Card 2: Đã sử dụng */}
+              <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Đã sử dụng</p>
+                  <HardDrive className={`w-4 h-4 ${statusColor.text}`} />
+                </div>
+                <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
+                  {isLoading ? 'Đang tải...' : formatBytes(usedBytes)}
+                </p>
+                <p className={`text-xs font-semibold mt-2 ${statusColor.text}`}>
+                  {usagePercent}% hạn mức phòng ban đã dùng
+                </p>
+              </div>
+
+              {/* Card 3: Còn khả dụng */}
+              <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn khả dụng</p>
+                  <FolderLock className="w-4 h-4 text-emerald-500" />
+                </div>
+                <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
+                  {isLoading ? 'Đang tải...' : formatBytes(availableBytes)}
+                </p>
+                <p className="text-xs text-slate-400 mt-2">
+                  Không gian còn lại để lưu trữ tệp mới của phòng ban
+                </p>
+              </div>
             </div>
 
-            {currentFolder && (
+            {/* Chi tiết thanh trạng thái dung lượng & cảnh báo */}
+            <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-800">Tiến độ lưu trữ phòng ban</span>
+                  <span className={`text-xs font-bold ${statusColor.text}`}>{usagePercent}%</span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ease-out ${statusColor.bg}`}
+                    style={{ width: `${Math.min(usagePercent, 100)}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between text-[11px] text-slate-500 mt-1.5">
+                  <span>0 Bytes</span>
+                  <span>{formatBytes(quotaBytes / 2)} (50%)</span>
+                  <span>{formatBytes(quotaBytes)}</span>
+                </div>
+              </div>
+
+              {/* Cảnh báo nếu chạm ngưỡng */}
+              {isCritical && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-rose-800 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-xs">Cảnh báo nghiêm trọng: Dung lượng phòng ban gần cạn kiệt!</p>
+                    <p className="mt-1 leading-relaxed">
+                      Phòng ban đã sử dụng {usagePercent}% hạn mức ({formatBytes(usedBytes)} / {formatBytes(quotaBytes)}). 
+                      Khi dung lượng chạm 100%, các thành viên trong phòng ban sẽ không thể tải thêm tệp tin mới. 
+                      Vui lòng liên hệ Quản trị viên Tenant để nâng hạn mức hoặc dọn dẹp các tệp tin trong Thùng rác.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {isWarning && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-800 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-xs">Lưu ý: Dung lượng lưu trữ phòng ban sắp đầy ({usagePercent}%)</p>
+                    <p className="mt-1 leading-relaxed">
+                      Phòng ban đã sử dụng trên 80% hạn mức dung lượng được cấp. Hãy kiểm tra các tệp tin không còn sử dụng để tối ưu hóa không gian lưu trữ.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Thông tin quy định lưu trữ */}
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600">
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                  <p className="font-semibold text-slate-800 text-[11px]">Quy định an toàn lưu trữ:</p>
+                  <p className="mt-0.5 text-slate-500 text-[11px] leading-relaxed">
+                    Quét virus ClamAV tự động và mã băm SHA-256 trên mọi tệp tải lên. Tệp trong Thùng rác vẫn chiếm dung lượng cho đến khi Xóa vĩnh viễn.
+                  </p>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                  <p className="font-semibold text-slate-800 text-[11px]">Hạn mức thành viên phòng ban:</p>
+                  <p className="mt-0.5 text-slate-500 text-[11px] leading-relaxed">
+                    Trưởng phòng có thể điều chỉnh hạn mức lưu trữ cá nhân của từng nhân viên tại mục "Quản lý nhân viên".
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Row 2: Google Drive Title Breadcrumb & Action Controls */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
+          {/* Breadcrumb Title */}
+          <div className="flex items-center gap-2">
+            {activeTab === 'trash' ? (
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <span>Thùng rác phòng {department.name}</span>
+                    {trashTotalCount > 0 && (
+                      <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold">
+                        {trashTotalCount} mục
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Các tệp đã xóa của phòng ban sẵn sàng khôi phục hoặc xóa dọn dẹp</p>
+                </div>
+              </div>
+            ) : (
               <>
-                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-2xl font-bold text-slate-800 truncate max-w-xs">
-                  {currentFolder.name}
-                </span>
+                <div className="flex items-center gap-1.5 cursor-pointer group">
+                  <button
+                    onClick={() => setCurrentFolderId(null)}
+                    className="text-2xl font-bold text-slate-900 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                  >
+                    <span>My Drive</span>
+                    <ChevronDown className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition-transform group-hover:translate-y-0.5" />
+                  </button>
+                </div>
+
+                {currentFolder && (
+                  <>
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-2xl font-bold text-slate-800 truncate max-w-xs">
+                      {currentFolder.name}
+                    </span>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -493,7 +937,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm kiếm trong Drive..."
+                placeholder={activeTab === 'trash' ? "Tìm trong thùng rác phòng ban..." : "Tìm kiếm trong Drive..."}
                 className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200/70 focus:bg-white border border-transparent focus:border-blue-500 rounded-full text-slate-900 placeholder:text-slate-500 focus:outline-none transition-all"
               />
               {searchQuery && (
@@ -506,18 +950,19 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               )}
             </div>
 
-            {/* Google Drive "+ Mới" Button */}
-            <div className="relative drive-menu-trigger">
-              <button
-                onClick={() => setIsNewMenuOpen(!isNewMenuOpen)}
-                className="inline-flex items-center gap-2.5 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-semibold rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer"
-              >
-                <div className="w-4 h-4 text-blue-600 flex items-center justify-center font-bold text-base">
-                  +
-                </div>
-                <span>Mới</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </button>
+            {/* Google Drive "+ Mới" Button (Only in files tab) */}
+            {activeTab === 'files' && (
+              <div className="relative drive-menu-trigger">
+                <button
+                  onClick={() => setIsNewMenuOpen(!isNewMenuOpen)}
+                  className="inline-flex items-center gap-2.5 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 text-xs font-semibold rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer"
+                >
+                  <div className="w-4 h-4 text-blue-600 flex items-center justify-center font-bold text-base">
+                    +
+                  </div>
+                  <span>Mới</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </button>
 
               {/* "+ Mới" Dropdown */}
               {isNewMenuOpen && (
@@ -535,19 +980,40 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
                   <div className="h-px bg-slate-100 my-1" />
 
+                  {/* Tùy chọn 1: Tải trực tiếp Cloud */}
+                  <button
+                    onClick={() => {
+                      setIsNewMenuOpen(false);
+                      directFileInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50/70 rounded-xl transition-colors cursor-pointer text-left group"
+                    title="Tải trực tiếp lên Cloud (Google Drive / OneDrive / S3) - Tốc độ cao, không nghẽn Server"
+                  >
+                    <div className="flex items-center gap-3">
+                      <UploadCloud className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                      <span>Tải trực tiếp Cloud</span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                      Mới
+                    </span>
+                  </button>
+
+                  {/* Tùy chọn 2: Tải qua Server */}
                   <button
                     onClick={() => {
                       setIsNewMenuOpen(false);
                       fileInputRef.current?.click();
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-left"
+                    title="Tải qua Backend Server (Phương pháp cũ)"
                   >
-                    <Upload className="w-4 h-4 text-blue-600" />
-                    <span>Tải tệp lên</span>
+                    <Server className="w-4 h-4 text-slate-500" />
+                    <span>Tải qua Server</span>
                   </button>
                 </div>
               )}
             </div>
+            )}
 
             {/* Segmented View Mode Toggle [ ≡ ] [ ☷ ] */}
             <div className="flex items-center border border-slate-300 rounded-full p-0.5 bg-white shadow-2xs">
@@ -590,105 +1056,107 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         </div>
 
         {/* Row 3: Google Drive Capsule Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
-          {/* Type ▾ Filter */}
-          <div className="relative drive-menu-trigger shrink-0">
+        {activeTab === 'files' && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none pt-1">
+            {/* Type ▾ Filter */}
+            <div className="relative drive-menu-trigger shrink-0">
+              <button
+                onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+                  selectedTypeFilter !== 'all'
+                    ? 'border-blue-500 bg-blue-50/70 text-blue-700 font-semibold'
+                    : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <span>
+                  {selectedTypeFilter === 'all'
+                    ? 'Loại tệp'
+                    : selectedTypeFilter === 'docs'
+                    ? 'Tài liệu'
+                    : selectedTypeFilter === 'sheets'
+                    ? 'Bảng tính'
+                    : selectedTypeFilter === 'pdfs'
+                    ? 'Tệp PDF'
+                    : selectedTypeFilter === 'images'
+                    ? 'Hình ảnh'
+                    : 'Thư mục'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+
+              {isTypeDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium">
+                  {[
+                    { id: 'all', label: 'Tất cả loại tệp' },
+                    { id: 'docs', label: 'Tài liệu (Docs)' },
+                    { id: 'sheets', label: 'Bảng tính (Sheets)' },
+                    { id: 'pdfs', label: 'Tệp PDF' },
+                    { id: 'images', label: 'Hình ảnh' },
+                    { id: 'folder', label: 'Chỉ thư mục' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setSelectedTypeFilter(opt.id);
+                        setIsTypeDropdownOpen(false);
+                      }}
+                      className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-100 ${
+                        selectedTypeFilter === opt.id ? 'text-blue-600 font-bold bg-blue-50/50' : 'text-slate-700'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {selectedTypeFilter === opt.id && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* People ▾ Filter Pill */}
             <button
-              onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
-                selectedTypeFilter !== 'all'
-                  ? 'border-blue-500 bg-blue-50/70 text-blue-700 font-semibold'
-                  : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
-              }`}
+              onClick={() => {
+                if (onAddToast) onAddToast('info', 'Đang lọc tài liệu theo người sở hữu trong phòng.');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer shrink-0"
             >
-              <span>
-                {selectedTypeFilter === 'all'
-                  ? 'Loại tệp'
-                  : selectedTypeFilter === 'docs'
-                  ? 'Tài liệu'
-                  : selectedTypeFilter === 'sheets'
-                  ? 'Bảng tính'
-                  : selectedTypeFilter === 'pdfs'
-                  ? 'Tệp PDF'
-                  : selectedTypeFilter === 'images'
-                  ? 'Hình ảnh'
-                  : 'Thư mục'}
-              </span>
+              <span>Người sở hữu</span>
               <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
-            {isTypeDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium">
-                {[
-                  { id: 'all', label: 'Tất cả loại tệp' },
-                  { id: 'docs', label: 'Tài liệu (Docs)' },
-                  { id: 'sheets', label: 'Bảng tính (Sheets)' },
-                  { id: 'pdfs', label: 'Tệp PDF' },
-                  { id: 'images', label: 'Hình ảnh' },
-                  { id: 'folder', label: 'Chỉ thư mục' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => {
-                      setSelectedTypeFilter(opt.id);
-                      setIsTypeDropdownOpen(false);
-                    }}
-                    className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-100 ${
-                      selectedTypeFilter === opt.id ? 'text-blue-600 font-bold bg-blue-50/50' : 'text-slate-700'
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                    {selectedTypeFilter === opt.id && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                  </button>
-                ))}
-              </div>
+            {/* Modified ▾ Filter Pill */}
+            <button
+              onClick={() => {
+                setSortField('updatedAt');
+                setSortAsc(!sortAsc);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer shrink-0"
+            >
+              <span>Ngày sửa đổi</span>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {/* Source ▾ Filter Pill */}
+            <button
+              onClick={() => {
+                if (onAddToast) onAddToast('info', 'Nguồn lưu trữ: Google Drive Primary kết nối trực tiếp.');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer shrink-0"
+            >
+              <span>Nguồn lưu trữ</span>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {/* Reset Filters */}
+            {selectedTypeFilter !== 'all' && (
+              <button
+                onClick={() => setSelectedTypeFilter('all')}
+                className="text-xs text-blue-600 hover:underline font-semibold ml-2 shrink-0 cursor-pointer"
+              >
+                Đặt lại bộ lọc
+              </button>
             )}
           </div>
-
-          {/* People ▾ Filter Pill */}
-          <button
-            onClick={() => {
-              if (onAddToast) onAddToast('info', 'Đang lọc tài liệu theo người sở hữu trong phòng.');
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer shrink-0"
-          >
-            <span>Người sở hữu</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {/* Modified ▾ Filter Pill */}
-          <button
-            onClick={() => {
-              setSortField('updatedAt');
-              setSortAsc(!sortAsc);
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer shrink-0"
-          >
-            <span>Ngày sửa đổi</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {/* Source ▾ Filter Pill */}
-          <button
-            onClick={() => {
-              if (onAddToast) onAddToast('info', 'Nguồn lưu trữ: Google Drive Primary kết nối trực tiếp.');
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer shrink-0"
-          >
-            <span>Nguồn lưu trữ</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {/* Reset Filters */}
-          {selectedTypeFilter !== 'all' && (
-            <button
-              onClick={() => setSelectedTypeFilter('all')}
-              className="text-xs text-blue-600 hover:underline font-semibold ml-2 shrink-0 cursor-pointer"
-            >
-              Đặt lại bộ lọc
-            </button>
-          )}
-        </div>
+        )}
 
         {/* Row 4: Google Drive Sort Bar "Tên ↑" */}
         <div className="flex items-center justify-between text-xs text-slate-600 pt-1 pb-1">
@@ -701,7 +1169,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           </button>
 
           <span className="text-[11px] text-slate-400">
-            {folders.length} thư mục, {files.length} tệp tin
+            {activeTab === 'trash'
+              ? `${sortedTrashItems.length} tệp tin trong thùng rác`
+              : `${folders.length} thư mục, ${files.length} tệp tin`}
           </span>
         </div>
       </div>
@@ -728,307 +1198,562 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 1. GOOGLE DRIVE FOLDERS SECTION                                          */}
+      {/* MAIN CONTENT AREA: TRASH VIEW VS MY DRIVE FILES VIEW                      */}
       {/* ========================================================================= */}
-      {folders.length > 0 && (
-        <div className="space-y-2.5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-            {folders.map((folder) => (
-              <div
-                key={folder.id}
-                onDoubleClick={() => setCurrentFolderId(folder.id)}
-                onClick={() => setCurrentFolderId(folder.id)}
-                className="group relative bg-[#F0F4F9] hover:bg-[#E1E9F4] border border-slate-200/70 hover:border-slate-300 rounded-2xl p-3.5 px-4 flex items-center justify-between transition-all duration-150 cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-6 h-6 flex items-center justify-center text-slate-700 group-hover:text-blue-600 transition-colors shrink-0">
-                    <Folder className="w-5 h-5 fill-current" />
-                  </div>
-                  <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
-                    {folder.name}
-                  </span>
-                </div>
-
-                <div className="relative drive-menu-trigger shrink-0 ml-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveMenuId(activeMenuId === folder.id ? null : folder.id);
-                    }}
-                    className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-
-                  {/* 3-dots Context Menu */}
-                  {activeMenuId === folder.id && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
-                    >
-                      <button
-                        onClick={() => {
-                          setCurrentFolderId(folder.id);
-                          setActiveMenuId(null);
-                        }}
-                        className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Mở thư mục</span>
-                      </button>
-                      <button
-                        onClick={() => handleToggleStar(folder.id)}
-                        className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                      >
-                        <Star className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{folder.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
-                      </button>
-                      <div className="h-px bg-slate-100 my-1" />
-                      <button
-                        onClick={() => handleDeleteItem(folder.id, folder.name)}
-                        className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Xóa thư mục</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+      {activeTab === 'trash' ? (
+        <div className="space-y-4">
+          {/* TRASH BANNER */}
+          <div className="bg-gradient-to-r from-rose-50 to-amber-50/40 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
+                <Trash2 className="w-4 h-4 stroke-[2]" />
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <div>
+                <p className="font-bold text-rose-950 text-sm">
+                  Thùng rác phòng {department.name} đang chứa {trashTotalCount} tài liệu · Tổng dung lượng: {formatBytes(trashTotalSizeBytes)}
+                </p>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  Các tệp trong thùng rác có thể được khôi phục về danh mục phòng ban ban đầu hoặc xóa vĩnh viễn để giải phóng hạn mức Quota lưu trữ.
+                </p>
+              </div>
+            </div>
 
-      {/* ========================================================================= */}
-      {/* 2. GOOGLE DRIVE FILES SECTION (VISUAL DOCUMENT PREVIEWS)                 */}
-      {/* ========================================================================= */}
-      {files.length > 0 && (
-        <div className="space-y-3 pt-2">
-          {viewMode === 'grid' ? (
-            /* GRID VIEW (Document Preview Cards) */
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {files.map((file) => (
-                <div
-                  key={file.id}
-                  onClick={() => setPreviewFile(file)}
-                  className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
-                >
-                  {/* Card Header (File Icon + Name + 3-dots) */}
-                  <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      {getGoogleDriveIcon(file.fileType, file.extension)}
-                      <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-                        {file.name}
-                      </h4>
+            <button
+              onClick={() => fetchTrashFiles(searchQuery)}
+              disabled={isLoadingTrash}
+              className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 rounded-lg font-semibold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 inline-flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTrash ? 'animate-spin' : ''}`} />
+              <span>Làm mới thùng rác</span>
+            </button>
+          </div>
+
+          {/* Loading Skeleton for Trash */}
+          {isLoadingTrash && (
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+              <Loader2 className="w-9 h-9 animate-spin text-rose-600" />
+              <p className="text-sm font-semibold text-slate-700">Đang tải danh sách thùng rác phòng {department.name}...</p>
+              <p className="text-xs text-slate-400">Kiểm tra các tệp đã xóa thuộc phạm vi quyền quản trị</p>
+            </div>
+          )}
+
+          {/* Empty State for Trash */}
+          {!isLoadingTrash && sortedTrashItems.length === 0 && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-14 text-center max-w-lg mx-auto my-8 shadow-xs">
+              <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 stroke-[1.8]" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mb-1">
+                {searchQuery.trim() ? `Không tìm thấy tài liệu phù hợp trong thùng rác` : 'Thùng rác phòng ban rỗng'}
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                {searchQuery.trim()
+                  ? `Không có tệp nào khớp với từ khóa "${searchQuery}". Hãy thử tìm kiếm với từ khóa khác.`
+                  : `Hiện không có tài liệu nào bị xóa trong phòng ban ${department.name}.`}
+              </p>
+            </div>
+          )}
+
+          {/* Trash Files Display */}
+          {!isLoadingTrash && sortedTrashItems.length > 0 && (
+            <div>
+              {viewMode === 'grid' ? (
+                /* GRID VIEW FOR TRASH */
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {sortedTrashItems.map((file) => (
+                    <div
+                      key={file.id}
+                      onClick={() => setPreviewFile(file)}
+                      className="group relative bg-[#F0F4F9] hover:bg-rose-50/40 border border-slate-200/80 hover:border-rose-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
+                    >
+                      {/* Card Header */}
+                      <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {getGoogleDriveIcon(file.fileType, file.extension)}
+                          <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-rose-700 transition-colors">
+                            {file.name}
+                          </h4>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shrink-0">
+                          {file.sizeFormatted}
+                        </span>
+                      </div>
+
+                      {/* Card Body Document Preview */}
+                      <div className="bg-white mx-3 mb-2 rounded-xl p-3 shadow-2xs border border-slate-200/90 h-36 overflow-hidden flex flex-col justify-start relative select-none">
+                        <div className="text-[10px] text-slate-600 line-clamp-5 whitespace-pre-line">
+                          {file.contentSnippet || 'Tài liệu đã xóa thuộc kho lưu trữ phòng ban.'}
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                      </div>
+
+                      {/* Card Footer with Meta & Actions */}
+                      <div className="px-3.5 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <div className="min-w-0 flex-1 pr-2">
+                          <p className="text-[10px] text-slate-500 truncate">
+                            {file.deletedAt ? `Xóa: ${file.deletedAt}` : file.updatedAt}
+                          </p>
+                          {file.deletedBy && (
+                            <p className="text-[10px] text-rose-600 truncate font-medium">
+                              Bởi: {file.deletedBy}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleRestoreFile(file.id, file.name)}
+                            disabled={isProcessingAction}
+                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-semibold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Khôi phục về phòng ban"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Khôi phục</span>
+                          </button>
+                          <button
+                            onClick={() => setConfirmPermanentItem(file)}
+                            disabled={isProcessingAction}
+                            className="p-1.5 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors cursor-pointer"
+                            title="Xóa vĩnh viễn"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* LIST VIEW FOR TRASH */
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 bg-slate-50/50">
+                        <th className="py-3 px-4">Tên tài liệu</th>
+                        <th className="py-3 px-4">Người xóa / Sở hữu</th>
+                        <th className="py-3 px-4">Thời gian xóa</th>
+                        <th className="py-3 px-4">Kích thước tệp</th>
+                        <th className="py-3 px-4 text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sortedTrashItems.map((file) => (
+                        <tr
+                          key={file.id}
+                          onClick={() => setPreviewFile(file)}
+                          className="hover:bg-rose-50/30 transition-colors cursor-pointer group"
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              {getGoogleDriveIcon(file.fileType, file.extension)}
+                              <span className="font-semibold text-slate-800 group-hover:text-rose-700 transition-colors">
+                                {file.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            <div>
+                              <span className="font-medium text-slate-700">{file.owner?.name || department.adminName}</span>
+                              {file.deletedBy && (
+                                <span className="block text-[10px] text-rose-600 font-medium">
+                                  Người xóa: {file.deletedBy}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                            {file.deletedAt || file.updatedAt}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 font-mono text-xs">
+                            {file.sizeFormatted}
+                          </td>
+                          <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleRestoreFile(file.id, file.name)}
+                                disabled={isProcessingAction}
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                title="Khôi phục về thư mục ban đầu"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Khôi phục</span>
+                              </button>
+                              <button
+                                onClick={() => setConfirmPermanentItem(file)}
+                                disabled={isProcessingAction}
+                                className="p-1.5 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                title="Xóa vĩnh viễn giải phóng dung lượng"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* ========================================================================= */}
+          {/* 1. GOOGLE DRIVE FOLDERS SECTION                                          */}
+          {/* ========================================================================= */}
+          {folders.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                {folders.map((folder) => (
+                  <div
+                    key={folder.id}
+                    onDoubleClick={() => setCurrentFolderId(folder.id)}
+                    onClick={() => setCurrentFolderId(folder.id)}
+                    className="group relative bg-[#F0F4F9] hover:bg-[#E1E9F4] border border-slate-200/70 hover:border-slate-300 rounded-2xl p-3.5 px-4 flex items-center justify-between transition-all duration-150 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-6 h-6 flex items-center justify-center text-slate-700 group-hover:text-blue-600 transition-colors shrink-0">
+                        <Folder className="w-5 h-5 fill-current" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
+                        {folder.name}
+                      </span>
                     </div>
 
-                    <div className="relative drive-menu-trigger shrink-0">
+                    <div className="relative drive-menu-trigger shrink-0 ml-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActiveMenuId(activeMenuId === file.id ? null : file.id);
+                          setActiveMenuId(activeMenuId === folder.id ? null : folder.id);
                         }}
                         className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>
 
-                      {/* File Context Menu */}
-                      {activeMenuId === file.id && (
+                      {/* 3-dots Context Menu */}
+                      {activeMenuId === folder.id && (
                         <div
                           onClick={(e) => e.stopPropagation()}
                           className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
                         >
                           <button
                             onClick={() => {
-                              setPreviewFile(file);
+                              setCurrentFolderId(folder.id);
                               setActiveMenuId(null);
                             }}
                             className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Xem trước</span>
+                            <span>Mở thư mục</span>
                           </button>
                           <button
-                            onClick={() => handleDownload(file)}
-                            className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Tải xuống</span>
-                          </button>
-                          <button
-                            onClick={() => handleToggleStar(file.id)}
+                            onClick={() => handleToggleStar(folder.id)}
                             className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
                           >
                             <Star className="w-3.5 h-3.5 text-amber-500" />
-                            <span>{file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
+                            <span>{folder.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
                           </button>
                           <div className="h-px bg-slate-100 my-1" />
                           <button
-                            onClick={() => handleDeleteItem(file.id, file.name)}
+                            onClick={() => handleDeleteItem(folder.id, folder.name)}
                             className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Xóa tệp</span>
+                            <span>Xóa thư mục</span>
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  {/* Card Body: White A4 Document Preview Sheet (Signature Google Drive Style) */}
-                  <div className="bg-white mx-3 mb-3 rounded-xl p-3.5 shadow-2xs border border-slate-200/90 h-44 overflow-hidden flex flex-col justify-start relative select-none group-hover:border-blue-200 transition-colors">
-                    {/* Simulated Document Sheet Content */}
-                    {file.fileType === 'sheet' ? (
-                      /* Spreadsheet Preview Mock */
-                      <div className="w-full h-full text-[10px] font-mono text-slate-600">
-                        <div className="grid grid-cols-3 gap-1 border-b pb-1 font-bold text-slate-800 bg-emerald-50/50 p-1 rounded">
-                          <div>Hạng mục</div>
-                          <div className="text-right">Dự toán</div>
-                          <div className="text-right">Duyệt</div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
-                          <div className="truncate">Cloud Storage</div>
-                          <div className="text-right">12.5M</div>
-                          <div className="text-right text-emerald-600 font-bold">OK</div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
-                          <div className="truncate">Bản quyền phần mềm</div>
-                          <div className="text-right">5.0M</div>
-                          <div className="text-right text-emerald-600 font-bold">OK</div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
-                          <div className="truncate">Bảo trì hệ thống</div>
-                          <div className="text-right">3.2M</div>
-                          <div className="text-right text-emerald-600 font-bold">OK</div>
-                        </div>
-                      </div>
-                    ) : file.fileType === 'code' ? (
-                      /* Code Preview Mock */
-                      <div className="w-full h-full text-[10px] font-mono bg-slate-900 text-slate-200 p-2.5 rounded-lg overflow-hidden leading-relaxed">
-                        <div className="text-slate-400 text-[9px] mb-1">// ASP.NET Core Action Result</div>
-                        <div className="text-blue-400">public IActionResult <span className="text-amber-300">CheckStatus</span>(int id)</div>
-                        <div className="text-slate-300">{'{'}</div>
-                        <div className="text-emerald-400 pl-3">if (id == 0) return NotFound();</div>
-                        <div className="text-purple-400 pl-3">return View(); // Render UI</div>
-                        <div className="text-slate-300">{'}'}</div>
-                      </div>
-                    ) : (
-                      /* Document Text / Notes Layout (Like Meeting note / Survey Draft) */
-                      <div className="w-full h-full text-[10px] text-slate-700 leading-relaxed font-sans overflow-hidden">
-                        <div className="text-center font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-1.5 mb-2 uppercase tracking-tight">
-                          {file.name.replace('.gdoc', '')}
-                        </div>
-                        <p className="text-[10px] text-slate-600 line-clamp-6 whitespace-pre-line">
-                          {file.contentSnippet || 'Nội dung tệp tin đã được đồng bộ hóa và lưu trữ an toàn trên máy chủ CloudDMS.'}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Subtle bottom fade gradient */}
-                    <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* LIST VIEW (Google Drive List Table) */
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 bg-slate-50/50">
-                    <th className="py-3 px-4">Tên</th>
-                    <th className="py-3 px-4">Chủ sở hữu</th>
-                    <th className="py-3 px-4">Ngày sửa đổi</th>
-                    <th className="py-3 px-4">Kích thước tệp</th>
-                    <th className="py-3 px-4 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {files.map((file) => (
-                    <tr
-                      key={file.id}
-                      onClick={() => setPreviewFile(file)}
-                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          {getGoogleDriveIcon(file.fileType, file.extension)}
-                          <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                            {file.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        {file.owner?.name || department.adminName}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
-                        {file.updatedAt}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-mono text-xs">
-                        {file.sizeFormatted}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownload(file);
-                            }}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                            title="Tải xuống"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteItem(file.id, file.name);
-                            }}
-                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))}
+              </div>
             </div>
           )}
-        </div>
+
+          {/* ========================================================================= */}
+          {/* 2. GOOGLE DRIVE FILES SECTION (VISUAL DOCUMENT PREVIEWS)                 */}
+          {/* ========================================================================= */}
+          {files.length > 0 && (
+            <div className="space-y-3 pt-2">
+              {viewMode === 'grid' ? (
+                /* GRID VIEW (Document Preview Cards) */
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {files.map((file) => (
+                    <div
+                      key={file.id}
+                      onClick={() => setPreviewFile(file)}
+                      className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
+                    >
+                      {/* Card Header (File Icon + Name + 3-dots) */}
+                      <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {getGoogleDriveIcon(file.fileType, file.extension)}
+                          <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                            {file.name}
+                          </h4>
+                        </div>
+
+                        <div className="relative drive-menu-trigger shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuId(activeMenuId === file.id ? null : file.id);
+                            }}
+                            className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {/* File Context Menu */}
+                          {activeMenuId === file.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
+                            >
+                              <button
+                                onClick={() => {
+                                  setPreviewFile(file);
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Xem trước</span>
+                              </button>
+                              <button
+                                onClick={() => handleDownload(file)}
+                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Tải xuống</span>
+                              </button>
+                              <button
+                                onClick={() => handleToggleStar(file.id)}
+                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                              >
+                                <Star className="w-3.5 h-3.5 text-amber-500" />
+                                <span>{file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
+                              </button>
+                              <div className="h-px bg-slate-100 my-1" />
+                              <button
+                                onClick={() => handleDeleteItem(file.id, file.name)}
+                                className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Xóa tệp</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Body: White A4 Document Preview Sheet */}
+                      <div className="bg-white mx-3 mb-3 rounded-xl p-3.5 shadow-2xs border border-slate-200/90 h-44 overflow-hidden flex flex-col justify-start relative select-none group-hover:border-blue-200 transition-colors">
+                        {file.fileType === 'sheet' ? (
+                          <div className="w-full h-full text-[10px] font-mono text-slate-600">
+                            <div className="grid grid-cols-3 gap-1 border-b pb-1 font-bold text-slate-800 bg-emerald-50/50 p-1 rounded">
+                              <div>Hạng mục</div>
+                              <div className="text-right">Dự toán</div>
+                              <div className="text-right">Duyệt</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
+                              <div className="truncate">Cloud Storage</div>
+                              <div className="text-right">12.5M</div>
+                              <div className="text-right text-emerald-600 font-bold">OK</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
+                              <div className="truncate">Bản quyền phần mềm</div>
+                              <div className="text-right">5.0M</div>
+                              <div className="text-right text-emerald-600 font-bold">OK</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
+                              <div className="truncate">Bảo trì hệ thống</div>
+                              <div className="text-right">3.2M</div>
+                              <div className="text-right text-emerald-600 font-bold">OK</div>
+                            </div>
+                          </div>
+                        ) : file.fileType === 'code' ? (
+                          <div className="w-full h-full text-[10px] font-mono bg-slate-900 text-slate-200 p-2.5 rounded-lg overflow-hidden leading-relaxed">
+                            <div className="text-slate-400 text-[9px] mb-1">// ASP.NET Core Action Result</div>
+                            <div className="text-blue-400">public IActionResult <span className="text-amber-300">CheckStatus</span>(int id)</div>
+                            <div className="text-slate-300">{'{'}</div>
+                            <div className="text-emerald-400 pl-3">if (id == 0) return NotFound();</div>
+                            <div className="text-purple-400 pl-3">return View(); // Render UI</div>
+                            <div className="text-slate-300">{'}'}</div>
+                          </div>
+                        ) : (
+                          <div className="w-full h-full text-[10px] text-slate-700 leading-relaxed font-sans overflow-hidden">
+                            <div className="text-center font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-1.5 mb-2 uppercase tracking-tight">
+                              {file.name.replace('.gdoc', '')}
+                            </div>
+                            <p className="text-[10px] text-slate-600 line-clamp-6 whitespace-pre-line">
+                              {file.contentSnippet || 'Nội dung tệp tin đã được đồng bộ hóa và lưu trữ an toàn trên máy chủ CloudDMS.'}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* LIST VIEW (Google Drive List Table) */
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 bg-slate-50/50">
+                        <th className="py-3 px-4">Tên</th>
+                        <th className="py-3 px-4">Chủ sở hữu</th>
+                        <th className="py-3 px-4">Ngày sửa đổi</th>
+                        <th className="py-3 px-4">Kích thước tệp</th>
+                        <th className="py-3 px-4 text-right"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {files.map((file) => (
+                        <tr
+                          key={file.id}
+                          onClick={() => setPreviewFile(file)}
+                          className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              {getGoogleDriveIcon(file.fileType, file.extension)}
+                              <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                {file.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {file.owner?.name || department.adminName}
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                            {file.updatedAt}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 font-mono text-xs">
+                            {file.sizeFormatted}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(file);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="Tải xuống"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteItem(file.id, file.name);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Xóa"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Loading Skeleton / Spinner */}
+          {isLoading && (
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+              <Loader2 className="w-9 h-9 animate-spin text-blue-600" />
+              <p className="text-sm font-semibold text-slate-700">Đang đồng bộ kho lưu trữ phòng {department.name}...</p>
+              <p className="text-xs text-slate-400">Kiểm tra phân quyền và tải danh sách tệp tin an toàn</p>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && folders.length === 0 && files.length === 0 && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-14 text-center max-w-lg mx-auto my-8 shadow-xs">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
+                <Upload className="w-8 h-8 stroke-[1.8]" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mb-1">
+                Chưa có tài liệu nào trong phòng {department.name}
+              </h3>
+              <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+                Kho lưu trữ của phòng ban hiện chưa có tệp tin nào. Kéo thả tệp từ máy tính của bạn vào đây hoặc bấm nút "Mới" để tải tài liệu lên.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={() => directFileInputRef.current?.click()}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all inline-flex items-center justify-center gap-2 cursor-pointer"
+                  title="Tải trực tiếp lên Cloud (Google Drive / OneDrive / S3)"
+                >
+                  <UploadCloud className="w-4 h-4 stroke-[2.2]" />
+                  <span>Tải trực tiếp Cloud</span>
+                  <span className="text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-full">
+                    Mới
+                  </span>
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold shadow-xs transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                  title="Tải qua Backend Server (Phương pháp cũ)"
+                >
+                  <Server className="w-4 h-4 text-slate-500" />
+                  <span>Tải qua Server</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Loading Skeleton / Spinner */}
-      {isLoading && (
-        <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
-          <Loader2 className="w-9 h-9 animate-spin text-blue-600" />
-          <p className="text-sm font-semibold text-slate-700">Đang đồng bộ kho lưu trữ phòng {department.name}...</p>
-          <p className="text-xs text-slate-400">Kiểm tra phân quyền và tải danh sách tệp tin an toàn</p>
-        </div>
-      )}
+      {/* ========================================================================= */}
+      {/* 3. MODALS: NEW FOLDER, PREVIEW & PERMANENT DELETE                         */}
+      {/* ========================================================================= */}
 
-      {/* Empty State */}
-      {!isLoading && folders.length === 0 && files.length === 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-14 text-center max-w-lg mx-auto my-8 shadow-xs">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
-            <Upload className="w-8 h-8 stroke-[1.8]" />
+      {/* Modal: Xác nhận xóa vĩnh viễn (Permanent Delete Confirmation) */}
+      {confirmPermanentItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-6 h-6 stroke-[2]" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">
+              Xóa vĩnh viễn tài liệu?
+            </h3>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              Bạn có chắc chắn muốn xóa vĩnh viễn tài liệu <span className="font-bold text-slate-900">"{confirmPermanentItem.name}"</span> ({confirmPermanentItem.sizeFormatted}) khỏi phòng ban {department.name}?
+              <strong className="block text-rose-700 mt-2 font-semibold">
+                Thao tác này sẽ xóa tệp vĩnh viễn, giải phóng dung lượng Quota của phòng ban và KHÔNG THỂ hoàn tác lại.
+              </strong>
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setConfirmPermanentItem(null)}
+                disabled={isProcessingAction}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => handlePermanentDelete(confirmPermanentItem.id, confirmPermanentItem.name)}
+                disabled={isProcessingAction}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+              >
+                {isProcessingAction && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Xác nhận xóa vĩnh viễn</span>
+              </button>
+            </div>
           </div>
-          <h3 className="text-base font-bold text-slate-900 mb-1">
-            Chưa có tài liệu nào trong phòng {department.name}
-          </h3>
-          <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-            Kho lưu trữ của phòng ban hiện chưa có tệp tin nào. Kéo thả tệp từ máy tính của bạn vào đây hoặc bấm nút "Mới" để tải tài liệu lên.
-          </p>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"
-          >
-            Tải tệp tin lên phòng ban ngay
-          </button>
         </div>
       )}
 

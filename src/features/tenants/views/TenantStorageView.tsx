@@ -1,40 +1,49 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Building2,
-  UserPlus,
-  FolderOpen,
-  UploadCloud,
-  FileCheck2,
-  ShieldCheck,
-  Hash,
+  Search,
+  Filter,
   Download,
   Trash2,
-  AlertCircle,
+  Eye,
+  ShieldCheck,
+  CheckCircle2,
+  RefreshCw,
   HardDrive,
   FileText,
   Image as ImageIcon,
   FileArchive,
-  FileCode,
   FileSpreadsheet,
-  CheckCircle2,
-  RefreshCw,
-  Server,
-  Cloud,
+  FileCode,
+  ArrowLeft,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
   Check,
-  CheckCircle,
-  Layers
+  UploadCloud,
+  X,
+  AlertTriangle,
+  Layers,
+  User as UserIcon,
+  Calendar,
+  Sparkles,
+  FileCheck2,
+  File as FileGenericIcon,
+  FolderOpen,
+  Server,
 } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
 import { useTenantContext } from '@/context/TenantContext';
 import {
   FileItemDto,
+  TenantStorageSummaryDto,
   getTenantFilesApi,
-  uploadTenantFilesApi,
   downloadTenantFileApi,
-  deleteTenantFileApi
+  deleteTenantFileApi,
+  uploadTenantFilesApi,
+  uploadDirectTenantFilesApi,
 } from '@/features/tenants/api/fileApi';
-import { getStorageProvidersApi } from '@/features/system-admin/api/systemAdminQueries';
-import { StorageProviderItem } from '@/features/system-admin/types';
 
 interface TenantStorageViewProps {
   tenant: TenantInfo;
@@ -43,39 +52,57 @@ interface TenantStorageViewProps {
   onCreateDepartmentUser?: (deptName?: string) => void;
 }
 
+type FileCategory = 'all' | 'docs' | 'media' | 'data' | 'archive';
+type SortOrder = 'newest' | 'oldest' | 'size_desc' | 'size_asc';
+
 export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
   tenant,
   onBackToOverview,
-  onCreateDepartmentUser,
 }) => {
-  const [unit, setUnit] = useState<'GB' | 'TB'>('GB');
-  const { departments, users } = useTenantContext();
+  const { departments, users, addToast } = useTenantContext();
 
-  // File list & live summary state
+  // ---------------------------------------------------------------------------------------
+  // 1. STATE DỮ LIỆU & BỘ LỌC BÁO CÁO TỆP TIN
+  // ---------------------------------------------------------------------------------------
   const [files, setFiles] = useState<FileItemDto[]>([]);
-  const [quotaStats, setQuotaStats] = useState({
-    quotaBytes: tenant.storageQuotaBytes || 10 * 1024 * 1024 * 1024,
-    usedBytes: tenant.storageUsedBytes || 0,
-    availableBytes: tenant.availableBytes || (10 * 1024 * 1024 * 1024),
-    usagePercentage: tenant.usagePercentage || 0,
-    providerId: tenant.storageProviderId || '',
-    providerName: tenant.storageProviderName || 'Google Drive Primary',
-    providerType: 'GoogleDrive',
-  });
+  const [totalFilesCount, setTotalFilesCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [selectedDeptId, setSelectedDeptId] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+  const [activeCategory, setActiveCategory] = useState<FileCategory>('all');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
 
-  const [availableProviders, setAvailableProviders] = useState<StorageProviderItem[]>([]);
-  const [selectedUploadProviderId, setSelectedUploadProviderId] = useState<string>('');
+  // Phân trang
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [hasMore, setHasMore] = useState<boolean>(false);
 
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStep, setUploadStep] = useState<number>(0);
-  const [uploadMessage, setUploadMessage] = useState<string>('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  // Thống kê hạn mức & Cloud Provider trả về từ API
+  const [summaryData, setSummaryData] = useState<TenantStorageSummaryDto | null>(null);
+
+  // Modals & Trạng thái thao tác
+  const [selectedFileForDetail, setSelectedFileForDetail] = useState<FileItemDto | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<FileItemDto | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
+  const [uploadDeptId, setUploadDeptId] = useState<string>('');
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const directFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Debounce tìm kiếm 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPageNumber(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Format kích thước bytes thành B, KB, MB, GB, TB
   const formatBytes = (bytes: number) => {
     if (!bytes || bytes <= 0) return '0 B';
     const k = 1024;
@@ -84,909 +111,974 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Fetch live files, quota and all available storage providers
-  const loadFiles = async () => {
-    setIsLoadingFiles(true);
-    setErrorMessage(null);
+  // Format ngày tháng hiển thị trực quan
+  const formatDate = (isoString?: string) => {
+    if (!isoString) return '--';
     try {
-      const [summary, providersList] = await Promise.all([
-        getTenantFilesApi(tenant.id).catch(() => null),
-        getStorageProvidersApi().catch(() => [])
-      ]);
-
-      if (providersList && providersList.length > 0) {
-        setAvailableProviders(providersList);
-      }
-
-      if (summary) {
-        if (summary.files) setFiles(summary.files);
-        const resolvedId = summary.storageProviderId || tenant.storageProviderId || '';
-        const resolvedName = summary.storageProviderName || tenant.storageProviderName || (providersList?.[0]?.name ?? 'Google Drive Primary');
-        const resolvedType = summary.storageProviderType || (providersList?.[0]?.type ?? 'GoogleDrive');
-
-        setQuotaStats({
-          quotaBytes: summary.quotaBytes || quotaStats.quotaBytes,
-          usedBytes: summary.usedBytes || quotaStats.usedBytes,
-          availableBytes: summary.availableBytes || (summary.quotaBytes - summary.usedBytes),
-          usagePercentage: summary.usagePercentage || 0,
-          providerId: resolvedId,
-          providerName: resolvedName,
-          providerType: resolvedType,
-        });
-
-        // Set default upload provider
-        setSelectedUploadProviderId(prev => prev || resolvedId || (providersList?.[0]?.id ?? ''));
-      } else if (providersList && providersList.length > 0) {
-        setSelectedUploadProviderId(prev => prev || providersList[0].id);
-      }
+      const d = new Date(isoString);
+      return d.toLocaleString('vi-VN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     } catch {
-      // Keep existing state if offline
-    } finally {
-      setIsLoadingFiles(false);
+      return isoString;
     }
   };
+
+  // ---------------------------------------------------------------------------------------
+  // 2. TẢI DỮ LIỆU BÁO CÁO TỆP TIN QUA GET /api/files
+  // ---------------------------------------------------------------------------------------
+  const fetchReportFiles = useCallback(async () => {
+    if (!tenant.id) return;
+    setIsLoading(true);
+
+    try {
+      const targetDepartment = selectedDeptId !== 'all' ? selectedDeptId : undefined;
+      const res = await getTenantFilesApi({
+        tenantId: tenant.id,
+        departmentId: targetDepartment,
+        searchTerm: debouncedSearch || undefined,
+        pageNumber,
+        pageSize,
+      });
+
+      if (res) {
+        setSummaryData(res);
+        const fileList = res.files || [];
+        setFiles(fileList);
+        setHasMore(Boolean(res.hasMore));
+        setTotalFilesCount(res.totalCount || fileList.length);
+      }
+    } catch (err: any) {
+      console.error('[TenantStorageView] Lỗi tải báo cáo tệp tin:', err);
+      addToast('error', 'Không thể nạp danh sách tệp tin báo cáo. Vui lòng thử lại!');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [tenant.id, selectedDeptId, debouncedSearch, pageNumber, pageSize, addToast]);
 
   useEffect(() => {
-    if (tenant.id) {
-      loadFiles();
+    fetchReportFiles();
+  }, [fetchReportFiles]);
+
+  // ---------------------------------------------------------------------------------------
+  // 3. XỬ LÝ PHÂN LOẠI & SẮP XẾP DỮ LIỆU HIỂN THỊ
+  // ---------------------------------------------------------------------------------------
+  const getFileCategory = (file: FileItemDto): FileCategory => {
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const mime = (file.contentType || '').toLowerCase();
+
+    if (
+      mime.includes('pdf') ||
+      mime.includes('word') ||
+      mime.includes('text') ||
+      ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext)
+    ) {
+      return 'docs';
     }
-  }, [tenant.id]);
-
-  // Determine display list of providers
-  const displayProviders: StorageProviderItem[] = availableProviders.length > 0
-    ? availableProviders
-    : [
-        {
-          id: quotaStats.providerId || 'current-provider',
-          name: quotaStats.providerName,
-          type: quotaStats.providerType,
-          status: 'Connected',
-          region: 'Global',
-          capacity: formatBytes(quotaStats.quotaBytes),
-          storageUsed: formatBytes(quotaStats.usedBytes),
-          tenantsCount: 1,
-          latency: '24ms',
-        } as StorageProviderItem,
-      ];
-
-  // Helper lấy thông tin Quota & Usage chi tiết của từng Storage Provider riêng biệt
-  const getProviderStorageStats = (p: StorageProviderItem) => {
-    // Xác định xem đây có phải là kho chính được Admin chỉ định cấp Quota cho Tenant không
-    const isAssigned = Boolean(
-      (p.id && quotaStats.providerId && p.id.toLowerCase() === quotaStats.providerId.toLowerCase()) ||
-      (quotaStats.providerName && p.name && p.name.toLowerCase() === quotaStats.providerName.toLowerCase()) ||
-      (displayProviders.length === 1)
-    );
-
-    // Tính tổng dung lượng và số lượng tệp tin của Tenant đã lưu trên riêng kho này
-    const tenantFilesOnProvider = files.filter((f) => 
-      (f.storageProviderId && f.storageProviderId.toLowerCase() === p.id?.toLowerCase()) ||
-      (f.storageProviderName && f.storageProviderName.toLowerCase() === p.name?.toLowerCase())
-    );
-    const tenantUsedBytes = tenantFilesOnProvider.reduce((sum, f) => sum + (f.sizeBytes || 0), 0);
-
-    // Dung lượng gốc của riêng kho này (Từ Provider DTO)
-    const providerCapacityStr = p.totalCapacityBytes && p.totalCapacityBytes > 0
-      ? formatBytes(p.totalCapacityBytes)
-      : (p.capacity || '15 GB');
-
-    // Hạn mức quota hiển thị cho storage:
-    // - Kho chính được cấp: hiển thị hạn ngạch Quota cấp cho Tenant (ví dụ: 3 GB)
-    // - Kho khác: hiển thị dung lượng của chính kho đó (ví dụ: 5 GB hoặc 15 GB)
-    const quotaLabel = isAssigned ? 'Hạn mức cấp:' : 'Dung lượng kho:';
-    const quotaValue = isAssigned ? formatBytes(quotaStats.quotaBytes) : providerCapacityStr;
-
-    return {
-      isAssigned,
-      tenantFilesCount: tenantFilesOnProvider.length,
-      tenantUsedBytes,
-      tenantUsedFormatted: formatBytes(tenantUsedBytes),
-      providerCapacityStr,
-      quotaLabel,
-      quotaValue,
-      badgeText: isAssigned ? 'Kho được cấp' : 'Kho khả dụng',
-      badgeClass: isAssigned 
-        ? 'bg-blue-100 text-blue-700 border-blue-200' 
-        : 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    };
+    if (
+      mime.includes('image') ||
+      mime.includes('video') ||
+      mime.includes('audio') ||
+      ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'mp4', 'mov', 'avi', 'mp3'].includes(ext)
+    ) {
+      return 'media';
+    }
+    if (
+      mime.includes('excel') ||
+      mime.includes('spreadsheet') ||
+      mime.includes('csv') ||
+      mime.includes('json') ||
+      mime.includes('sql') ||
+      ['xls', 'xlsx', 'csv', 'json', 'sql', 'db'].includes(ext)
+    ) {
+      return 'data';
+    }
+    return 'archive';
   };
 
-  // Handle file upload through 5-step routing flow
-  const handleUpload = async (fileList: FileList | File[]) => {
-    if (!fileList || fileList.length === 0) return;
-
-    const targetProvider = displayProviders.find(p => p.id === selectedUploadProviderId) || displayProviders[0];
-    const targetProviderName = targetProvider?.name || quotaStats.providerName;
-    const targetProviderIdToSend = targetProvider?.id && targetProvider.id !== 'current-provider' 
-      ? targetProvider.id 
-      : undefined;
-
-    setIsUploading(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    // Visual step progression
-    try {
-      setUploadStep(1);
-      setUploadMessage('BƯỚC 1: Kiểm tra Quota dung lượng Tenant & User...');
-      await new Promise((r) => setTimeout(r, 400));
-
-      setUploadStep(2);
-      setUploadMessage('BƯỚC 2: Quét mã độc & virus (ClamAV Stream Scan)...');
-      await new Promise((r) => setTimeout(r, 600));
-
-      setUploadStep(3);
-      setUploadMessage('BƯỚC 3: Tính toán mã băm SHA-256 (Data Integrity & Deduplication)...');
-      await new Promise((r) => setTimeout(r, 400));
-
-      setUploadStep(4);
-      setUploadMessage(`BƯỚC 4: Định tuyến và truyền stream lên ${targetProviderName}...`);
-
-      const result = await uploadTenantFilesApi(fileList, tenant.id, undefined, targetProviderIdToSend);
-
-      setUploadStep(5);
-      setUploadMessage('BƯỚC 5: Cập nhật cơ sở dữ liệu và hạn ngạch Quota thành công!');
-      await new Promise((r) => setTimeout(r, 300));
-
-      const successCount = result.uploaded?.length ?? (Array.isArray(result) ? (result as any).length : fileList.length);
-      const failedCount = result.failed?.length ?? 0;
-
-      if (failedCount > 0) {
-        const failReasons = result.failed.map((f: any) => `${f.fileName} (${f.error})`).join(', ');
-        if (successCount > 0) {
-          setSuccessMessage(`Đã tải lên ${successCount} tệp thành công!`);
-          setErrorMessage(`Có ${failedCount} tệp thất bại: ${failReasons}`);
-        } else {
-          setErrorMessage(`Tải lên thất bại cho toàn bộ ${failedCount} tệp: ${failReasons}`);
-        }
-      } else {
-        setSuccessMessage(`Đã tải lên thành công toàn bộ ${successCount} tệp tin vào ${targetProviderName}!`);
-      }
-      loadFiles();
-    } catch (err: any) {
-      const msg = err.response?.data?.error || err.response?.data?.errors?.[0] || err.message || 'Quá trình tải lên thất bại.';
-      setErrorMessage(msg);
-    } finally {
-      setIsUploading(false);
-      setUploadStep(0);
-      setUploadMessage('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+  const getFileIcon = (file: FileItemDto) => {
+    const cat = getFileCategory(file);
+    switch (cat) {
+      case 'docs':
+        return <FileText className="w-4 h-4 text-blue-600" />;
+      case 'media':
+        return <ImageIcon className="w-4 h-4 text-purple-600" />;
+      case 'data':
+        return <FileSpreadsheet className="w-4 h-4 text-emerald-600" />;
+      case 'archive':
+      default:
+        return <FileArchive className="w-4 h-4 text-amber-600" />;
     }
   };
 
+  // Lọc theo Category và Sắp xếp
+  const displayedFiles = useMemo(() => {
+    let result = [...files];
+
+    // Lọc theo Category tab
+    if (activeCategory !== 'all') {
+      result = result.filter((f) => getFileCategory(f) === activeCategory);
+    }
+
+    // Sắp xếp
+    result.sort((a, b) => {
+      if (sortOrder === 'newest') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortOrder === 'oldest') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (sortOrder === 'size_desc') {
+        return b.sizeBytes - a.sizeBytes;
+      }
+      if (sortOrder === 'size_asc') {
+        return a.sizeBytes - b.sizeBytes;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [files, activeCategory, sortOrder]);
+
+  // Thống kê tổng số lượng & dung lượng theo phòng ban đã tải
+  const departmentStats = useMemo(() => {
+    const map: Record<string, { count: number; bytes: number }> = {};
+    files.forEach((f) => {
+      const deptName = f.departmentName || 'Chưa phân phòng ban';
+      if (!map[deptName]) {
+        map[deptName] = { count: 0, bytes: 0 };
+      }
+      map[deptName].count++;
+      map[deptName].bytes += f.sizeBytes;
+    });
+    return map;
+  }, [files]);
+
+  // ---------------------------------------------------------------------------------------
+  // 4. CÁC HÀNH ĐỘNG: DOWNLOAD, DELETE, EXPORT BÁO CÁO, UPLOAD
+  // ---------------------------------------------------------------------------------------
   const handleDownload = async (file: FileItemDto) => {
     try {
+      addToast('info', `Đang chuẩn bị tải xuống: ${file.name}...`);
       await downloadTenantFileApi(file.id, file.name);
+      addToast('success', `Đã tải xuống thành công tệp tin ${file.name}`);
     } catch (err: any) {
-      setErrorMessage('Không thể tải tệp tin: ' + (err.message || 'Lỗi kết nối.'));
+      addToast('error', 'Không thể tải xuống tệp tin. Vui lòng kiểm tra quyền hạn.');
     }
   };
 
-  const handleDelete = async (file: FileItemDto) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa file "${file.name}"? Dung lượng (${formatBytes(file.sizeBytes)}) sẽ được hoàn trả vào Quota của Tenant.`)) {
+  const handleConfirmDelete = async () => {
+    if (!fileToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteTenantFileApi(fileToDelete.id);
+      addToast('success', `Đã xóa tệp tin ${fileToDelete.name} thành công!`);
+      setFileToDelete(null);
+      fetchReportFiles();
+    } catch (err: any) {
+      addToast('error', 'Xóa tệp tin thất bại. Vui lòng thử lại sau.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCopyHash = (hash: string) => {
+    navigator.clipboard.writeText(hash);
+    setCopiedHash(hash);
+    addToast('info', 'Đã sao chép mã băm SHA-256 vào clipboard.');
+    setTimeout(() => setCopiedHash(null), 2500);
+  };
+
+  // Xuất báo cáo danh sách tệp tin ra định dạng CSV
+  const handleExportCsv = () => {
+    if (displayedFiles.length === 0) {
+      addToast('warning', 'Không có dữ liệu tệp tin để xuất báo cáo.');
       return;
     }
 
-    try {
-      await deleteTenantFileApi(file.id);
-      setSuccessMessage(`Đã xóa "${file.name}" và giải phóng ${formatBytes(file.sizeBytes)} dung lượng.`);
-      loadFiles();
-    } catch (err: any) {
-      setErrorMessage('Không thể xóa tệp tin: ' + (err.message || 'Lỗi kết nối.'));
-    }
-  };
+    const headers = [
+      'ID Tệp',
+      'Tên Tệp Tin',
+      'Phòng Ban',
+      'Người Tải Lên',
+      'Dung Lượng (Bytes)',
+      'Dung Lượng',
+      'Loại Tệp (MIME)',
+      'Ngày Tạo',
+      'Trạng Thái ClamAV',
+      'Mã Băm SHA-256',
+    ];
 
-  const getFileIcon = (contentType: string, name: string) => {
-    const ext = name.split('.').pop()?.toLowerCase();
-    if (contentType.includes('image') || ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(ext || '')) {
-      return <ImageIcon className="w-4 h-4 text-emerald-600" />;
-    }
-    if (contentType.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext || '')) {
-      return <FileSpreadsheet className="w-4 h-4 text-emerald-700" />;
-    }
-    if (contentType.includes('zip') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) {
-      return <FileArchive className="w-4 h-4 text-amber-600" />;
-    }
-    if (['js', 'ts', 'tsx', 'jsx', 'json', 'py', 'html', 'css', 'cs', 'sql'].includes(ext || '')) {
-      return <FileCode className="w-4 h-4 text-purple-600" />;
-    }
-    return <FileText className="w-4 h-4 text-blue-600" />;
-  };
+    const rows = displayedFiles.map((f) => [
+      `"${f.id}"`,
+      `"${f.name.replace(/"/g, '""')}"`,
+      `"${(f.departmentName || 'Chưa gán').replace(/"/g, '""')}"`,
+      `"${(f.ownerName || 'Unknown').replace(/"/g, '""')}"`,
+      f.sizeBytes,
+      `"${formatBytes(f.sizeBytes)}"`,
+      `"${f.contentType || ''}"`,
+      `"${f.createdAt || ''}"`,
+      `"${f.scanStatus || 'Clean'}"`,
+      `"${f.hash || ''}"`,
+    ]);
 
-  const getProviderBadge = (type?: string | null) => {
-    const t = type?.toLowerCase() || '';
-    if (t.includes('googledrive') || t.includes('google')) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <Cloud className="w-3 h-3 text-emerald-600" />
-          <span>Google Drive</span>
-        </span>
-      );
-    }
-    if (t.includes('onedrive')) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-          <Cloud className="w-3 h-3 text-blue-600" />
-          <span>OneDrive</span>
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
-        <Server className="w-3 h-3 text-slate-500" />
-        <span>Local Storage</span>
-      </span>
+    const csvContent =
+      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `Bao_Cao_Tep_Tin_${tenant.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
     );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    addToast('success', 'Đã xuất file báo cáo CSV thành công!');
   };
 
-  // Dynamic Departments storage breakdown
-  const departmentUsage = departments.map((dept, idx) => {
-    const deptUsers = users.filter((u) => u.department === dept.name);
-    const quotaGB = dept.allocatedStorageGB || 50;
-    const usedGB = Math.min(quotaGB, deptUsers.length > 0 ? Number((deptUsers.length * 2.8).toFixed(1)) : 0.5);
-    const percent = Math.min(100, Math.round((usedGB / quotaGB) * 100));
-    const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-cyan-600', 'bg-emerald-600', 'bg-amber-600', 'bg-purple-600'];
+  // Xử lý tải tệp tin lên phòng ban được chọn
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const filesToUpload = event.target.files;
+    if (!filesToUpload || filesToUpload.length === 0) return;
 
-    return {
-      id: dept.id,
-      name: dept.name,
-      usedGB,
-      quotaGB,
-      percent,
-      lead: dept.lead || 'Chưa chỉ định',
-      members: deptUsers.length || dept.headCount || 0,
-      filesCount: `${(deptUsers.length * 120 + 15).toLocaleString()} files`,
-      category: dept.name,
-      color: colors[idx % colors.length],
-    };
-  });
+    setIsUploading(true);
+    try {
+      addToast('info', `Đang tải lên ${filesToUpload.length} tệp tin với xác thực ClamAV & SHA-256...`);
+      await uploadTenantFilesApi(
+        filesToUpload,
+        tenant.id,
+        undefined, // folderId
+        undefined, // providerId
+        uploadDeptId || undefined
+      );
 
-  const totalAllocatedDeptsGB = departments.reduce((acc, d) => acc + (d.allocatedStorageGB || 50), 0);
+      addToast('success', `Đã tải lên tệp tin thành công!`);
+      setIsUploadModalOpen(false);
+      fetchReportFiles();
+    } catch (err: any) {
+      addToast('error', err?.response?.data?.error || err.message || 'Tải lên tệp tin thất bại.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
+  // Xử lý tải trực tiếp tệp tin lên Cloud (Direct-to-Storage: Google Drive / OneDrive / S3)
+  const handleDirectFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const filesToUpload = event.target.files;
+    if (!filesToUpload || filesToUpload.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      addToast('info', `Đang tải trực tiếp ${filesToUpload.length} tệp tin lên Cloud Storage...`);
+      const res = await uploadDirectTenantFilesApi(
+        filesToUpload,
+        tenant.id,
+        undefined, // folderId
+        uploadDeptId || undefined
+      );
+
+      if (res.failed && res.failed.length > 0) {
+        addToast('error', `Tải trực tiếp Cloud: ${res.uploaded.length} thành công, ${res.failed.length} thất bại.`);
+      } else {
+        addToast('success', `Đã tải trực tiếp thành công ${res.uploaded.length || filesToUpload.length} tệp tin lên Cloud!`);
+      }
+      setIsUploadModalOpen(false);
+      fetchReportFiles();
+    } catch (err: any) {
+      addToast('error', err?.response?.data?.error || err.message || 'Tải trực tiếp Cloud thất bại.');
+    } finally {
+      setIsUploading(false);
+      if (directFileInputRef.current) directFileInputRef.current.value = '';
+    }
+  };
+
+  // Tổng dung lượng đã dùng tính từ summary hoặc files
+  const totalAllocatedBytes = summaryData?.quotaBytes || tenant.storageQuotaBytes || (20 * 1024 ** 3);
+  const totalUsedBytes = summaryData?.usedBytes || files.reduce((acc, f) => acc + f.sizeBytes, 0);
+  const totalAvailableBytes = Math.max(0, totalAllocatedBytes - totalUsedBytes);
+  const totalUsagePercentage = totalAllocatedBytes > 0
+    ? Math.round((totalUsedBytes / totalAllocatedBytes) * 100)
+    : 0;
+
+  // =======================================================================================
+  // 5. JSX RENDER GIAO DIỆN
+  // =======================================================================================
   return (
-    <div className="space-y-6 mt-5">
-      {/* Notifications */}
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-          <button onClick={() => setErrorMessage(null)} className="text-rose-500 hover:text-rose-700 font-bold ml-3 cursor-pointer">
-            ✕
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* 5.1. Header: Điều hướng quay lại & Tiêu đề màn hình Báo cáo */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBackToOverview}
+            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+            title="Quay lại Tổng quan"
+          >
+            <ArrowLeft className="w-5 h-5" />
           </button>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 font-bold ml-3 cursor-pointer">
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Top Header & Quota Pool Overview */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                Kho lưu trữ đám mây & Hạn ngạch Quota (Tenant Storage Routing)
-              </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200">
-                ACTIVE
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Báo cáo Lưu trữ & Quản lý Tệp tin
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                Department & User Files
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              File được kiểm tra Quota, quét virus ClamAV, tính mã băm SHA-256 và định tuyến trực tiếp vào Cloud Provider của Tenant.
+              Báo cáo và kiểm tra toàn diện các tệp tin lưu trữ của mọi phòng ban và nhân viên thuộc {tenant.name}
             </p>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600">
-              <button
-                onClick={() => setUnit('GB')}
-                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
-                  unit === 'GB' ? 'bg-white text-blue-600 shadow-2xs font-bold' : 'hover:text-slate-900'
-                }`}
-              >
-                GB
-              </button>
-              <button
-                onClick={() => setUnit('TB')}
-                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
-                  unit === 'TB' ? 'bg-white text-blue-600 shadow-2xs font-bold' : 'hover:text-slate-900'
-                }`}
-              >
-                TB
-              </button>
-            </div>
-
-            <button
-              onClick={loadFiles}
-              disabled={isLoadingFiles}
-              className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1.5"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingFiles ? 'animate-spin' : ''}`} />
-              <span>Làm mới</span>
-            </button>
-
-            <button
-              onClick={onBackToOverview}
-              className="text-xs text-slate-600 hover:text-slate-900 px-3.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Về Overview
-            </button>
           </div>
         </div>
 
-        {/* 3 Overview Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-          {/* Card 1: Hạn ngạch Quota Tenant */}
-          <div className="p-4 rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Hạn ngạch Tenant (Quota Pool)</span>
-                <HardDrive className="w-4 h-4 text-blue-600" />
-              </div>
-              <div className="mt-2.5 flex items-baseline justify-between">
-                <div className="text-2xl font-bold text-slate-900 tabular-nums">
-                  {formatBytes(quotaStats.usedBytes)}
-                </div>
-                <div className="text-xs text-slate-400">
-                  / {formatBytes(quotaStats.quotaBytes)}
-                </div>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2 mt-2.5 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    quotaStats.usagePercentage > 85 ? 'bg-rose-500' : quotaStats.usagePercentage > 70 ? 'bg-amber-500' : 'bg-blue-600'
-                  }`}
-                  style={{ width: `${Math.min(100, quotaStats.usagePercentage)}%` }}
-                />
-              </div>
-            </div>
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Còn trống: <strong className="text-slate-700">{formatBytes(quotaStats.availableBytes)}</strong></span>
-              <span className="font-bold text-blue-600">{quotaStats.usagePercentage}% used</span>
-            </div>
-          </div>
-
-          {/* Card 2: Cloud Provider định tuyến */}
-          <div className="p-4 rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Cloud Storage Cấp Cho Tenant</span>
-                {getProviderBadge(quotaStats.providerType)}
-              </div>
-              <div className="mt-2 text-base font-bold text-slate-900 truncate" title={quotaStats.providerName}>
-                {quotaStats.providerName}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                {availableProviders.length > 1 
-                  ? `Hệ thống đã kết nối ${availableProviders.length} kho đám mây. Bạn có thể chọn kho đích khi tải file.`
-                  : 'Tệp tin tải lên tự động được định tuyến và lưu trữ an toàn trên dịch vụ Cloud tương ứng.'}
-              </p>
-            </div>
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="flex items-center gap-1 text-emerald-600 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Đang hoạt động
-              </span>
-              <span className="font-mono text-[10px] text-slate-400">{files.length} files đã lưu</span>
-            </div>
-          </div>
-
-          {/* Card 3: Bảo mật & Toàn vẹn dữ liệu */}
-          <div className="p-4 rounded-xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Tiêu chuẩn bảo mật</span>
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="mt-2 space-y-1.5">
-                <div className="flex items-center gap-2 text-xs text-slate-700">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Quét virus tự động (ClamAV)</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-slate-700">
-                  <Hash className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Mã băm toàn vẹn SHA-256</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Trạng thái bảo vệ:</span>
-              <span className="font-bold text-emerald-600">Active Shield</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KHỐI THỐNG KÊ CHI TIẾT TỪNG KHO LƯU TRỮ (PER-STORAGE QUOTA BREAKDOWN) */}
-        {displayProviders.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs mt-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-3">
-              <div>
-                <h5 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Chi tiết Hạn ngạch & Dung lượng từng Kho Lưu Trữ Đám Mây</span>
-                </h5>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Phân biệt hạn ngạch riêng của từng kho Cloud kết nối với hệ thống thay vì gộp chung tổng Quota.
-                </p>
-              </div>
-              <span className="text-[11px] text-slate-500 font-medium">
-                {displayProviders.length} kho lưu trữ khả dụng
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {displayProviders.map((p) => {
-                const stats = getProviderStorageStats(p);
-                const isOneDrive = p.type?.toLowerCase().includes('onedrive');
-                const percent = stats.isAssigned && quotaStats.quotaBytes > 0
-                  ? Math.min(100, Math.round((stats.tenantUsedBytes / quotaStats.quotaBytes) * 100))
-                  : p.totalCapacityBytes && p.totalCapacityBytes > 0
-                  ? Math.min(100, Math.round((stats.tenantUsedBytes / p.totalCapacityBytes) * 100))
-                  : 0;
-
-                return (
-                  <div key={p.id} className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`p-1.5 rounded-lg ${isOneDrive ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                            <Cloud className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold text-slate-900 truncate" title={p.name}>
-                            {p.name}
-                          </span>
-                        </div>
-                        <span className={`text-[9px] px-2 py-0.5 rounded font-semibold border ${stats.badgeClass}`}>
-                          {stats.badgeText}
-                        </span>
-                      </div>
-
-                      <div className="flex items-baseline justify-between text-xs mt-2">
-                        <span className="text-slate-500 font-mono text-[11px]">
-                          Tenant đã dùng: <strong className="text-slate-900">{stats.tenantUsedFormatted}</strong>
-                        </span>
-                        <span className="text-slate-500 font-mono text-[11px]">
-                          {stats.quotaLabel}{' '}
-                          <strong className="text-blue-700 font-bold">{stats.quotaValue}</strong>
-                        </span>
-                      </div>
-
-                      <div className="w-full bg-slate-200/80 rounded-full h-2 mt-2 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            isOneDrive ? 'bg-blue-600' : 'bg-emerald-600'
-                          }`}
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Loại kho: <strong className="text-slate-700">{p.type}</strong></span>
-                      <span className="font-mono text-[10px] text-slate-400">{stats.tenantFilesCount} files đã lưu</span>
-                      <span>Dung lượng gốc: <strong className="text-slate-700">{stats.providerCapacityStr}</strong></span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Luồng 3: Multi-Cloud File Upload Dropzone */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h4 className="text-sm font-bold text-slate-900">
-              Tải lên tệp tin mới (Upload & Route to Cloud)
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Hệ thống thực hiện đầy đủ 5 bước: Kiểm tra Quota → Quét Virus → Tính SHA-256 → Định tuyến Cloud → Cập nhật DB.
-            </p>
-          </div>
+        {/* Nút hành động nhanh: Refresh, Xuất CSV, Tải tệp mới */}
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            onClick={fetchReportFiles}
+            disabled={isLoading}
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
+            title="Làm mới báo cáo"
           >
-            <UploadCloud className="w-4 h-4" />
-            <span>Chọn tệp tin</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            onClick={handleExportCsv}
+            disabled={displayedFiles.length === 0}
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            title="Xuất danh sách ra tệp CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Xuất báo cáo CSV</span>
+          </button>
+
+          <button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs shadow-blue-500/20"
+          >
+            <UploadCloud className="w-3.5 h-3.5" />
+            <span>Tải tệp mới</span>
           </button>
         </div>
+      </div>
 
-        {/* BỘ CHỌN KHO CLOUD STORAGE ĐÍCH KHI UPLOAD FILE */}
-        <div className="mt-4 p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-800">Kho lưu trữ đích tải lên:</span>
-              <span className="text-[10px] bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full border border-blue-200/60">
-                Multi-Cloud Routing
-              </span>
+      {/* 5.2. 4 Thẻ chỉ số tổng quan (KPI Stat Cards) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Tổng số tệp tin đã lưu */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-medium">Tổng tệp tin đã lưu</span>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Layers className="w-4 h-4" />
             </div>
-            <span className="text-[11px] text-slate-400">
-              Nhấp chọn đám mây bạn muốn lưu trữ các tệp tin này
-            </span>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-            {displayProviders.map((p) => {
-              const isSelected = p.id === selectedUploadProviderId;
-              const stats = getProviderStorageStats(p);
-              const isOneDrive = p.type?.toLowerCase().includes('onedrive');
-
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelectedUploadProviderId(p.id)}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-50/90 shadow-xs ring-2 ring-blue-500/20'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className={`p-2 rounded-lg shrink-0 ${isOneDrive ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                      <Cloud className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-bold text-slate-900 truncate" title={p.name}>{p.name}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold shrink-0 border ${stats.badgeClass}`}>
-                          {stats.badgeText}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span>
-                          {p.type} • {stats.quotaLabel} <strong className="text-blue-700 font-bold">{stats.quotaValue}</strong>
-                        </span>
-                        <span className="text-slate-400">
-                          ({stats.tenantFilesCount} files • {stats.tenantUsedFormatted})
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                    isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'
-                  }`}>
-                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="mt-3">
+            <div className="text-2xl font-bold text-slate-900 tabular-nums">
+              {totalFilesCount.toLocaleString()}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {selectedDeptId === 'all'
+                ? `Toàn bộ ${departments.length} phòng ban`
+                : departments.find((d) => d.id === selectedDeptId)?.name || 'Phòng ban đã chọn'}
+            </p>
           </div>
         </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files) handleUpload(e.target.files);
-          }}
-        />
-
-        {/* Drag & Drop Box */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (e.dataTransfer.files) handleUpload(e.dataTransfer.files);
-          }}
-          onClick={() => {
-            if (!isUploading) fileInputRef.current?.click();
-          }}
-          className={`mt-4 border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-            isDragging
-              ? 'border-blue-500 bg-blue-50/50'
-              : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50/50 bg-slate-50/30'
-          }`}
-        >
-          {isUploading ? (
-            <div className="max-w-md mx-auto py-2">
-              <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto mb-3 animate-bounce">
-                <UploadCloud className="w-5 h-5" />
-              </div>
-              <div className="text-sm font-bold text-slate-900 mb-1">
-                Đang xử lý luồng tải lên... (Bước {uploadStep}/5)
-              </div>
-              <div className="text-xs text-blue-600 font-medium mb-3">{uploadMessage}</div>
-
-              {/* Progress Steps Indicators */}
-              <div className="grid grid-cols-5 gap-1.5 my-2">
-                {[1, 2, 3, 4, 5].map((step) => (
-                  <div
-                    key={step}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      uploadStep >= step ? 'bg-blue-600' : 'bg-slate-200'
-                    }`}
-                  />
-                ))}
-              </div>
+        {/* Card 2: Dung lượng tệp tin đã chiếm */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-medium">Dung lượng thực tế</span>
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+              {totalUsagePercentage}% Quota
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-bold text-blue-600 tabular-nums">
+              {formatBytes(totalUsedBytes)}
             </div>
-          ) : (
-            <div>
-              <div className="w-12 h-12 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto text-blue-600 mb-3">
-                <UploadCloud className="w-6 h-6" />
-              </div>
-              <div className="text-xs font-bold text-slate-800">
-                Kéo thả tệp tin vào đây, hoặc <span className="text-blue-600 underline">duyệt từ máy tính</span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
-                Hỗ trợ mọi định dạng tệp (PDF, Word, Excel, Hình ảnh, ZIP, Bản vẽ kỹ thuật). Kích thước tối đa phụ thuộc vào Quota khả dụng ({formatBytes(quotaStats.availableBytes)}).
-              </p>
+            <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+              trên tổng {formatBytes(totalAllocatedBytes)} khả dụng
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Trạng thái an toàn mã độc (ClamAV & SHA-256) */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-medium">Trạng thái an toàn</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4" />
             </div>
-          )}
+          </div>
+          <div className="mt-3">
+            <div className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>ClamAV & SHA-256</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              100% tệp tin đã qua quét mã độc & kiểm tra toàn vẹn
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Nhà cung cấp Cloud Storage Pool */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-medium">Cloud Storage Pool</span>
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <HardDrive className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-base font-bold text-slate-900 truncate">
+              {summaryData?.storageProviderName || tenant.storageProviderName || 'Google Drive Primary'}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Còn trống: <strong className="text-emerald-600">{formatBytes(totalAvailableBytes)}</strong>
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Cloud Files Pool Table */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-          <div>
-            <h4 className="text-sm font-bold text-slate-900">
-              Danh sách tệp tin đã lưu trữ (Cloud Storage Pool)
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Tất cả các tệp tin của Tenant đã được phân loại mã độc và phân phối trên Cloud Storage.
-            </p>
+      {/* 5.3. Khu vực Bộ lọc thông minh (Advanced Filter Bar) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+          {/* Ô tìm kiếm file có debounce */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm kiếm tệp theo tên, loại tệp (.pdf, .docx, .xlsx)..."
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-          <div className="text-xs text-slate-500">
-            Tổng cộng: <strong className="text-slate-900">{files.length}</strong> tệp tin ({formatBytes(quotaStats.usedBytes)})
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Dropdown Lọc theo Phòng Ban (Department Filter) */}
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+              <select
+                value={selectedDeptId}
+                onChange={(e) => {
+                  setSelectedDeptId(e.target.value);
+                  setPageNumber(1);
+                }}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+              >
+                <option value="all">🏢 Tất cả phòng ban ({departments.length})</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name} ({dept.allocatedStorageGB || 0} GB Quota)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Dropdown Sắp xếp */}
+            <div className="flex items-center gap-1.5">
+              <ArrowUpDown className="w-4 h-4 text-slate-400 shrink-0" />
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 focus:outline-none cursor-pointer"
+              >
+                <option value="newest">Mới nhất trước</option>
+                <option value="oldest">Cũ nhất trước</option>
+                <option value="size_desc">Dung lượng lớn nhất</option>
+                <option value="size_asc">Dung lượng nhỏ nhất</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {files.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 my-3">
-            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
-              <FolderOpen className="w-5 h-5" />
-            </div>
-            <div className="text-xs font-bold text-slate-700">Chưa có tệp tin nào trong kho lưu trữ</div>
-            <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1 mb-3">
-              Hãy kéo thả tệp tin vào khu vực tải lên phía trên để bắt đầu lưu trữ và phân bổ hạn ngạch Quota.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto mt-3">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-semibold">
-                  <th className="py-2.5 px-3 text-center w-14">STT</th>
-                  <th className="py-2.5 px-3">Tên tệp tin</th>
-                  <th className="py-2.5 px-3">Dung lượng</th>
-                  <th className="py-2.5 px-3">Cloud Provider</th>
-                  <th className="py-2.5 px-3">Mã băm SHA-256</th>
-                  <th className="py-2.5 px-3">Bảo mật</th>
-                  <th className="py-2.5 px-3">Người tải & Ngày</th>
-                  <th className="py-2.5 px-3 text-right">Thao tác</th>
+        {/* Tabs phân loại định dạng tệp tin (Category Pills) */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100">
+          {[
+            { id: 'all', label: 'Tất cả tệp', count: files.length },
+            { id: 'docs', label: '📄 Tài liệu (PDF, Word, TXT)', count: files.filter((f) => getFileCategory(f) === 'docs').length },
+            { id: 'data', label: '📊 Bảng tính & Dữ liệu (Excel, CSV, JSON)', count: files.filter((f) => getFileCategory(f) === 'data').length },
+            { id: 'media', label: '🎬 Media (Hình ảnh, Video, Âm thanh)', count: files.filter((f) => getFileCategory(f) === 'media').length },
+            { id: 'archive', label: '📦 Tệp nén & Khác (ZIP, RAR)', count: files.filter((f) => getFileCategory(f) === 'archive').length },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveCategory(tab.id as FileCategory)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                activeCategory === tab.id
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  activeCategory === tab.id ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5.4. Bảng Báo cáo Chi tiết Danh sách Tệp tin (Data Table) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600">
+            <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="py-3 px-4">Tên tệp tin</th>
+                <th className="py-3 px-4">Phòng ban</th>
+                <th className="py-3 px-4">Người tải lên</th>
+                <th className="py-3 px-4">Kích thước</th>
+                <th className="py-3 px-4">Thời gian</th>
+                <th className="py-3 px-4">Bảo mật ClamAV</th>
+                <th className="py-3 px-4 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-500 mb-2" />
+                    <span>Đang nạp dữ liệu báo cáo tệp tin từ hệ thống...</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {files.map((file, index) => (
-                  <tr key={file.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-3 text-center font-mono text-slate-500 font-medium text-xs">
-                      {index + 1}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2 max-w-xs">
-                        {getFileIcon(file.contentType, file.name)}
-                        <span className="font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer truncate" title={file.name}>
-                          {file.name}
-                        </span>
+              ) : displayedFiles.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                      <FolderOpen className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700">Chưa có tệp tin nào</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                      {selectedDeptId !== 'all'
+                        ? 'Phòng ban được chọn chưa tải lên tài liệu nào hoặc không có tệp khớp với tìm kiếm.'
+                        : 'Doanh nghiệp chưa có tài liệu nào tải lên hệ thống.'}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                displayedFiles.map((file) => (
+                  <tr
+                    key={file.id}
+                    className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
+                    onClick={() => setSelectedFileForDetail(file)}
+                  >
+                    {/* Tên tệp tin */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2.5 min-w-[200px] max-w-[280px]">
+                        <div className="p-2 rounded-lg bg-slate-100 border border-slate-200/60 shrink-0 group-hover:bg-white transition-colors">
+                          {getFileIcon(file)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 text-xs truncate group-hover:text-blue-600 transition-colors">
+                            {file.name}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {file.contentType || 'application/octet-stream'}
+                          </p>
+                        </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3 font-medium text-slate-700 tabular-nums">
-                      {formatBytes(file.sizeBytes)}
-                    </td>
-                    <td className="py-3 px-3">
-                      {getProviderBadge(file.storageProviderType)}
-                    </td>
-                    <td className="py-3 px-3">
-                      {file.hash ? (
-                        <span
-                          className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-200"
-                          title={`SHA-256: ${file.hash}`}
-                          onClick={() => {
-                            navigator.clipboard.writeText(file.hash || '');
-                            alert('Đã sao chép mã SHA-256 vào bộ nhớ tạm!');
-                          }}
-                        >
-                          {file.hash.slice(0, 10)}...{file.hash.slice(-6)}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-[11px]">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        <FileCheck2 className="w-3 h-3" />
-                        <span>Clean</span>
+
+                    {/* Phòng ban sở hữu */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70">
+                        <Building2 className="w-3 h-3 text-slate-400" />
+                        <span>{file.departmentName || 'Chung tổ chức'}</span>
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-[11px] text-slate-500">
-                      <div>{file.ownerName || 'Hệ thống'}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {new Date(file.createdAt).toLocaleDateString('vi-VN')}
+
+                    {/* Người tải lên */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                        <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{file.ownerName || 'Thành viên'}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-right">
+
+                    {/* Dung lượng file */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className="font-semibold text-slate-900 tabular-nums">
+                        {formatBytes(file.sizeBytes)}
+                      </span>
+                    </td>
+
+                    {/* Ngày tải lên */}
+                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 text-[11px]">
+                      {formatDate(file.createdAt)}
+                    </td>
+
+                    {/* Trạng thái quét an toàn ClamAV & SHA-256 */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Sạch (Clean)</span>
+                        </span>
+                        {file.hash && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyHash(file.hash!);
+                            }}
+                            className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                            title={`Mã băm SHA-256: ${file.hash}`}
+                          >
+                            {copiedHash === file.hash ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Thao tác: Download, Chi tiết, Xóa */}
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleDownload(file)}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                          title="Tải tệp tin về máy"
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition-colors"
+                          title="Tải xuống tệp tin"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(file)}
-                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                          title="Xóa tệp tin và hoàn trả Quota"
+                          onClick={() => setSelectedFileForDetail(file)}
+                          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-colors"
+                          title="Xem chi tiết tệp"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setFileToDelete(file)}
+                          className="p-1.5 rounded-lg border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-600 transition-colors"
+                          title="Xóa tệp tin"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-      {/* Department Storage Allocation Table */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        {/* 5.5. Phân trang dữ liệu (Pagination Footer) */}
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div>
-            <h4 className="text-sm font-bold text-slate-900">
-              Phân bổ dung lượng theo từng Phòng ban (Department Allocation)
-            </h4>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Theo dõi việc tiêu thụ dung lượng của từng bộ phận thuộc {tenant.name}.
-            </p>
+            Hiển thị <strong className="text-slate-800">{displayedFiles.length}</strong> tệp tin
+            {totalFilesCount > 0 && ` trên tổng số ${totalFilesCount}`}
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="text-xs text-slate-500 hidden sm:block">
-              Tổng cấp phát phòng ban:{' '}
-              <strong className="text-slate-900 font-bold">
-                {totalAllocatedDeptsGB.toLocaleString()} GB
-              </strong>
+            {/* Kích thước trang */}
+            <div className="flex items-center gap-1.5">
+              <span>Hiển thị:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPageNumber(1);
+                }}
+                className="px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
             </div>
 
-            {onCreateDepartmentUser && (
+            {/* Nút Trước / Kế tiếp */}
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => onCreateDepartmentUser()}
-                className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                disabled={pageNumber === 1 || isLoading}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600"
               >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Tạo tài khoản Department</span>
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            )}
+              <span className="px-2 font-semibold text-slate-800">Trang {pageNumber}</span>
+              <button
+                onClick={() => setPageNumber((p) => p + 1)}
+                disabled={!hasMore || isLoading}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-
-        {departmentUsage.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 my-3">
-            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-2">
-              <FolderOpen className="w-5 h-5" />
-            </div>
-            <div className="text-xs font-bold text-slate-700">Chưa có phòng ban nào trong tổ chức</div>
-            <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1 mb-3">
-              Sau khi tạo phòng ban và cấp tài khoản Department Admin, hệ thống sẽ tự động thống kê dung lượng lưu trữ phân bổ tại đây.
-            </p>
-            {onCreateDepartmentUser && (
-              <button
-                onClick={() => onCreateDepartmentUser()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Thêm tài khoản Department Admin</span>
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto mt-3">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-semibold">
-                  <th className="py-2.5 px-3 text-center w-14">STT</th>
-                  <th className="py-2.5 px-3">Phòng ban (Department)</th>
-                  <th className="py-2.5 px-3">Trưởng bộ phận & Nhân sự</th>
-                  <th className="py-2.5 px-3">Đã dùng ({unit})</th>
-                  <th className="py-2.5 px-3">Hạn mức Quota ({unit})</th>
-                  <th className="py-2.5 px-3">Tiến độ tiêu thụ</th>
-                  <th className="py-2.5 px-3">Khả dụng</th>
-                  <th className="py-2.5 px-3 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {departmentUsage.map((item, idx) => {
-                  const freeDeptGB = Math.max(0, item.quotaGB - item.usedGB);
-
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-3 text-center font-mono text-slate-500 font-medium text-xs">
-                        {idx + 1}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span>{item.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="text-slate-700 font-medium">{item.lead}</div>
-                        <div className="text-[11px] text-slate-400">{item.members} nhân sự</div>
-                      </td>
-                      <td className="py-3 px-3 font-bold text-slate-900 tabular-nums">
-                        {unit === 'GB'
-                          ? `${item.usedGB.toLocaleString()} GB`
-                          : `${(item.usedGB / 1024).toFixed(2)} TB`}
-                      </td>
-                      <td className="py-3 px-3 text-slate-500 tabular-nums font-medium">
-                        {unit === 'GB'
-                          ? `${item.quotaGB.toLocaleString()} GB`
-                          : `${(item.quotaGB / 1024).toFixed(2)} TB`}
-                      </td>
-                      <td className="py-3 px-3 min-w-[150px]">
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-100">
-                            <div
-                              className={`h-full rounded-full ${
-                                item.percent > 75 ? 'bg-amber-500' : 'bg-blue-600'
-                              }`}
-                              style={{ width: `${item.percent}%` }}
-                            />
-                          </div>
-                          <span className="text-[11px] font-bold text-slate-700 tabular-nums">
-                            {item.percent}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 tabular-nums text-slate-600 font-mono text-[11px]">
-                        +{unit === 'GB' ? `${freeDeptGB.toFixed(1)} GB` : `${(freeDeptGB / 1024).toFixed(2)} TB`}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        {onCreateDepartmentUser && (
-                          <button
-                            onClick={() => onCreateDepartmentUser(item.name)}
-                            className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <UserPlus className="w-3 h-3" />
-                            <span>Thêm User</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {/* 5.6. MODAL XEM CHI TIẾT TỆP TIN (File Detail Inspector Modal) */}
+      {selectedFileForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
+                  {getFileIcon(selectedFileForDetail)}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-900 text-sm truncate">
+                    {selectedFileForDetail.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Thông tin chi tiết tệp lưu trữ</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedFileForDetail(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/70">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Phòng ban sở hữu</span>
+                  <strong className="text-slate-800 font-semibold mt-0.5 block">
+                    {selectedFileForDetail.departmentName || 'Chung tổ chức'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Người tải lên</span>
+                  <strong className="text-slate-800 font-semibold mt-0.5 block">
+                    {selectedFileForDetail.ownerName}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Dung lượng</span>
+                  <strong className="text-blue-600 font-bold mt-0.5 block">
+                    {formatBytes(selectedFileForDetail.sizeBytes)} ({selectedFileForDetail.sizeBytes.toLocaleString()} B)
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Thời gian tải lên</span>
+                  <span className="text-slate-700 mt-0.5 block">
+                    {formatDate(selectedFileForDetail.createdAt)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Thông tin Mã độc & Mã băm */}
+              <div className="border border-slate-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-600 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Quét mã độc ClamAV:</span>
+                  </span>
+                  <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[10px] border border-emerald-100">
+                    Sạch (CLEAN - No Malware)
+                  </span>
+                </div>
+
+                {selectedFileForDetail.hash && (
+                  <div>
+                    <span className="text-slate-400 block text-[10px] mb-1">Mã băm toàn vẹn SHA-256:</span>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-700">
+                      <span className="truncate mr-2">{selectedFileForDetail.hash}</span>
+                      <button
+                        onClick={() => handleCopyHash(selectedFileForDetail.hash!)}
+                        className="text-blue-600 hover:text-blue-800 shrink-0 font-sans text-xs font-semibold"
+                      >
+                        {copiedHash === selectedFileForDetail.hash ? 'Đã sao chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setSelectedFileForDetail(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => {
+                  handleDownload(selectedFileForDetail);
+                  setSelectedFileForDetail(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Tải tệp tin</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5.7. MODAL XÁC NHẬN XÓA TỆP TIN */}
+      {fileToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-5 animate-in zoom-in-95 duration-150">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <h3 className="font-bold text-slate-900 text-base">Xác nhận xóa tệp tin</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Bạn có chắc chắn muốn xóa tệp <strong className="text-slate-800">{fileToDelete.name}</strong> ({formatBytes(fileToDelete.sizeBytes)}) thuộc phòng ban <strong className="text-slate-800">{fileToDelete.departmentName || 'Chung'}</strong> không?
+            </p>
+            <p className="text-[11px] text-rose-600 mt-2 bg-rose-50/60 p-2 rounded-lg border border-rose-100">
+              Hành động này sẽ giải phóng dung lượng lưu trữ tương ứng trong hạn mức Quota của tổ chức.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={() => setFileToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {isDeleting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isDeleting ? 'Đang xóa...' : 'Đồng ý xóa'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5.8. MODAL TẢI TỆP TIN LÊN PHÒNG BAN */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <UploadCloud className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm">Tải tệp tin lên hệ thống</h3>
+              </div>
+              <button
+                onClick={() => setIsUploadModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                  Chọn phòng ban tiếp nhận tệp:
+                </label>
+                <select
+                  value={uploadDeptId}
+                  onChange={(e) => setUploadDeptId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">🏢 Lưu trữ chung của Tổ chức</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name} (Hạn ngạch: {dept.allocatedStorageGB || 0} GB)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Khu vực chọn file với 2 phương thức tải lên */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  ref={directFileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleDirectFileUpload}
+                  className="hidden"
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                {/* Phương pháp 1: Tải trực tiếp Cloud */}
+                <div
+                  onClick={() => directFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-blue-300 hover:border-blue-500 rounded-2xl p-5 text-center cursor-pointer transition-all bg-blue-50/40 hover:bg-blue-50/70 group relative"
+                >
+                  <span className="absolute top-2.5 right-2.5 text-[9px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Mới
+                  </span>
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                    <UploadCloud className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-bold text-blue-950">
+                    Tải trực tiếp Cloud
+                  </p>
+                  <p className="text-[10px] text-blue-600/80 mt-1">
+                    Bỏ qua Backend, tải thẳng Google Drive / OneDrive / S3
+                  </p>
+                </div>
+
+                {/* Phương pháp 2: Tải qua Server */}
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-2xl p-5 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-slate-100/60 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                    <Server className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-800">
+                    Tải qua Server
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Phương pháp truyền thống qua API backend
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setIsUploadModalOpen(false)}
+                disabled={isUploading}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

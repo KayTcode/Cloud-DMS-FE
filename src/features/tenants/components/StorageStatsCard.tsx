@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
 import { FileItemDto, getTenantFilesApi } from '@/features/tenants/api/fileApi';
+import { useTenantContext } from '@/context/TenantContext';
 
 interface StorageStatsCardProps {
   tenant: TenantInfo;
@@ -26,6 +27,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
   onNavigateToStorage,
   onExpandStorage,
 }) => {
+  const { departments } = useTenantContext();
   const [unit, setUnit] = useState<'GB' | 'TB'>('GB');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [files, setFiles] = useState<FileItemDto[]>([]);
@@ -60,11 +62,20 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
     ? Math.max(0.1, Number((tenant.storageQuotaBytes / (1024 ** 3)).toFixed(2)))
     : Math.max(0.1, Number((tenant.diskAllocatedTB * 1024).toFixed(2)));
 
-  const realFilesUsedBytes = files.reduce((acc, f) => acc + f.sizeBytes, 0);
-  const effectiveUsedBytes = Math.max(realFilesUsedBytes, tenant.storageUsedBytes || 0);
+  // Tính tổng Quota đã cấp cho các phòng ban thuộc Tenant
+  const totalDeptsQuotaBytes = departments.reduce((acc, d) => {
+    return acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3)));
+  }, 0);
 
-  const totalUsedGB = Number((effectiveUsedBytes / (1024 ** 3)).toFixed(2));
-  const freeGB = Math.max(0, totalAllocatedGB - totalUsedGB);
+  const realFilesUsedBytes = files.reduce((acc, f) => acc + f.sizeBytes, 0);
+
+  // Dung lượng Tenant đã cấp / sử dụng: ưu tiên tổng dung lượng đã cấp cho các phòng ban
+  const effectiveAllocatedBytes = (tenant.allocatedToDepartmentsBytes && tenant.allocatedToDepartmentsBytes > 0)
+    ? tenant.allocatedToDepartmentsBytes
+    : (totalDeptsQuotaBytes > 0 ? totalDeptsQuotaBytes : Math.max(realFilesUsedBytes, tenant.storageUsedBytes || 0));
+
+  const totalUsedGB = Number((effectiveAllocatedBytes / (1024 ** 3)).toFixed(2));
+  const freeGB = Math.max(0, Number((totalAllocatedGB - totalUsedGB).toFixed(2)));
   const percentUsed = totalAllocatedGB > 0 ? Math.min(100, Math.round((totalUsedGB / totalAllocatedGB) * 100)) : 0;
   const percentFree = Math.max(0, 100 - percentUsed);
 
@@ -248,7 +259,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
         {/* Card 1: Used Capacity */}
         <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-50/70 to-slate-50 border border-blue-100/90 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Dung lượng đã dùng</span>
+            <span>Dung lượng đã cấp</span>
             <span className="text-[10px] font-bold text-blue-600 bg-white px-1.5 py-0.5 rounded border border-blue-100">
               {percentUsed}%
             </span>
@@ -263,7 +274,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
               {totalAllocatedGB > 0
-                ? `trên tổng ${unit === 'GB' ? `${totalAllocatedGB.toLocaleString()} GB` : `${(totalAllocatedGB / 1024).toFixed(2)} TB`}`
+                ? `trên tổng ${unit === 'GB' ? `${totalAllocatedGB.toLocaleString()} GB` : `${(totalAllocatedGB / 1024).toFixed(2)} TB`} (Đã cấp phòng ban)`
                 : 'Chưa được cấp Quota Cloud'}
             </div>
           </div>
@@ -284,7 +295,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
                 : `${(freeGB / 1024).toFixed(3)} TB`}
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
-              Khả dụng cho tải lên mới
+              Khả dụng cho phòng ban & tải lên
             </div>
           </div>
         </div>
@@ -359,6 +370,23 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
               />
             );
           })}
+          {/* Allocated department quota segment */}
+          {percentUsed > 0 && (
+            <div
+              onMouseEnter={() => setActiveCategory('departments')}
+              onMouseLeave={() => setActiveCategory(null)}
+              style={{
+                width: `${Math.max(
+                  0,
+                  percentUsed - Math.round((realFilesUsedBytes / (totalAllocatedGB * (1024 ** 3))) * 100)
+                )}%`,
+              }}
+              className={`bg-indigo-500/80 h-full transition-all duration-300 relative group cursor-pointer ${
+                categories.every((c) => c.bytes <= 0) ? 'rounded-l-full' : ''
+              }`}
+              title={`Hạn mức đã cấp phòng ban: ${totalUsedGB} GB (${percentUsed}%)`}
+            />
+          )}
           {/* Free space segment */}
           <div
             onMouseEnter={() => setActiveCategory('free')}

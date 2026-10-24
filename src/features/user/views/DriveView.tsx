@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   RefreshCw,
   HardDrive,
+  UploadCloud,
+  Server,
 } from 'lucide-react';
 import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { formatBytes } from '../api/driveApi';
@@ -39,6 +41,7 @@ interface DriveViewProps {
   trashTotalSizeBytes: number;
   isLoadingTrash: boolean;
   onUploadFile: (files: FileList) => void;
+  onUploadDirectFile?: (files: FileList) => void;
   onOpenNewFolderModal: () => void;
   onOpenFilePreview: (file: DriveItem) => void;
   onToggleStar: (id: string) => void;
@@ -64,6 +67,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   trashTotalSizeBytes,
   isLoadingTrash,
   onUploadFile,
+  onUploadDirectFile,
   onOpenNewFolderModal,
   onOpenFilePreview,
   onToggleStar,
@@ -82,6 +86,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   const [confirmPermanentItem, setConfirmPermanentItem] = useState<DriveItem | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const directFileInputRef = useRef<HTMLInputElement>(null);
 
   // Find current folder hierarchy
   const currentFolder = items.find((i) => i.id === currentFolderId && i.type === 'folder');
@@ -112,12 +117,25 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
     // Shared filter
     if (activeFilter === 'shared') {
-      return item.sharedWith.length > 0 && item.owner.email !== currentUser.email;
+      return (
+        item.sharedWith?.length > 0 ||
+        Boolean(item.owner.email && currentUser.email && item.owner.email !== currentUser.email)
+      );
     }
 
     // Mine filter
     if (activeFilter === 'mine') {
-      return item.owner.email === currentUser.email;
+      return (
+        (!item.sharedWith || item.sharedWith.length === 0) &&
+        (
+          !item.owner.email ||
+          !currentUser.email ||
+          item.owner.email === currentUser.email ||
+          (item.owner as any).id === currentUser.id ||
+          item.owner.name === currentUser.fullName ||
+          item.owner.name === 'Tôi'
+        )
+      );
     }
 
     // Recent filter
@@ -126,6 +144,9 @@ export const DriveView: React.FC<DriveViewProps> = ({
     }
 
     // Folder navigation (for 'all')
+    if (currentFolderId === null) {
+      return item.parentId === null || !item.parentId;
+    }
     return item.parentId === currentFolderId;
   });
 
@@ -177,6 +198,17 @@ export const DriveView: React.FC<DriveViewProps> = ({
     }
   };
 
+  const handleDirectFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      if (onUploadDirectFile) {
+        onUploadDirectFile(e.target.files);
+      } else {
+        onUploadFile(e.target.files);
+      }
+      e.target.value = '';
+    }
+  };
+
   const getFileIcon = (fileType?: FileType) => {
     switch (fileType) {
       case 'pdf':
@@ -209,6 +241,13 @@ export const DriveView: React.FC<DriveViewProps> = ({
         type="file"
         ref={fileInputRef}
         onChange={handleFileInputChange}
+        multiple
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={directFileInputRef}
+        onChange={handleDirectFileInputChange}
         multiple
         className="hidden"
       />
@@ -271,12 +310,27 @@ export const DriveView: React.FC<DriveViewProps> = ({
                 <span>Thư mục mới</span>
               </button>
 
+              {/* Nút 1: Tải trực tiếp Cloud (Phương pháp mới) */}
+              <button
+                onClick={() => directFileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                title="Tải trực tiếp lên Cloud (Google Drive / OneDrive / S3) - Tốc độ cao, không nghẽn Server"
+              >
+                <UploadCloud className="w-4 h-4 stroke-[2.2]" />
+                <span>Tải lên Cloud (Direct)</span>
+                <span className="text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-full tracking-wide">
+                  Mới
+                </span>
+              </button>
+
+              {/* Nút 2: Tải qua Server (Phương pháp cũ) */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium shadow-xs transition-colors cursor-pointer"
+                title="Tải tệp qua Backend Server (Phương pháp truyền thống)"
               >
-                <Upload className="w-4 h-4 stroke-[2.5]" />
-                <span>Tải tệp lên</span>
+                <Server className="w-4 h-4 text-slate-500" />
+                <span>Tải qua Server</span>
               </button>
             </>
           )}

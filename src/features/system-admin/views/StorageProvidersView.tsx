@@ -8,10 +8,12 @@ import {
   Trash2, 
   Building2, 
   Layers,
-  Activity
+  Activity,
+  Key
 } from 'lucide-react';
 import { StorageProviderItem } from '../types';
 import { ConnectProviderModal } from '../components/ConnectProviderModal';
+import { EditProviderModal } from '../components/EditProviderModal';
 import { getStorageProvidersApi } from '../api/systemAdminQueries';
 import { deleteStorageProviderApi } from '../api/systemAdminCommands';
 
@@ -29,6 +31,7 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
   const [providers, setProviders] = useState<StorageProviderItem[]>(initialProviders);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<StorageProviderItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -138,6 +141,13 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                       {p.status}
                     </span>
                     <button
+                      onClick={() => setEditingProvider(p)}
+                      title="Cập nhật Token / Credentials"
+                      className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                    >
+                      <Key className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => handleDeleteProvider(p.id, p.name)}
                       title="Ngắt kết nối Provider"
                       className="p-1 rounded-md text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
@@ -199,7 +209,7 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
               </div>
 
               {/* Card Footer */}
-              <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-2">
                 <button
                   onClick={() => handleTestConnection(p.id, p.name)}
                   disabled={testingId === p.id}
@@ -210,12 +220,17 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                       testingId === p.id ? 'animate-spin text-blue-600' : ''
                     }`}
                   />
-                  <span>{testingId === p.id ? 'Đang ping...' : 'Kiểm tra kết nối'}</span>
+                  <span>{testingId === p.id ? 'Đang ping...' : 'Kiểm tra'}</span>
                 </button>
 
-                <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Đồng bộ
-                </span>
+                <button
+                  onClick={() => setEditingProvider(p)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/70 hover:bg-blue-100/70 rounded-lg border border-blue-200/60 transition-colors cursor-pointer"
+                  title="Cập nhật Token hoặc Credentials mới"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Cập nhật Token</span>
+                </button>
               </div>
             </div>
           );
@@ -226,6 +241,17 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
       <ConnectProviderModal
         isOpen={isConnectModalOpen}
         onClose={() => setIsConnectModalOpen(false)}
+        onSuccess={(msg) => {
+          if (onAddToast) onAddToast('success', msg);
+          fetchProviders();
+        }}
+      />
+
+      {/* Edit Provider Modal */}
+      <EditProviderModal
+        isOpen={!!editingProvider}
+        provider={editingProvider}
+        onClose={() => setEditingProvider(null)}
         onSuccess={(msg) => {
           if (onAddToast) onAddToast('success', msg);
           fetchProviders();

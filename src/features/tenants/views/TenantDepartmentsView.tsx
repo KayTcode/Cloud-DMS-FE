@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { UserPlus, Building2, Crown, Mail, ShieldAlert, RefreshCw, Loader2, HardDrive } from 'lucide-react';
+import { UserPlus, Building2, Crown, Mail, ShieldAlert, RefreshCw, Loader2, HardDrive, UserX } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
 import { Department } from '@/features/tenants/types';
-import { AllocateDepartmentQuotaModal } from '@/features/tenants/components';
+import { AllocateDepartmentQuotaModal, OffboardDepartmentAdminModal } from '@/features/tenants/components';
 
 interface TenantDepartmentsViewProps {
   onBackToOverview: () => void;
@@ -13,8 +13,9 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
   onBackToOverview,
   onCreateDepartmentUser,
 }) => {
-  const { departments, users, isLoadingDepartments, refreshDepartments } = useTenantContext();
+  const { tenant, departments, users, isLoadingDepartments, refreshDepartments, addToast } = useTenantContext();
   const [selectedDeptForQuota, setSelectedDeptForQuota] = useState<Department | null>(null);
+  const [selectedDeptForOffboard, setSelectedDeptForOffboard] = useState<Department | null>(null);
 
   // Find Department Admins who are not yet assigned to any specific department
   const unassignedAdmins = users.filter(
@@ -146,9 +147,21 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
                   </div>
                   
                   <div className="mt-2.5 space-y-1">
-                    <div className="text-[11px] text-slate-600 flex items-center gap-1">
-                      <Crown className="w-3 h-3 text-amber-500" />
-                      <span>Lead / Admin: <strong className="text-slate-900">{dept.lead}</strong></span>
+                    <div className="text-[11px] text-slate-600 flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Crown className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span className="truncate">Lead / Admin: <strong className="text-slate-900">{dept.lead}</strong></span>
+                      </div>
+                      {dept.lead && dept.lead !== 'Chưa chỉ định' && dept.lead !== 'N/A' && (
+                        <button
+                          onClick={() => setSelectedDeptForOffboard(dept)}
+                          className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded cursor-pointer transition-colors shrink-0 flex items-center gap-1 shadow-2xs"
+                          title="Bổ nhiệm Trưởng phòng mới kế nhiệm / Bàn giao toàn bộ dữ liệu"
+                        >
+                          <UserX className="w-2.5 h-2.5" />
+                          <span>Kế nhiệm</span>
+                        </button>
+                      )}
                     </div>
                     {dept.adminEmail && (
                       <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
@@ -185,6 +198,20 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
         onClose={() => setSelectedDeptForQuota(null)}
         department={selectedDeptForQuota}
       />
+
+      {/* Modal Vô hiệu hóa Trưởng phòng & Bổ nhiệm Kế nhiệm */}
+      <OffboardDepartmentAdminModal
+        isOpen={!!selectedDeptForOffboard}
+        onClose={() => setSelectedDeptForOffboard(null)}
+        department={selectedDeptForOffboard}
+        tenantId={tenant?.id || ''}
+        users={users}
+        onSuccess={() => {
+          refreshDepartments();
+          addToast('success', 'Bàn giao dữ liệu và cập nhật Trưởng phòng kế nhiệm thành công!');
+        }}
+      />
     </div>
   );
 };
+

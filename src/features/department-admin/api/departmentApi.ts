@@ -10,9 +10,32 @@ import {
   SetupDepartmentPayload,
   DepartmentDto,
   DepartmentSetupInfoDto,
+  DepartmentAuditLogDto,
 } from '../types';
 
 export const departmentApi = {
+  /**
+   * Lấy danh sách nhật ký hoạt động của nhân viên thuộc phòng ban
+   * Khớp BE: GET /api/department/{departmentId}/logs
+   */
+  getDepartmentLogs: async (
+    departmentId: string,
+    pageNumber: number = 1,
+    pageSize: number = 50,
+    searchTerm?: string,
+    action?: string
+  ): Promise<PaginatedResult<DepartmentAuditLogDto>> => {
+    const params: Record<string, any> = { pageNumber, pageSize };
+    if (searchTerm && searchTerm.trim()) {
+      params.searchTerm = searchTerm.trim();
+    }
+    if (action && action.trim() && action !== 'all') {
+      params.action = action.trim();
+    }
+    const res: any = await apiClient.get(API_ENDPOINTS.DEPARTMENT.LOGS(departmentId), { params });
+    return res?.value ?? res?.data ?? res;
+  },
+
   /**
    * Lấy tổng quan Quota phòng ban và danh sách Quota của từng nhân viên
    * Khớp BE: GET /api/department/{departmentId}/quota/users

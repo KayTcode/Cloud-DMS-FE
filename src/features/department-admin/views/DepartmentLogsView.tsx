@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   Search,
@@ -6,15 +6,19 @@ import {
   ArrowLeft,
   UploadCloud,
   FileDown,
-  UserCheck,
-  ShieldCheck,
   HardDrive,
   Users,
   CheckCircle2,
+  AlertCircle,
   Clock,
-  Filter,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
 } from 'lucide-react';
-import { DepartmentInfo, DepartmentMember, DepartmentActivityLog } from '../types';
+import { DepartmentInfo, DepartmentMember, DepartmentAuditLogDto } from '../types';
+import { departmentApi } from '../api/departmentApi';
+import { useAuth } from '@/context/AuthContext';
 
 interface DepartmentLogsViewProps {
   department: DepartmentInfo;
@@ -27,148 +31,197 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
   members,
   onBackToHub,
 }) => {
+  const { user } = useAuth();
+  const deptId = department.id || user?.departmentId || '';
+
   const [filterQuery, setFilterQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('all');
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const pageSize = 20;
 
-  // Pre-populated realistic department activity logs
-  const [logs] = useState<DepartmentActivityLog[]>([
-    {
-      id: 'log-1',
-      timestamp: 'Hôm nay, 10:15',
-      actor: department.adminName,
-      actorEmail: department.adminEmail,
-      action: 'quota_change',
-      details: `Đã cấp phát hạn mức dung lượng cho thành viên mới trong phòng ${department.name}.`,
-      ipAddress: '192.168.1.45',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'log-2',
-      timestamp: 'Hôm nay, 09:42',
-      actor: members[0]?.name || 'Nguyễn Văn A',
-      actorEmail: members[0]?.email || 'user1@company.com',
-      action: 'upload',
-      details: 'Đã tải lên tệp "Bao_cao_ke_hoach_Q4.pdf" (14.2 MB) - Quét ClamAV sạch.',
-      ipAddress: '192.168.1.82',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'log-3',
-      timestamp: 'Hôm nay, 08:30',
-      actor: members[1]?.name || 'Trần Thị B',
-      actorEmail: members[1]?.email || 'user2@company.com',
-      action: 'download',
-      details: 'Đã tải xuống tài liệu "Huong_dan_su_dung_CloudDMS.docx".',
-      ipAddress: '192.168.1.90',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'log-4',
-      timestamp: 'Hôm qua, 16:55',
-      actor: department.adminName,
-      actorEmail: department.adminEmail,
-      action: 'member_invited',
-      details: 'Đã gửi lời mời kích hoạt tài khoản thành viên mới qua email có hiệu lực 48 giờ.',
-      ipAddress: '192.168.1.45',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'log-5',
-      timestamp: 'Hôm qua, 14:20',
-      actor: members[0]?.name || 'Nguyễn Văn A',
-      actorEmail: members[0]?.email || 'user1@company.com',
-      action: 'upload',
-      details: 'Đã tải lên tệp "Du_lieu_khach_hang_thang9.xlsx" (8.6 MB) - Mã băm SHA-256 khớp.',
-      ipAddress: '192.168.1.82',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'log-6',
-      timestamp: 'Hôm qua, 11:10',
-      actor: 'Hệ thống bảo mật',
-      actorEmail: 'security@clouddms.local',
-      action: 'system',
-      details: 'Tự động kiểm tra tính toàn vẹn và quét virus định kỳ cho toàn bộ kho lưu trữ phòng ban.',
-      ipAddress: '127.0.0.1',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'log-7',
-      timestamp: '12/10/2026, 15:40',
-      actor: members[1]?.name || 'Trần Thị B',
-      actorEmail: members[1]?.email || 'user2@company.com',
-      action: 'delete',
-      details: 'Đã chuyển tệp tin nháp cũ "Draft_proposal_v1.docx" vào thùng rác.',
-      ipAddress: '192.168.1.90',
-      status: 'SUCCESS',
-    },
-  ]);
+  const [logs, setLogs] = useState<DepartmentAuditLogDto[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredLogs = logs.filter((log) => {
-    const matchesSearch =
-      log.actor.toLowerCase().includes(filterQuery.toLowerCase()) ||
-      log.details.toLowerCase().includes(filterQuery.toLowerCase()) ||
-      (log.actorEmail && log.actorEmail.toLowerCase().includes(filterQuery.toLowerCase()));
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filterQuery);
+      setPageNumber(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [filterQuery]);
 
-    if (!matchesSearch) return false;
-    if (actionFilter === 'all') return true;
-    return log.action === actionFilter;
-  });
+  // Load audit logs from real backend API
+  const fetchLogs = useCallback(async () => {
+    if (!deptId) {
+      setError('Không xác định được mã phòng ban để tải nhật ký hoạt động.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await departmentApi.getDepartmentLogs(
+        deptId,
+        pageNumber,
+        pageSize,
+        debouncedSearch,
+        actionFilter === 'all' ? undefined : actionFilter
+      );
+
+      const items = res?.items ?? [];
+      setLogs(items);
+      setTotalCount(res?.totalCount ?? items.length);
+      setTotalPages(res?.totalPages ?? Math.max(1, Math.ceil((res?.totalCount ?? items.length) / pageSize)));
+    } catch (err: any) {
+      console.error('Failed to load department logs:', err);
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể tải dữ liệu nhật ký hoạt động của phòng ban. Vui lòng thử lại sau.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [deptId, pageNumber, pageSize, debouncedSearch, actionFilter]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  const handleActionFilterChange = (act: string) => {
+    setActionFilter(act);
+    setPageNumber(1);
+  };
 
   const handleExportJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(logs, null, 2));
+    if (logs.length === 0) return;
+    const exportData = {
+      department: department.name,
+      departmentId: deptId,
+      exportedAt: new Date().toISOString(),
+      totalRecords: logs.length,
+      logs: logs,
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `department-logs-${department.name}-${Date.now()}.json`);
+    downloadAnchor.setAttribute('download', `nhat-ky-phong-ban-${department.name}-${Date.now()}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
   };
 
-  const getActionBadge = (action: string) => {
-    switch (action) {
-      case 'upload':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-            <UploadCloud className="w-3 h-3 text-blue-600" />
-            <span>Tải lên file</span>
-          </span>
-        );
-      case 'download':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <FileDown className="w-3 h-3 text-emerald-600" />
-            <span>Tải xuống</span>
-          </span>
-        );
-      case 'quota_change':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-            <HardDrive className="w-3 h-3 text-purple-600" />
-            <span>Đổi Quota</span>
-          </span>
-        );
-      case 'member_invited':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-            <Users className="w-3 h-3 text-teal-600" />
-            <span>Mời nhân viên</span>
-          </span>
-        );
-      case 'delete':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-            <span>Xóa tệp tin</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <span>Hệ thống</span>
-          </span>
-        );
+  const formatTimestamp = (timestamp: string) => {
+    if (!timestamp) return 'Chưa xác định';
+    try {
+      const d = new Date(timestamp);
+      if (isNaN(d.getTime())) return timestamp;
+      return d.toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    } catch {
+      return timestamp;
     }
   };
+
+  const getActionBadge = (actionStr: string) => {
+    const act = (actionStr || '').toLowerCase();
+    if (act.includes('upload')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+          <UploadCloud className="w-3 h-3 text-blue-600" />
+          <span>Tải lên file</span>
+        </span>
+      );
+    }
+    if (act.includes('download') || act.includes('read') || act.includes('view')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <FileDown className="w-3 h-3 text-emerald-600" />
+          <span>Tải / Xem file</span>
+        </span>
+      );
+    }
+    if (act.includes('quota')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+          <HardDrive className="w-3 h-3 text-purple-600" />
+          <span>Đổi Quota</span>
+        </span>
+      );
+    }
+    if (act.includes('employee') || act.includes('member') || act.includes('user')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+          <Users className="w-3 h-3 text-teal-600" />
+          <span>Nhân sự</span>
+        </span>
+      );
+    }
+    if (act.includes('delete') || act.includes('purge') || act.includes('bin')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+          <span>Xóa tệp tin</span>
+        </span>
+      );
+    }
+    if (act.includes('restore') || act.includes('lifecycle')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+          <span>Khôi phục tệp</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+        <span>{actionStr || 'Hệ thống'}</span>
+      </span>
+    );
+  };
+
+  const getStatusBadge = (status: string) => {
+    const st = (status || '').toUpperCase();
+    if (st === 'FAILED') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+          <AlertCircle className="w-3 h-3" />
+          <span>Thất bại</span>
+        </span>
+      );
+    }
+    if (st === 'WARNING') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+          <Clock className="w-3 h-3" />
+          <span>Cảnh báo</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+        <CheckCircle2 className="w-3 h-3" />
+        <span>Thành công</span>
+      </span>
+    );
+  };
+
+  // Quick stats derived from loaded list & total
+  const uploadCount = logs.filter((l) => (l.action || '').toLowerCase().includes('upload')).length;
+  const adminOpsCount = logs.filter((l) => {
+    const act = (l.action || '').toLowerCase();
+    return act.includes('quota') || act.includes('employee') || act.includes('member');
+  }).length;
 
   return (
     <div className="space-y-6">
@@ -183,21 +236,37 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
             <span>← Quay lại Trung tâm điều khiển phòng ban</span>
           </button>
 
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Nhật Ký Hoạt Động Nhân Viên Phòng {department.name}
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+            <span>Nhật Ký Hoạt Động Nhân Viên Phòng {department.name}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
+              Dữ liệu thực tế
+            </span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Theo dõi toàn bộ lịch sử thao tác của các thành viên: tải tệp, tải xuống, thay đổi hạn ngạch và tác vụ hệ thống
+            Theo dõi toàn bộ lịch sử thao tác của các thành viên phòng ban: tải tệp, tải xuống, thay đổi hạn ngạch và tác vụ hệ thống
           </p>
         </div>
 
-        <button
-          onClick={handleExportJson}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <Download className="w-3.5 h-3.5 text-slate-500" />
-          <span>Xuất Nhật ký (JSON)</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => fetchLogs()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+            title="Tải lại dữ liệu mới nhất"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            onClick={handleExportJson}
+            disabled={logs.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Xuất Nhật ký (JSON)</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. STATS CARDS ROW */}
@@ -208,10 +277,10 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
           </div>
           <div>
             <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Tổng số thao tác
+              Tổng số thao tác ghi nhận
             </div>
             <div className="text-xl font-bold text-slate-900 mt-0.5">
-              {logs.length} bản ghi
+              {totalCount} bản ghi
             </div>
           </div>
         </div>
@@ -222,10 +291,10 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
           </div>
           <div>
             <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Tải lên tài liệu
+              Tải lên tài liệu (Trang hiện tại)
             </div>
             <div className="text-xl font-bold text-slate-900 mt-0.5">
-              {logs.filter((l) => l.action === 'upload').length} lượt
+              {uploadCount} lượt
             </div>
           </div>
         </div>
@@ -239,11 +308,27 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
               Điều chỉnh Quota & Nhân sự
             </div>
             <div className="text-xl font-bold text-slate-900 mt-0.5">
-              {logs.filter((l) => l.action === 'quota_change' || l.action === 'member_invited').length} lượt
+              {adminOpsCount} lượt
             </div>
           </div>
         </div>
       </div>
+
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between text-rose-700 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => fetchLogs()}
+            className="px-3 py-1 bg-white border border-rose-300 font-semibold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
 
       {/* 3. BẢNG NHẬT KÝ THAO TÁC */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
@@ -255,7 +340,7 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
               type="text"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Tìm kiếm nhân viên, thao tác, chi tiết..."
+              placeholder="Tìm kiếm nhân viên, email, nội dung thao tác..."
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
@@ -265,14 +350,14 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
             {[
               { id: 'all', label: 'Tất cả' },
               { id: 'upload', label: 'Tải lên' },
-              { id: 'download', label: 'Tải xuống' },
-              { id: 'quota_change', label: 'Đổi Quota' },
-              { id: 'member_invited', label: 'Mời nhân sự' },
-              { id: 'system', label: 'Hệ thống' },
+              { id: 'download', label: 'Tải / Đọc file' },
+              { id: 'delete', label: 'Xóa tệp tin' },
+              { id: 'quota', label: 'Hạn ngạch' },
+              { id: 'employee', label: 'Nhân sự' },
             ].map((f) => (
               <button
                 key={f.id}
-                onClick={() => setActionFilter(f.id)}
+                onClick={() => handleActionFilterChange(f.id)}
                 className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
                   actionFilter === f.id
                     ? 'bg-blue-600 text-white shadow-2xs'
@@ -300,24 +385,32 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {filteredLogs.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <RefreshCw className="w-7 h-7 mx-auto text-blue-500 mb-2 animate-spin" />
+                    <p className="font-semibold text-slate-700 text-xs">Đang tải nhật ký hoạt động...</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Vui lòng chờ trong giây lát</p>
+                  </td>
+                </tr>
+              ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     <FileText className="w-8 h-8 mx-auto text-slate-300 mb-2 stroke-[1.5]" />
                     <p className="font-semibold text-slate-600 text-xs">Không tìm thấy bản ghi hoạt động nào</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Thử thay đổi từ khóa tìm kiếm hoặc bỏ chọn bộ lọc hành động
+                      Chưa có thao tác nào từ nhân viên phòng ban hoặc hãy thử điều chỉnh từ khóa tìm kiếm
                     </p>
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log, idx) => (
+                logs.map((log, idx) => (
                   <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-3 text-center font-mono text-slate-400 text-xs">
-                      {idx + 1}
+                      {(pageNumber - 1) * pageSize + idx + 1}
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">
-                      {log.timestamp}
+                      {formatTimestamp(log.timestamp)}
                     </td>
                     <td className="py-3.5 px-4">
                       <div>
@@ -330,14 +423,11 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {getActionBadge(log.action)}
                     </td>
-                    <td className="py-3.5 px-5 text-slate-700 max-w-md leading-relaxed">
-                      {log.details}
+                    <td className="py-3.5 px-5 text-slate-700 max-w-md leading-relaxed break-words">
+                      {log.details || '—'}
                     </td>
                     <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Thành công</span>
-                      </span>
+                      {getStatusBadge(log.status)}
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px] whitespace-nowrap">
                       {log.ipAddress || '127.0.0.1'}
@@ -348,6 +438,34 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination footer */}
+        {totalPages > 1 && (
+          <div className="p-3 border-t border-slate-200/80 bg-slate-50/40 flex items-center justify-between text-xs text-slate-600">
+            <div>
+              Trang <span className="font-semibold text-slate-900">{pageNumber}</span> trên{' '}
+              <span className="font-semibold text-slate-900">{totalPages}</span> (Tổng {totalCount} bản ghi)
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                disabled={pageNumber <= 1 || loading}
+                className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-md font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Trước</span>
+              </button>
+              <button
+                onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                disabled={pageNumber >= totalPages || loading}
+                className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-md font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+              >
+                <span>Sau</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

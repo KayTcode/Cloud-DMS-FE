@@ -4,3 +4,4 @@ export * from './StorageStatsCard';
 export * from './ImpersonateModal';
 export * from './SubscriptionModal';
 export * from './AllocateDepartmentQuotaModal';
+export * from './OffboardDepartmentAdminModal';

@@ -35,12 +35,27 @@ import {
 } from 'lucide-react';
 import { driveApi, userApi } from './api/driveApi';
 import { useTenantContext } from '@/context/TenantContext';
+import { useAuth } from '@/context/AuthContext';
 
 export const UserPortal: React.FC = () => {
+  const { user: authUser } = useAuth();
   const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const [activeTab, setActiveTab] = useState<UserNavTab>('documents');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USER);
+
+  useEffect(() => {
+    if (authUser) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        id: authUser.id || prev.id,
+        fullName: authUser.fullName || prev.fullName,
+        email: authUser.email || prev.email,
+        role: authUser.role || prev.role,
+      }));
+    }
+  }, [authUser]);
+
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [trashResponse, setTrashResponse] = useState<TrashFileListResponse>({
     items: [],
@@ -212,6 +227,55 @@ export const UserPortal: React.FC = () => {
       console.error('Lỗi upload file:', error);
       const errMsg = error?.response?.data?.message || error?.message || 'Tải lên tệp tin thất bại.';
       showNotification(`Lỗi: ${errMsg}`, 'error');
+    }
+  };
+
+  // Xử lý tải lên trực tiếp Cloud (Direct-to-Storage)
+  const handleUploadDirectFiles = async (fileList: FileList) => {
+    if (!fileList || fileList.length === 0) return;
+
+    try {
+      showNotification(`Đang khởi tạo tải trực tiếp ${fileList.length} tệp tin lên Cloud...`, 'info');
+      const result = await driveApi.uploadDirectFiles(fileList, currentFolderId);
+
+      // Refresh lại danh sách files và Quota
+      await fetchDriveItems(currentFolderId);
+      await fetchPersonalQuota();
+
+      const uploadedFiles = result?.uploaded ?? [];
+      const failedFiles = result?.failed ?? [];
+      const successCount = uploadedFiles.length;
+      const failedCount = failedFiles.length;
+
+      if (failedCount > 0 && successCount === 0) {
+        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
+        showNotification(
+          `Tải trực tiếp Cloud thất bại: ${errorDetail}`,
+          'error'
+        );
+      } else if (failedCount > 0 && successCount > 0) {
+        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
+        showNotification(
+          `Tải trực tiếp Cloud: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
+          'error'
+        );
+      } else {
+        showNotification(`Đã tải trực tiếp thành công ${successCount || fileList.length} tệp tin lên Cloud!`, 'success');
+      }
+
+      const newActivity: UserActivity = {
+        id: `act-${Date.now()}`,
+        action: 'upload',
+        targetName: fileList.length === 1 ? `[Cloud Direct] ${fileList[0].name}` : `[Cloud Direct] ${fileList.length} tệp tin`,
+        timestamp: 'Vừa xong',
+        ipAddress: 'Client IP (Direct)',
+        device: 'Trình duyệt Web',
+      };
+      setActivities((prev) => [newActivity, ...prev]);
+    } catch (error: any) {
+      console.error('Lỗi upload direct file:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Tải lên trực tiếp Cloud thất bại.';
+      showNotification(`Lỗi Cloud Direct: ${errMsg}`, 'error');
     }
   };
 
@@ -490,6 +554,7 @@ export const UserPortal: React.FC = () => {
             trashTotalSizeBytes={trashResponse.totalSizeBytes}
             isLoadingTrash={isLoadingTrash}
             onUploadFile={handleUploadFiles}
+            onUploadDirectFile={handleUploadDirectFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
             onOpenFilePreview={(file) => setPreviewFile(file)}
             onToggleStar={handleToggleStar}

@@ -5,6 +5,7 @@ import {
   DepartmentLogsView,
   StaffManagementView,
   SetupDepartmentView,
+  DepartmentStorageReportView,
 } from './views';
 import {
   AddMemberModal,
@@ -57,6 +58,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('hub');
     } else if (activeNav === 'dashboard') {
       setActiveTab('files');
+    } else if (activeNav === 'trash') {
+      setActiveTab('trash');
     } else if (activeNav === 'tenants') {
       setActiveTab('staff');
     } else if (activeNav === 'audit-logs') {
@@ -70,6 +73,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('hub');
     } else if (tab === 'files') {
       setActiveNav('dashboard');
+    } else if (tab === 'trash') {
+      setActiveNav('trash');
     } else if (tab === 'staff') {
       setActiveNav('tenants');
     } else if (tab === 'logs') {
@@ -214,14 +219,20 @@ const DepartmentAdminPortalContent: React.FC = () => {
           />
         )}
 
-        {/* 2. CHỨC NĂNG 1: QUẢN LÝ TÀI LIỆU & TẢI TỆP LÊN */}
-        {activeTab === 'files' && (
+        {/* 2. CHỨC NĂNG 1: QUẢN LÝ TÀI LIỆU & TẢI TỆP LÊN & THÙNG RÁC PHÒNG BAN */}
+        {(activeTab === 'files' || activeTab === 'trash') && (
           <DepartmentFilesView
             department={departmentInfo}
             availableQuotaGB={availableDeptGB}
+            initialTab={activeTab === 'trash' ? 'trash' : 'files'}
             onBackToHub={() => handleNavigateTab('hub')}
             onQuotaUpdated={refreshData}
             onAddToast={showNotification}
+            onTabChange={(tab) => {
+              if (tab === 'trash') setActiveNav('trash');
+              else setActiveNav('dashboard');
+            }}
+            onNavigateToReport={() => handleNavigateTab('report')}
           />
         )}
 
@@ -245,6 +256,16 @@ const DepartmentAdminPortalContent: React.FC = () => {
             department={departmentInfo}
             members={members}
             onBackToHub={() => handleNavigateTab('hub')}
+          />
+        )}
+
+        {/* 5. CHỨC NĂNG 4: BÁO CÁO & KIỂM TOÁN TỆP TIN NHÂN VIÊN */}
+        {activeTab === 'report' && (
+          <DepartmentStorageReportView
+            department={departmentInfo}
+            members={members}
+            onBackToHub={() => handleNavigateTab('hub')}
+            onAddToast={showNotification}
           />
         )}
       </div>

@@ -11,6 +11,7 @@ export interface TenantQuotaData {
   storageProviderName?: string;
   storageQuotaBytes: number;
   storageUsedBytes: number;
+  allocatedToDepartmentsBytes?: number;
   availableBytes: number;
   usagePercentage: number;
 }
@@ -24,16 +25,24 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
     const res: any = await apiClient.get(`/admin/tenants/${tenantId}/quota`);
     const data = res?.value || res?.data || res;
     if (data && (typeof data.storageQuotaBytes === 'number' || data.tenantId)) {
+      const qBytes = Number(data.storageQuotaBytes || 0);
+      const uBytes = Number(data.storageUsedBytes || 0);
+      const allocDeptsBytes = Number(data.allocatedToDepartmentsBytes || 0);
+      const effectiveAllocated = Math.max(allocDeptsBytes, uBytes);
+      const availBytes = Number(data.availableBytes ?? Math.max(0, qBytes - effectiveAllocated));
+      const usagePct = Number(data.usagePercentage ?? (qBytes > 0 ? Math.round((effectiveAllocated / qBytes) * 100) : 0));
+
       return {
         tenantId: data.tenantId,
         tenantName: data.tenantName,
         tenantCode: data.tenantCode,
         storageProviderId: data.storageProviderId,
         storageProviderName: data.storageProviderName,
-        storageQuotaBytes: Number(data.storageQuotaBytes || 0),
-        storageUsedBytes: Number(data.storageUsedBytes || 0),
-        availableBytes: Number(data.availableBytes || 0),
-        usagePercentage: Number(data.usagePercentage || 0),
+        storageQuotaBytes: qBytes,
+        storageUsedBytes: uBytes,
+        allocatedToDepartmentsBytes: allocDeptsBytes,
+        availableBytes: availBytes,
+        usagePercentage: usagePct,
       };
     }
     return null;
@@ -97,20 +106,83 @@ export async function getTenantDepartments(tenantId: string): Promise<Department
     const raw = res?.value || res?.data || res;
     const items = Array.isArray(raw) ? raw : (Array.isArray(raw?.items) ? raw.items : []);
     if (items && items.length > 0) {
-      return items.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        headCount: typeof d.headCount === 'number' ? d.headCount : (d.users?.length || 0),
-        lead: d.lead || 'Chưa chỉ định',
-        allocatedStorageGB: d.allocatedStorageGB || 50,
-        adminEmail: d.adminEmail,
-      }));
+      return items.map((d: any) => {
+        const quotaBytes = Number(d.storageQuotaBytes ?? d.StorageQuotaBytes ?? 0);
+        let quotaGB = 0;
+        if (typeof d.allocatedStorageGB === 'number') {
+          quotaGB = d.allocatedStorageGB;
+        } else if (typeof d.AllocatedStorageGB === 'number') {
+          quotaGB = d.AllocatedStorageGB;
+        } else if (quotaBytes > 0) {
+          quotaGB = Number((quotaBytes / (1024 ** 3)).toFixed(2));
+        }
+
+        const usedBytes = Number(d.storageUsedBytes ?? d.StorageUsedBytes ?? 0);
+
+        return {
+          id: d.id,
+          name: d.name,
+          headCount: typeof d.headCount === 'number' ? d.headCount : (d.users?.length || 0),
+          lead: d.lead || 'Chưa chỉ định',
+          allocatedStorageGB: quotaGB,
+          storageQuotaBytes: quotaBytes,
+          storageUsedBytes: usedBytes,
+          adminId: d.adminId || d.AdminId,
+          adminEmail: d.adminEmail,
+          adminIsActive: d.adminIsActive ?? d.AdminIsActive ?? true,
+        };
+      });
     }
     return [];
   } catch (error) {
     console.warn('[Tenant] Không gọi được API getTenantDepartments:', error);
     return [];
   }
+}
+
+export interface TenantAuditLogDto {
+  id: string;
+  timestamp: string;
+  action: string;
+  actor: string;
+  actorEmail?: string;
+  departmentId?: string;
+  departmentName?: string;
+  ipAddress: string;
+  status: 'SUCCESS' | 'WARNING' | 'FAILED' | string;
+  details: string;
+  tenantId?: string;
+  tenantName?: string;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+/**
+ * Query: Lấy nhật ký audit logs của toàn bộ Tenant (hỗ trợ lọc theo phòng ban, nhân sự, hành động)
+ * Khớp BE: GET /api/tenants/{tenantId}/activity
+ */
+export async function getTenantAuditLogs(
+  tenantId: string,
+  pageNumber: number = 1,
+  pageSize: number = 20,
+  searchTerm?: string,
+  action?: string,
+  departmentId?: string
+): Promise<PaginatedResult<TenantAuditLogDto>> {
+  const params: Record<string, any> = { pageNumber, pageSize };
+  if (searchTerm && searchTerm.trim()) params.searchTerm = searchTerm.trim();
+  if (action && action.trim() && action !== 'all') params.action = action.trim();
+  if (departmentId && departmentId.trim() && departmentId !== 'all') params.departmentId = departmentId.trim();
+
+  const res: any = await apiClient.get(API_ENDPOINTS.TENANTS.ACTIVITY(tenantId), { params });
+  return res?.value ?? res?.data ?? res;
 }
 
 /**
@@ -125,3 +197,4 @@ export async function getTenantEvents(tenantId: string): Promise<TenantEvent[]> 
     return initialEvents;
   }
 }
+

@@ -48,6 +48,11 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
 
     setIsSubmitting(true);
     try {
+      const quotaNum = Number(quotaGB);
+      const storageQuotaBytes = !isNaN(quotaNum) && quotaNum > 0
+        ? Math.round(quotaNum * 1024 * 1024 * 1024)
+        : undefined;
+
       // Auto-assign as Department Admin via Email Invitation
       const success = await handleCreateDepartmentAdmin({
         email: email.trim(),
@@ -55,6 +60,7 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
         lastName: lastName,
         phoneNumber: phoneNumber.trim() || undefined,
         departmentId: selectedDeptId ? selectedDeptId : undefined,
+        storageQuotaBytes: storageQuotaBytes,
       });
 
       if (!success) {

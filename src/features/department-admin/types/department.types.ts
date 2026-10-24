@@ -60,7 +60,7 @@ export interface DepartmentInfo {
   growthDeltaSinceAprGB: number;
 }
 
-export type DepartmentNavTab = 'hub' | 'files' | 'staff' | 'logs' | 'storage' | 'settings';
+export type DepartmentNavTab = 'hub' | 'files' | 'trash' | 'staff' | 'logs' | 'storage' | 'settings' | 'report';
 
 export interface DepartmentActivityLog {
   id: string;

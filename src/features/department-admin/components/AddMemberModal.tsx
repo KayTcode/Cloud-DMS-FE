@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, UserPlus, Mail, Phone, HardDrive, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, UserPlus, Mail, Phone, HardDrive, Sparkles, AlertTriangle } from 'lucide-react';
 import { CreateEmployeePayload } from '../types';
 import { gbToBytes } from '../utils/quotaUtils';
 
@@ -20,13 +20,23 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const maxQuota = Math.max(0, Math.floor(availableQuotaGB));
+  const minQuota = maxQuota > 0 ? 1 : 0;
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [quotaGB, setQuotaGB] = useState<number>(Math.min(10, Math.max(1, Math.floor(availableQuotaGB))));
+  const [quotaGB, setQuotaGB] = useState<number>(maxQuota);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuotaGB(maxQuota);
+      setErrorMessage(null);
+    }
+  }, [isOpen, maxQuota]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,10 +47,20 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       return;
     }
 
+    if (maxQuota <= 0) {
+      setErrorMessage('Phòng ban không còn dung lượng khả dụng để cấp cho nhân viên mới.');
+      return;
+    }
+
     if (quotaGB > availableQuotaGB) {
       setErrorMessage(
         `Hạn mức cấp (${quotaGB} GB) vượt quá dung lượng khả dụng của phòng ban (${availableQuotaGB} GB).`
       );
+      return;
+    }
+
+    if (quotaGB < minQuota) {
+      setErrorMessage(`Hạn mức tối thiểu phải từ ${minQuota} GB.`);
       return;
     }
 
@@ -177,17 +197,26 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
             </div>
             <input
               type="range"
-              min={1}
-              max={Math.max(10, Math.floor(availableQuotaGB))}
+              min={minQuota}
+              max={Math.max(minQuota, maxQuota)}
               step={1}
               value={quotaGB}
+              disabled={maxQuota <= 0}
               onChange={(e) => setQuotaGB(Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-              <span>Tối thiểu: 1 GB</span>
+              <span>Tối thiểu: {minQuota} GB</span>
               <span>Khả dụng tối đa: {availableQuotaGB} GB</span>
             </div>
+            {maxQuota <= 0 && (
+              <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  Phòng ban đã hết dung lượng lưu trữ khả dụng để cấp cho nhân viên mới. Vui lòng yêu cầu Quản trị viên cấp thêm Quota cho phòng ban.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Buttons */}
@@ -202,8 +231,8 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+              disabled={isSubmitting || maxQuota <= 0}
+              className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Đang gửi thư mời...' : 'Gửi thư mời nhân viên'}
             </button>

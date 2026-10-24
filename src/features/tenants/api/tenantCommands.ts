@@ -144,3 +144,43 @@ export async function allocateDepartmentQuotaApi(
   return response?.value || response?.data || response;
 }
 
+export interface OffboardDepartmentAdminPayload {
+  departmentAdminId: string;
+  targetUserId?: string | null;
+  newAdminEmail?: string | null;
+  newAdminFirstName?: string | null;
+  newAdminLastName?: string | null;
+  newAdminPhoneNumber?: string | null;
+  handoverReason?: string | null;
+}
+
+export interface OffboardDepartmentAdminResult {
+  offboardedUserId: string;
+  targetUserId: string;
+  handoverFolderId: string;
+  handoverFolderName: string;
+  transferredFilesCount: number;
+  transferredBytes: number;
+  transferredFoldersCount: number;
+  abortedUploadSessionsCount: number;
+  reclaimedQuotaBytes: number;
+  isNewDepartmentLeadAssigned: boolean;
+  offboardedAt: string;
+}
+
+/**
+ * Command: Vô hiệu hóa Trưởng phòng và Chuyển giao toàn bộ dữ liệu & Quota
+ * Khớp BE: OffboardDepartmentAdminCommand -> POST /api/tenant/{tenantId}/department-admins/offboard
+ */
+export async function offboardDepartmentAdminApi(
+  tenantId: string,
+  payload: OffboardDepartmentAdminPayload
+): Promise<OffboardDepartmentAdminResult> {
+  const response = await apiClient.post<any, any>(
+    API_ENDPOINTS.TENANTS.DEPARTMENT_ADMINS_OFFBOARD(tenantId),
+    payload
+  );
+  return response?.value || response?.data || response;
+}
+
+
