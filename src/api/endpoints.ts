@@ -19,6 +19,7 @@ export const API_ENDPOINTS = {
     DEPARTMENT_QUOTA: (tenantId: string, departmentId: string) => `/tenant/${tenantId}/departments/${departmentId}/quota`,
     DEPARTMENT_ADMINS: (tenantId: string) => `/tenant/${tenantId}/department-admins`,
     DEPARTMENT_ADMINS_OFFBOARD: (tenantId: string) => `/tenant/${tenantId}/department-admins/offboard`,
+    DEPARTMENT_ADMINS_ASSIGN_VACANT_LEAD: (tenantId: string, departmentId: string) => `/tenant/${tenantId}/departments/${departmentId}/assign-lead`,
     STORAGE: (tenantId: string) => `/tenants/${tenantId}/storage`,
     ACTIVITY: (tenantId: string) => `/tenants/${tenantId}/activity`,
     SETTINGS: (tenantId: string) => `/tenants/${tenantId}/settings`,

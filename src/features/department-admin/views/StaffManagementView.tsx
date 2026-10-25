@@ -4,8 +4,14 @@ import {
   Search,
   Sliders,
   ArrowLeft,
+  Database,
+  HardDrive,
+  FolderLock,
+  ShieldCheck,
 } from 'lucide-react';
 import { DepartmentMember, DepartmentInfo } from '../types';
+import { useDepartment } from '../context/DepartmentContext';
+import { formatBytes } from '../utils/quotaUtils';
 
 interface StaffManagementViewProps {
   members: DepartmentMember[];
@@ -58,6 +64,20 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   const totalUsedSpace = members.reduce((acc, m) => acc + m.usedSpaceGB, 0);
   const totalAllocated = members.reduce((acc, m) => acc + m.allocatedQuotaGB, 0);
 
+  const { summary, isLoading } = useDepartment();
+
+  const quotaBytes = summary?.departmentQuotaBytes ?? (department.totalAllocatedGB * 1024 * 1024 * 1024);
+  const usedBytes = summary?.departmentUsedBytes ?? (department.usedSpaceGB * 1024 * 1024 * 1024);
+  const availableBytes = summary?.unallocatedDepartmentQuotaBytes ?? Math.max(0, quotaBytes - (totalAllocated * 1024 * 1024 * 1024));
+  const usagePercent = summary?.departmentUsagePercentage ?? 0;
+
+  const statusColor =
+    usagePercent >= 90
+      ? { text: 'text-rose-600', bg: 'bg-rose-600' }
+      : usagePercent >= 75
+      ? { text: 'text-amber-600', bg: 'bg-amber-500' }
+      : { text: 'text-blue-600', bg: 'bg-blue-600' };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -90,7 +110,53 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
         </button>
       </div>
 
-      {/* Metric Cards Row */}
+      {/* 3 Metric Cards: Hạn mức phòng ban, Đã sử dụng, Còn khả dụng */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1: Hạn mức phòng ban */}
+        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Hạn mức phòng ban</p>
+            <Database className="w-4 h-4 text-slate-400" />
+          </div>
+          <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
+            {isLoading ? 'Đang tải...' : formatBytes(quotaBytes)}
+          </p>
+          <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Được phân bổ bởi Quản trị tổ chức (Tenant Admin)</span>
+          </p>
+        </div>
+
+        {/* Card 2: Đã sử dụng */}
+        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Đã sử dụng</p>
+            <HardDrive className={`w-4 h-4 ${statusColor.text}`} />
+          </div>
+          <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
+            {isLoading ? 'Đang tải...' : formatBytes(usedBytes)}
+          </p>
+          <p className={`text-xs font-semibold mt-2 ${statusColor.text}`}>
+            {usagePercent}% hạn mức phòng ban đã dùng
+          </p>
+        </div>
+
+        {/* Card 3: Còn khả dụng */}
+        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn khả dụng</p>
+            <FolderLock className="w-4 h-4 text-emerald-500" />
+          </div>
+          <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
+            {isLoading ? 'Đang tải...' : formatBytes(availableBytes)}
+          </p>
+          <p className="text-xs text-slate-400 mt-2">
+            Hạn mức phòng ban còn lại có thể phân bổ cho nhân viên
+          </p>
+        </div>
+      </div>
+
+      {/* Staff Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">

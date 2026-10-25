@@ -183,4 +183,21 @@ export async function offboardDepartmentAdminApi(
   return response?.value || response?.data || response;
 }
 
+/**
+ * Command: Bổ nhiệm Trưởng phòng cho Phòng ban Khuyết Lead & Bàn giao Kho Tạm giữ
+ * Khớp BE: POST /api/tenant/{tenantId}/departments/{departmentId}/assign-lead
+ */
+export async function assignVacantDepartmentLeadApi(
+  tenantId: string,
+  departmentId: string,
+  payload: import('@/features/tenants/types').AssignVacantDepartmentLeadPayload
+): Promise<import('@/features/tenants/types').AssignVacantDepartmentLeadResultDto> {
+  const response = await apiClient.post<any, any>(
+    API_ENDPOINTS.TENANTS.DEPARTMENT_ADMINS_ASSIGN_VACANT_LEAD(tenantId, departmentId),
+    payload
+  );
+  return response?.value || response?.data || response;
+}
+
+
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus, Building2, Crown, Mail, ShieldAlert, RefreshCw, Loader2, HardDrive, UserX } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
 import { Department } from '@/features/tenants/types';
-import { AllocateDepartmentQuotaModal, OffboardDepartmentAdminModal } from '@/features/tenants/components';
+import { AllocateDepartmentQuotaModal, OffboardDepartmentAdminModal, AssignVacantDepartmentLeadModal } from '@/features/tenants/components';
 
 interface TenantDepartmentsViewProps {
   onBackToOverview: () => void;
@@ -13,9 +13,10 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
   onBackToOverview,
   onCreateDepartmentUser,
 }) => {
-  const { tenant, departments, users, isLoadingDepartments, refreshDepartments, addToast } = useTenantContext();
+  const { tenant, departments, users, isLoadingDepartments, refreshDepartments, refreshTenantData, addToast } = useTenantContext();
   const [selectedDeptForQuota, setSelectedDeptForQuota] = useState<Department | null>(null);
   const [selectedDeptForOffboard, setSelectedDeptForOffboard] = useState<Department | null>(null);
+  const [selectedDeptForAssignLead, setSelectedDeptForAssignLead] = useState<Department | null>(null);
 
   // Find Department Admins who are not yet assigned to any specific department
   const unassignedAdmins = users.filter(
@@ -80,7 +81,10 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => refreshDepartments()}
+              onClick={() => {
+                refreshDepartments();
+                refreshTenantData();
+              }}
               disabled={isLoadingDepartments}
               className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 hover:bg-slate-50 transition-colors"
               title="Tải lại dữ liệu từ Database"
@@ -146,23 +150,53 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
                     </button>
                   </div>
                   
-                  <div className="mt-2.5 space-y-1">
-                    <div className="text-[11px] text-slate-600 flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <Crown className="w-3 h-3 text-amber-500 shrink-0" />
-                        <span className="truncate">Lead / Admin: <strong className="text-slate-900">{dept.lead}</strong></span>
+                  <div className="mt-2.5 space-y-1.5">
+                    {(() => {
+                      const hasActiveLead = dept.lead && dept.lead !== 'Chưa chỉ định' && dept.lead !== 'N/A' && dept.adminIsActive !== false;
+                      return (
+                        <div className="text-[11px] text-slate-600 flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <Crown className={`w-3 h-3 shrink-0 ${hasActiveLead ? 'text-amber-500' : 'text-slate-300'}`} />
+                            <span className="truncate">
+                              Lead / Admin:{' '}
+                              {hasActiveLead ? (
+                                <strong className="text-slate-900">{dept.lead}</strong>
+                              ) : (
+                                <span className="text-amber-600 font-semibold italic">Khuyết Lead</span>
+                              )}
+                            </span>
+                          </div>
+
+                          {hasActiveLead ? (
+                            <button
+                              onClick={() => setSelectedDeptForOffboard(dept)}
+                              className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded cursor-pointer transition-colors shrink-0 flex items-center gap-1 shadow-2xs"
+                              title="Bổ nhiệm Trưởng phòng mới kế nhiệm / Bàn giao toàn bộ dữ liệu"
+                            >
+                              <UserX className="w-2.5 h-2.5" />
+                              <span>Kế nhiệm</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setSelectedDeptForAssignLead(dept)}
+                              className="text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 px-2 py-0.5 rounded cursor-pointer transition-colors shrink-0 flex items-center gap-1 shadow-2xs"
+                              title="Bổ nhiệm Trưởng phòng mới và tiếp nhận kho dữ liệu tạm giữ"
+                            >
+                              <Crown className="w-2.5 h-2.5 text-amber-300" />
+                              <span>Bổ nhiệm Lead</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {dept.vacantLeadQuotaBytes ? (
+                      <div className="text-[10px] text-amber-700 bg-amber-50/80 border border-amber-200/60 rounded px-1.5 py-0.5 flex items-center gap-1">
+                        <HardDrive className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                        <span>Kho tạm giữ: {(dept.vacantLeadQuotaBytes / (1024 * 1024 * 1024)).toFixed(1)} GB chờ bàn giao</span>
                       </div>
-                      {dept.lead && dept.lead !== 'Chưa chỉ định' && dept.lead !== 'N/A' && (
-                        <button
-                          onClick={() => setSelectedDeptForOffboard(dept)}
-                          className="text-[10px] font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded cursor-pointer transition-colors shrink-0 flex items-center gap-1 shadow-2xs"
-                          title="Bổ nhiệm Trưởng phòng mới kế nhiệm / Bàn giao toàn bộ dữ liệu"
-                        >
-                          <UserX className="w-2.5 h-2.5" />
-                          <span>Kế nhiệm</span>
-                        </button>
-                      )}
-                    </div>
+                    ) : null}
+
                     {dept.adminEmail && (
                       <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
                         <Mail className="w-2.5 h-2.5 text-slate-400" />
@@ -208,7 +242,22 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
         users={users}
         onSuccess={() => {
           refreshDepartments();
+          refreshTenantData();
           addToast('success', 'Bàn giao dữ liệu và cập nhật Trưởng phòng kế nhiệm thành công!');
+        }}
+      />
+
+      {/* Modal Bổ nhiệm Trưởng phòng cho Phòng ban Khuyết Lead */}
+      <AssignVacantDepartmentLeadModal
+        isOpen={!!selectedDeptForAssignLead}
+        onClose={() => setSelectedDeptForAssignLead(null)}
+        department={selectedDeptForAssignLead}
+        tenantId={tenant?.id || ''}
+        users={users}
+        onSuccess={() => {
+          refreshDepartments();
+          refreshTenantData();
+          addToast('success', 'Bổ nhiệm Trưởng phòng mới và chuyển giao kho tài liệu thành công!');
         }}
       />
     </div>

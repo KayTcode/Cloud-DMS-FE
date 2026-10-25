@@ -37,4 +37,30 @@ export interface Department {
   adminEmail?: string;
   storageQuotaBytes?: number;
   storageUsedBytes?: number;
+  vacantLeadQuotaBytes?: number;
+  interimHandoverFolderId?: string;
+}
+
+export interface AssignVacantDepartmentLeadPayload {
+  departmentId: string;
+  targetUserId?: string | null;
+  newAdminEmail?: string | null;
+  newAdminFirstName?: string | null;
+  newAdminLastName?: string | null;
+  newAdminPhoneNumber?: string | null;
+}
+
+export interface AssignVacantDepartmentLeadResultDto {
+  departmentId: string;
+  departmentName: string;
+  newDepartmentAdminId: string;
+  newDepartmentAdminName: string;
+  newDepartmentAdminEmail: string;
+  isInternalPromotion: boolean;
+  isInvitationEmailSent: boolean;
+  transferredFolderId?: string | null;
+  transferredFilesCount: number;
+  transferredBytes: number;
+  newAdminTotalQuotaBytes: number;
+  assignedAt: string;
 }
