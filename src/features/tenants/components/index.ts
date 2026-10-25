@@ -5,3 +5,5 @@ export * from './ImpersonateModal';
 export * from './SubscriptionModal';
 export * from './AllocateDepartmentQuotaModal';
 export * from './OffboardDepartmentAdminModal';
+export * from './AssignVacantDepartmentLeadModal';
+

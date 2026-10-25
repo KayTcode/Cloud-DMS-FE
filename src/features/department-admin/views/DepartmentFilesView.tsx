@@ -38,6 +38,7 @@ import {
   Layers,
   UploadCloud,
   Server,
+  User,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
@@ -107,7 +108,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
-  const [isStorageOverviewOpen, setIsStorageOverviewOpen] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
@@ -583,24 +583,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
-  // Storage Quota calculations matching StorageView.tsx
-  const quotaBytes = storageSummary?.quotaBytes ?? (department.totalAllocatedGB * 1024 * 1024 * 1024);
-  const usedBytes = storageSummary?.usedBytes ?? (department.usedSpaceGB * 1024 * 1024 * 1024);
-  const availableBytes = storageSummary?.availableBytes ?? Math.max(0, quotaBytes - usedBytes);
-  const usagePercent = storageSummary?.usagePercentage !== undefined
-    ? Math.round(storageSummary.usagePercentage)
-    : (quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0);
-
-  const isCritical = usagePercent >= 95;
-  const isWarning = usagePercent >= 80 && usagePercent < 95;
-
-  const getStatusColor = () => {
-    if (isCritical) return { bg: 'bg-rose-500', text: 'text-rose-600', ring: 'ring-rose-200', border: 'border-rose-200', lightBg: 'bg-rose-50' };
-    if (isWarning) return { bg: 'bg-amber-500', text: 'text-amber-600', ring: 'ring-amber-200', border: 'border-amber-200', lightBg: 'bg-amber-50' };
-    return { bg: 'bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-100', border: 'border-blue-200', lightBg: 'bg-blue-50' };
-  };
-
-  const statusColor = getStatusColor();
 
   const handleManualRefresh = () => {
     fetchDepartmentFiles();
@@ -691,17 +673,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               <span>Làm mới dữ liệu</span>
             </button>
 
-            <button
-              onClick={() => setIsStorageOverviewOpen(!isStorageOverviewOpen)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            >
-              <span>{isStorageOverviewOpen ? 'Thu gọn hạn mức' : 'Xem hạn mức dung lượng'}</span>
-              {isStorageOverviewOpen ? (
-                <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              )}
-            </button>
           </div>
         </div>
 
@@ -765,123 +736,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           </div>
         </div>
 
-        {/* Row 2: Dung lượng lưu trữ phòng ban (3 Metric Cards & Progress Bar giống hệt StorageView.tsx của User) */}
-        {isStorageOverviewOpen && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* 3 Metric Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Card 1: Tổng hạn mức được cấp */}
-              <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Hạn mức phòng ban</p>
-                  <Database className="w-4 h-4 text-slate-400" />
-                </div>
-                <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-                  {isLoading ? 'Đang tải...' : formatBytes(quotaBytes)}
-                </p>
-                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Được phân bổ bởi Quản trị tổ chức (Tenant Admin)</span>
-                </p>
-              </div>
 
-              {/* Card 2: Đã sử dụng */}
-              <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Đã sử dụng</p>
-                  <HardDrive className={`w-4 h-4 ${statusColor.text}`} />
-                </div>
-                <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-                  {isLoading ? 'Đang tải...' : formatBytes(usedBytes)}
-                </p>
-                <p className={`text-xs font-semibold mt-2 ${statusColor.text}`}>
-                  {usagePercent}% hạn mức phòng ban đã dùng
-                </p>
-              </div>
-
-              {/* Card 3: Còn khả dụng */}
-              <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn khả dụng</p>
-                  <FolderLock className="w-4 h-4 text-emerald-500" />
-                </div>
-                <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-                  {isLoading ? 'Đang tải...' : formatBytes(availableBytes)}
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Không gian còn lại để lưu trữ tệp mới của phòng ban
-                </p>
-              </div>
-            </div>
-
-            {/* Chi tiết thanh trạng thái dung lượng & cảnh báo */}
-            <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-800">Tiến độ lưu trữ phòng ban</span>
-                  <span className={`text-xs font-bold ${statusColor.text}`}>{usagePercent}%</span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ease-out ${statusColor.bg}`}
-                    style={{ width: `${Math.min(usagePercent, 100)}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between text-[11px] text-slate-500 mt-1.5">
-                  <span>0 Bytes</span>
-                  <span>{formatBytes(quotaBytes / 2)} (50%)</span>
-                  <span>{formatBytes(quotaBytes)}</span>
-                </div>
-              </div>
-
-              {/* Cảnh báo nếu chạm ngưỡng */}
-              {isCritical && (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-rose-800 text-xs">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-xs">Cảnh báo nghiêm trọng: Dung lượng phòng ban gần cạn kiệt!</p>
-                    <p className="mt-1 leading-relaxed">
-                      Phòng ban đã sử dụng {usagePercent}% hạn mức ({formatBytes(usedBytes)} / {formatBytes(quotaBytes)}). 
-                      Khi dung lượng chạm 100%, các thành viên trong phòng ban sẽ không thể tải thêm tệp tin mới. 
-                      Vui lòng liên hệ Quản trị viên Tenant để nâng hạn mức hoặc dọn dẹp các tệp tin trong Thùng rác.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {isWarning && (
-                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-800 text-xs">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-xs">Lưu ý: Dung lượng lưu trữ phòng ban sắp đầy ({usagePercent}%)</p>
-                    <p className="mt-1 leading-relaxed">
-                      Phòng ban đã sử dụng trên 80% hạn mức dung lượng được cấp. Hãy kiểm tra các tệp tin không còn sử dụng để tối ưu hóa không gian lưu trữ.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Thông tin quy định lưu trữ */}
-              <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600">
-                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                  <p className="font-semibold text-slate-800 text-[11px]">Quy định an toàn lưu trữ:</p>
-                  <p className="mt-0.5 text-slate-500 text-[11px] leading-relaxed">
-                    Quét virus ClamAV tự động và mã băm SHA-256 trên mọi tệp tải lên. Tệp trong Thùng rác vẫn chiếm dung lượng cho đến khi Xóa vĩnh viễn.
-                  </p>
-                </div>
-                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                  <p className="font-semibold text-slate-800 text-[11px]">Hạn mức thành viên phòng ban:</p>
-                  <p className="mt-0.5 text-slate-500 text-[11px] leading-relaxed">
-                    Trưởng phòng có thể điều chỉnh hạn mức lưu trữ cá nhân của từng nhân viên tại mục "Quản lý nhân viên".
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Row 2: Google Drive Title Breadcrumb & Action Controls */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">

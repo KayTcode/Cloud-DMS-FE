@@ -37,10 +37,10 @@ export interface TenantStorageSummaryDto {
   departmentName?: string;
   tenantId?: string;
   tenantName?: string;
-  quotaBytes: number;
-  usedBytes: number;
-  availableBytes: number;
-  usagePercentage: number;
+  quotaBytes?: number;
+  usedBytes?: number;
+  availableBytes?: number;
+  usagePercentage?: number;
   storageProviderId?: string | null;
   storageProviderName?: string | null;
   storageProviderType?: string | null;

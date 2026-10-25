@@ -21,6 +21,8 @@ export interface DepartmentUsersQuotaSummaryDto {
   departmentName: string;
   departmentQuotaBytes: number;
   departmentUsedBytes: number;
+  departmentAvailableBytes: number;
+  departmentUsagePercentage: number;
   totalAllocatedToUsersBytes: number;
   unallocatedDepartmentQuotaBytes: number;
   users: UserStorageQuotaDto[];

@@ -130,6 +130,8 @@ export async function getTenantDepartments(tenantId: string): Promise<Department
           adminId: d.adminId || d.AdminId,
           adminEmail: d.adminEmail,
           adminIsActive: d.adminIsActive ?? d.AdminIsActive ?? true,
+          vacantLeadQuotaBytes: d.vacantLeadQuotaBytes ?? d.VacantLeadQuotaBytes ?? undefined,
+          interimHandoverFolderId: d.interimHandoverFolderId ?? d.InterimHandoverFolderId ?? undefined,
         };
       });
     }
