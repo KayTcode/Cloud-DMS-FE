@@ -3,7 +3,6 @@ export type ActiveTab =
   | 'overview'
   | 'users'
   | 'departments'
-  | 'storage'
   | 'activity'
   | 'settings'
   | 'quota'

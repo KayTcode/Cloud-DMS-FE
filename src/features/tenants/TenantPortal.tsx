@@ -12,7 +12,6 @@ import {
   TenantUsersView,
   CreateDepartmentUserView,
   TenantDepartmentsView,
-  TenantStorageView,
   TenantActivityView,
   TenantSettingsView,
   TenantHubView,
@@ -165,15 +164,6 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
               onBack={() => setActiveTab('departments')}
               onUserCreated={handleUserCreated}
               defaultDepartment={targetDeptForCreate}
-            />
-          )}
-
-          {/* Tab 4: Quản lý phân bổ dung lượng Cloud Storage cho từng phòng ban & tệp tin */}
-          {activeTab === 'storage' && (
-            <TenantStorageView
-              tenant={tenant}
-              onBackToOverview={() => setActiveTab('overview')}
-              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
             />
           )}
 
