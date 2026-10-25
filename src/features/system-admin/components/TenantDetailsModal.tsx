@@ -20,6 +20,7 @@ import {
   getTenantDepartments, 
   TenantQuotaData 
 } from '@/features/tenants/api';
+import { QuotaFeatureToggle } from '@/features/quota';
 
 interface TenantDetailsModalProps {
   tenant: SystemTenant | null;
@@ -279,6 +280,14 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
               <span className="flex items-center gap-1 text-emerald-600 font-medium">
                 JWT Auth · Role-Based Access Control (RBAC)
               </span>
+            </div>
+
+            {/* Quota Request Feature Flag Toggle */}
+            <div className="pt-2">
+              <QuotaFeatureToggle
+                tenantId={tenant.id}
+                tenantName={tenant.name}
+              />
             </div>
           </div>
 

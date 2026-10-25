@@ -7,6 +7,7 @@ import { SystemHealthCard } from '../components/SystemHealthCard';
 import { RecentTenantsCard } from '../components/RecentTenantsCard';
 import { RecentActivitiesCard } from '../components/RecentActivitiesCard';
 import { NavItem } from '@/features/tenants/types';
+import { QuotaMetricsCard } from '@/features/quota';
 
 interface DashboardViewProps {
   tenants: SystemTenant[];
@@ -106,6 +107,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           iconBgColor="bg-sky-50"
         />
       </div>
+
+      {/* Quota Feature Metrics */}
+      <QuotaMetricsCard />
 
       {/* Middle Row: Global Storage Growth & System Health */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

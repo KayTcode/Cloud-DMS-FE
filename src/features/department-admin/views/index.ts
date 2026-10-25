@@ -5,3 +5,4 @@ export * from './StaffManagementView';
 export * from './StorageOverviewView';
 export * from './SetupDepartmentView';
 export * from './DepartmentStorageReportView';
+export * from './DepartmentQuotaView';

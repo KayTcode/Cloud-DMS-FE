@@ -118,6 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'trash', label: 'Thùng rác phòng ban', icon: Trash2 },
         { id: 'tenants', label: 'Quản lý nhân viên', icon: Users },
+        { id: 'storage-providers', label: 'Hạn mức & Quota', icon: HardDrive },
         { id: 'audit-logs', label: 'Nhật ký nhân viên', icon: FileText },
       ];
     }

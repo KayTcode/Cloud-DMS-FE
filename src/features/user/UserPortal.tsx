@@ -582,6 +582,7 @@ export const UserPortal: React.FC = () => {
           <StorageView
             personalQuota={personalQuota}
             onRefresh={fetchPersonalQuota}
+            onShowToast={showNotification}
           />
         )}
 

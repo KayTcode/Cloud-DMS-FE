@@ -6,3 +6,4 @@ export * from './TenantStorageView';
 export * from './TenantActivityView';
 export * from './TenantSettingsView';
 export * from './TenantHubView';
+export * from './TenantQuotaView';

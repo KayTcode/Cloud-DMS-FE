@@ -13,6 +13,7 @@ import {
   FolderTree,
   Sparkles,
   Trash2,
+  Database,
 } from 'lucide-react';
 import { DepartmentInfo, DepartmentNavTab } from '../types';
 
@@ -115,6 +116,21 @@ export const DepartmentHubView: React.FC<DepartmentHubViewProps> = ({
       statLabel: 'Kiểm tra tệp nhân viên',
       statValue: 'Báo cáo chi tiết + CSV',
     },
+    {
+      id: 'quota' as DepartmentNavTab,
+      title: 'Yêu cầu & Phê duyệt Quota',
+      subtitle: 'Storage Quota Requests & Approvals',
+      description:
+        'Phê duyệt các yêu cầu tăng dung lượng của nhân viên trong phòng ban và gửi yêu cầu nâng hạn ngạch phòng ban lên Quản trị viên Doanh nghiệp.',
+      icon: Database,
+      color: 'purple',
+      gradient: 'from-purple-600 to-indigo-600',
+      iconBg: 'bg-purple-50 text-purple-600 border-purple-200/60',
+      badge: 'Quota & Phê duyệt',
+      actionText: 'Quản lý & Duyệt Quota',
+      statLabel: 'Hạn mức phòng ban',
+      statValue: `${department.totalAllocatedGB} GB`,
+    },
   ];
 
   return (
@@ -196,8 +212,8 @@ export const DepartmentHubView: React.FC<DepartmentHubViewProps> = ({
           </div>
         </div>
 
-        {/* 4 Large Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* 6 Large Action Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {cards.map((card) => {
             const Icon = card.icon;
             return (

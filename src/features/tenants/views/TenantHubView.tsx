@@ -86,6 +86,16 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
       actionText: 'Xem Nhật ký Hoạt động',
     },
     {
+      id: 'quota',
+      title: 'Yêu cầu & Phê duyệt Quota',
+      subtitle: 'Storage Quota Requests & Approvals',
+      description: 'Phê duyệt các yêu cầu tăng dung lượng từ Trưởng phòng ban hoặc nhân viên, và gửi yêu cầu nâng hạn ngạch doanh nghiệp lên System Admin.',
+      icon: Database,
+      iconBg: 'bg-blue-50 text-blue-600 border-blue-200/60',
+      badge: 'Quota & Phê duyệt',
+      actionText: 'Quản lý & Duyệt Quota',
+    },
+    {
       id: 'settings',
       title: 'Cài đặt & Cấu hình Doanh nghiệp',
       subtitle: 'Tenant Profile & Configuration',

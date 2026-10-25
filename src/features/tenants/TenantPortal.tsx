@@ -16,6 +16,7 @@ import {
   TenantActivityView,
   TenantSettingsView,
   TenantHubView,
+  TenantQuotaView,
 } from '@/features/tenants/views';
 import { ArrowLeft } from 'lucide-react';
 
@@ -173,6 +174,14 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
               tenant={tenant}
               onBackToOverview={() => setActiveTab('overview')}
               onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+            />
+          )}
+
+          {/* Tab 4B: Quản lý Hạn mức & Phê duyệt Quota */}
+          {activeTab === 'quota' && (
+            <TenantQuotaView
+              tenant={tenant}
+              onBackToOverview={() => setActiveTab('overview')}
             />
           )}
 

@@ -6,6 +6,7 @@ import {
   StaffManagementView,
   SetupDepartmentView,
   DepartmentStorageReportView,
+  DepartmentQuotaView,
 } from './views';
 import {
   AddMemberModal,
@@ -64,6 +65,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('staff');
     } else if (activeNav === 'audit-logs') {
       setActiveTab('logs');
+    } else if (activeNav === 'storage-providers') {
+      setActiveTab('quota');
     }
   }, [activeNav]);
 
@@ -79,6 +82,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('tenants');
     } else if (tab === 'logs') {
       setActiveNav('audit-logs');
+    } else if (tab === 'quota') {
+      setActiveNav('storage-providers');
     }
   };
 
@@ -266,6 +271,17 @@ const DepartmentAdminPortalContent: React.FC = () => {
             members={members}
             onBackToHub={() => handleNavigateTab('hub')}
             onAddToast={showNotification}
+          />
+        )}
+
+        {/* 6. CHỨC NĂNG 5: YÊU CẦU & PHÊ DUYỆT HẠN MỨC QUOTA */}
+        {activeTab === 'quota' && (
+          <DepartmentQuotaView
+            department={departmentInfo}
+            availableQuotaGB={availableDeptGB}
+            onBackToHub={() => handleNavigateTab('hub')}
+            onQuotaUpdated={refreshData}
+            onShowToast={showNotification}
           />
         )}
       </div>

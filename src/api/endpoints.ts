@@ -46,4 +46,17 @@ export const API_ENDPOINTS = {
     FILES: (deptId: string) => `/department/${deptId}/files`,
     LOGS: (deptId: string) => `/department/${deptId}/logs`,
   },
+  QUOTA: {
+    REQUESTS: '/quota/requests',
+    CANCEL: (id: string) => `/quota/requests/${id}/cancel`,
+    PENDING_FOR_ME: '/quota/requests/pending-for-me',
+    DECIDE: (id: string) => `/quota/requests/${id}/decide`,
+    REJECT: (id: string) => `/quota/requests/${id}/reject`,
+    HISTORY: '/quota/requests/history',
+  },
+  ADMIN_QUOTA: {
+    TOGGLE_FEATURE: (tenantId: string) => `/admin/tenants/${tenantId}/quota-request-feature`,
+    METRICS: '/admin/quota-requests/metrics',
+    RETRY_FOLDER_PROVISIONING: (userId: string) => `/admin/users/${userId}/retry-folder-provisioning`,
+  },
 } as const;

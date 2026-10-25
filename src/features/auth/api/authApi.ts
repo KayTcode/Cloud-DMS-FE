@@ -64,3 +64,19 @@ export const getGoogleLoginUrl = (returnUrl?: string): string => {
   const target = `${baseUrl}/auth/google/login`;
   return returnUrl ? `${target}?returnUrl=${encodeURIComponent(returnUrl)}` : target;
 };
+
+export interface ExchangeGoogleTicketResponse {
+  accessToken: string;
+  expiresAt: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  role: string;
+  tenantId: string | null;
+  permissions: string[];
+}
+
+export const exchangeGoogleTicketApi = async (ticket: string): Promise<ExchangeGoogleTicketResponse> => {
+  const response = await apiClient.post<any, ExchangeGoogleTicketResponse>('/auth/google/exchange', { ticket });
+  return response;
+};

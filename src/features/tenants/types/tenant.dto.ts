@@ -6,6 +6,7 @@ export type ActiveTab =
   | 'storage'
   | 'activity'
   | 'settings'
+  | 'quota'
   | 'create-department-user';
 
 export type TenantStatus = 'ACTIVE' | 'SUSPENDED' | 'PROVISIONING';

@@ -12,9 +12,11 @@ import {
   Building2,
   ShieldCheck,
   UserCheck,
-  HardDrive
+  HardDrive,
+  FolderSync,
 } from 'lucide-react';
 import { AdminUserDto, PlanType, TenantStatus } from '../types';
+import { quotaApi } from '@/features/quota';
 
 interface TenantManagementViewProps {
   users: AdminUserDto[];
@@ -51,6 +53,24 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [retryingUserId, setRetryingUserId] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const handleRetryProvisioning = async (userId: string) => {
+    try {
+      setRetryingUserId(userId);
+      await quotaApi.retryFolderProvisioning(userId);
+      setActionNotice({ type: 'success', message: 'Đã gửi yêu cầu khởi tạo lại thư mục lưu trữ thành công!' });
+    } catch (err: any) {
+      setActionNotice({
+        type: 'error',
+        message: err?.response?.data?.detail || err?.response?.data?.message || 'Khởi tạo lại thư mục thất bại.',
+      });
+    } finally {
+      setRetryingUserId(null);
+      setTimeout(() => setActionNotice(null), 3500);
+    }
+  };
 
   // Filtered calculation (if client filtering on current page or server-side)
   const filteredUsers = useMemo(() => {
@@ -96,6 +116,25 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
           <span>Provision Tenant / User</span>
         </button>
       </div>
+
+      {/* Action Notification Toast */}
+      {actionNotice && (
+        <div
+          className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between ${
+            actionNotice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border-rose-200'
+          }`}
+        >
+          <span>{actionNotice.message}</span>
+          <button
+            onClick={() => setActionNotice(null)}
+            className="text-slate-400 hover:text-slate-600 ml-3 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white border border-slate-200/80 rounded-xl">
@@ -296,6 +335,16 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                           title="Đặt lại mật khẩu"
                         >
                           <KeyRound className="w-4 h-4" />
+                        </button>
+
+                        {/* Thử lại khởi tạo thư mục Cloud */}
+                        <button
+                          onClick={() => handleRetryProvisioning(u.id)}
+                          disabled={retryingUserId === u.id}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-50"
+                          title="Thử lại khởi tạo thư mục Cloud"
+                        >
+                          <FolderSync className={`w-4 h-4 ${retryingUserId === u.id ? 'animate-spin text-emerald-600' : ''}`} />
                         </button>
 
                         {/* Suspend / Activate */}
