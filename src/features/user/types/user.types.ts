@@ -47,4 +47,4 @@ export interface UserActivity {
   device: string;
 }
 
-export type UserNavTab = 'documents' | 'trash' | 'storage' | 'profile';
+export type UserNavTab = 'documents' | 'shared' | 'trash' | 'storage' | 'profile';

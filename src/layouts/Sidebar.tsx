@@ -11,7 +11,8 @@ import {
   Users,
   FolderTree,
   Layers,
-  Trash2
+  Trash2,
+  Share2
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -102,6 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tenant Overview', icon: LayoutGrid },
+        { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'tenants', label: 'Phòng ban & Nhân viên', icon: Building2 },
         { id: 'storage-providers', label: 'Kho lưu trữ', icon: HardDrive },
         { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },
@@ -113,6 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tài liệu & Upload', icon: FolderTree },
+        { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'trash', label: 'Thùng rác phòng ban', icon: Trash2 },
         { id: 'tenants', label: 'Quản lý nhân viên', icon: Users },
         { id: 'audit-logs', label: 'Nhật ký nhân viên', icon: FileText },
@@ -121,6 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Menu cho Nhân viên thông thường (End User / Employee)
     return [
       { id: 'dashboard', label: 'Tài liệu & My Drive', icon: FolderTree },
+      { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
       { id: 'trash', label: 'Thùng rác', icon: Trash2 },
       { id: 'storage-providers', label: 'Dung lượng lưu trữ', icon: HardDrive },
       { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },

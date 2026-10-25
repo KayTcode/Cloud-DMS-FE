@@ -63,3 +63,40 @@ export interface TrashFileListResponse {
   totalSizeBytes: number;
   hasMore?: boolean;
 }
+
+export interface SharedFileItem {
+  id: string;
+  name: string;
+  type: 'file';
+  fileType: FileType;
+  extension: string;
+  size: number;
+  sizeFormatted: string;
+  ownerId: string;
+  owner: {
+    name: string;
+    email: string;
+  };
+  sharedAt: string;
+  sharedAtFormatted: string;
+  expiresAt?: string;
+  expiresAtFormatted?: string;
+  permissionLevel: 'Viewer' | 'Editor' | 'Owner' | string;
+  canRead: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
+  storageProvider?: string;
+  storageProviderType?: string;
+  department?: string;
+  createdAt: string;
+  scanStatus?: string;
+}
+
+export interface SharedFileListResponse {
+  items: SharedFileItem[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  hasMore?: boolean;
+}
+
