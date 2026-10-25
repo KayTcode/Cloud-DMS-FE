@@ -15,7 +15,6 @@ export const TenantTabs: React.FC<TenantTabsProps> = ({
     { id: 'overview', label: 'Overview' },
     { id: 'users', label: 'Users' },
     { id: 'departments', label: 'Departments' },
-    { id: 'storage', label: 'Storage' },
     { id: 'quota', label: 'Quản lý Quota' },
     { id: 'activity', label: 'Activity' },
     { id: 'settings', label: 'Settings' },

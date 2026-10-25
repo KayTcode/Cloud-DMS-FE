@@ -63,8 +63,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           return 'Trung tâm điều khiển';
         case 'tenants':
           return 'Phòng ban & Nhân viên';
-        case 'storage-providers':
-          return 'Kho lưu trữ Cloud';
         case 'audit-logs':
           return 'Nhật ký hoạt động';
         case 'dashboard':

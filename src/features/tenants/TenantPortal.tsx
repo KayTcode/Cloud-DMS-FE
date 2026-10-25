@@ -1,18 +1,12 @@
 import React, { useEffect } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
-import {
-  TenantBanner,
-  TenantTabs,
-  ImpersonateModal,
-  SubscriptionModal,
-} from '@/features/tenants/components';
+import { TenantBanner, TenantTabs, ImpersonateModal, SubscriptionModal } from '@/features/tenants/components';
 import {
   TenantOverviewView,
   TenantUsersView,
   CreateDepartmentUserView,
   TenantDepartmentsView,
-  TenantStorageView,
   TenantActivityView,
   TenantSettingsView,
   TenantHubView,
@@ -48,24 +42,24 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
   // 2. LẤY STATE VÀ SERVICE METHODS TỪ GLOBAL TENANT CONTEXT
   // ---------------------------------------------------------------------------------------
   const {
-    activeTab,                    // Tab con nội bộ đang chọn ('overview', 'users', 'departments', ...)
-    setActiveTab,                 // Hàm chuyển đổi tab con
-    tenant,                       // Thông tin DTO chi tiết của Tenant hiện hành
-    events,                       // Danh sách sự kiện / Activity logs nội bộ
-    users,                        // Danh sách nhân viên thuộc Tenant
-    targetDeptForCreate,          // Phòng ban được chọn khi bấm nút "Thêm nhân viên vào phòng này"
-    isSubscriptionModalOpen,      // Trạng thái mở modal Gói cước (Subscription)
+    activeTab, // Tab con nội bộ đang chọn ('overview', 'users', 'departments', ...)
+    setActiveTab, // Hàm chuyển đổi tab con
+    tenant, // Thông tin DTO chi tiết của Tenant hiện hành
+    events, // Danh sách sự kiện / Activity logs nội bộ
+    users, // Danh sách nhân viên thuộc Tenant
+    targetDeptForCreate, // Phòng ban được chọn khi bấm nút "Thêm nhân viên vào phòng này"
+    isSubscriptionModalOpen, // Trạng thái mở modal Gói cước (Subscription)
     setIsSubscriptionModalOpen,
-    isImpersonateModalOpen,       // Trạng thái mở modal Mạo danh (Impersonate)
+    isImpersonateModalOpen, // Trạng thái mở modal Mạo danh (Impersonate)
     setIsImpersonateModalOpen,
-    handleSuspendToggle,          // Service khóa/mở khóa Tenant
-    handleDownloadBackup,         // Service tải tệp tin sao lưu dữ liệu
-    handleConfirmImpersonate,     // Service xác nhận đăng nhập hộ vào Tenant
-    handleOpenCreateDepartmentUser,// Service mở form tạo tài khoản nhân viên theo phòng ban
-    handleUserCreated,            // Callback sau khi tạo nhân viên thành công
-    handleUpdateTenant,           // Service cập nhật cấu hình Tenant
-    setCurrentTenantId,           // Hàm set ID Tenant hiện hành vào Context
-    refreshTenantData,            // Service nạp lại toàn bộ dữ liệu Tenant từ API Backend
+    handleSuspendToggle, // Service khóa/mở khóa Tenant
+    handleDownloadBackup, // Service tải tệp tin sao lưu dữ liệu
+    handleConfirmImpersonate, // Service xác nhận đăng nhập hộ vào Tenant
+    handleOpenCreateDepartmentUser, // Service mở form tạo tài khoản nhân viên theo phòng ban
+    handleUserCreated, // Callback sau khi tạo nhân viên thành công
+    handleUpdateTenant, // Service cập nhật cấu hình Tenant
+    setCurrentTenantId, // Hàm set ID Tenant hiện hành vào Context
+    refreshTenantData, // Service nạp lại toàn bộ dữ liệu Tenant từ API Backend
   } = useTenantContext();
 
   // ---------------------------------------------------------------------------------------
@@ -126,10 +120,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
           />
 
           {/* Thanh chuyển Tab điều hướng nhanh giữa các chức năng con */}
-          <TenantTabs
-            activeTab={activeTab}
-            onTabChange={(tab) => setActiveTab(tab)}
-          />
+          <TenantTabs activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
         </>
       )}
 
@@ -174,39 +165,15 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             />
           )}
 
-          {/* Tab 4: Quản lý phân bổ dung lượng Cloud Storage cho từng phòng ban & tệp tin */}
-          {activeTab === 'storage' && (
-            <TenantStorageView
-              tenant={tenant}
-              onBackToOverview={() => setActiveTab('overview')}
-              onOpenExpandQuota={() => setActiveTab('quota')}
-              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
-            />
-          )}
-
           {/* Tab 4B: Quản lý Hạn mức & Phê duyệt Quota */}
-          {activeTab === 'quota' && (
-            <TenantQuotaView
-              tenant={tenant}
-              onBackToOverview={() => setActiveTab('overview')}
-            />
-          )}
+          {activeTab === 'quota' && <TenantQuotaView tenant={tenant} onBackToOverview={() => setActiveTab('overview')} />}
 
           {/* Tab 5: Nhật ký thao tác của người dùng trong Tenant */}
-          {activeTab === 'activity' && (
-            <TenantActivityView
-              events={events}
-              onBackToOverview={() => setActiveTab('overview')}
-            />
-          )}
+          {activeTab === 'activity' && <TenantActivityView events={events} onBackToOverview={() => setActiveTab('overview')} />}
 
           {/* Tab 6: Cài đặt cấu hình riêng của Tenant (Tên, logo, liên hệ) */}
           {activeTab === 'settings' && (
-            <TenantSettingsView
-              tenant={tenant}
-              onUpdateTenant={handleUpdateTenant}
-              onBackToOverview={() => setActiveTab('overview')}
-            />
+            <TenantSettingsView tenant={tenant} onUpdateTenant={handleUpdateTenant} onBackToOverview={() => setActiveTab('overview')} />
           )}
         </div>
       )}
@@ -215,11 +182,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
       {/* 4.4. CÁC MODAL HỘP THOẠI CỦA TENANT                                                */}
       {/* --------------------------------------------------------------------------------- */}
       {/* Modal nâng cấp gói cước dịch vụ (Starter, Business, Enterprise) */}
-      <SubscriptionModal
-        isOpen={isSubscriptionModalOpen}
-        onClose={() => setIsSubscriptionModalOpen(false)}
-        tenant={tenant}
-      />
+      <SubscriptionModal isOpen={isSubscriptionModalOpen} onClose={() => setIsSubscriptionModalOpen(false)} tenant={tenant} />
 
       {/* Modal xác nhận đăng nhập ẩn danh (Impersonate) */}
       <ImpersonateModal
