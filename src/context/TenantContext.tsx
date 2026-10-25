@@ -436,9 +436,6 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         case 'tenants':
           setActiveTab('departments');
           break;
-        case 'storage-providers':
-          setActiveTab('storage');
-          break;
         case 'audit-logs':
           setActiveTab('activity');
           break;
