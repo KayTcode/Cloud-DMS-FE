@@ -2,14 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   HardDrive,
   Database,
-  ArrowUpRight,
   TrendingUp,
   ShieldCheck,
   FileText,
   Video,
   Archive,
   Layers,
-  ChevronRight,
   RefreshCw,
 } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
@@ -18,14 +16,10 @@ import { useTenantContext } from '@/context/TenantContext';
 
 interface StorageStatsCardProps {
   tenant: TenantInfo;
-  onNavigateToStorage?: () => void;
-  onExpandStorage?: () => void;
 }
 
 export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
   tenant,
-  onNavigateToStorage,
-  onExpandStorage,
 }) => {
   const { departments } = useTenantContext();
   const [unit, setUnit] = useState<'GB' | 'TB'>('GB');
@@ -241,16 +235,6 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
               TB
             </button>
           </div>
-
-          {onExpandStorage && (
-            <button
-              onClick={onExpandStorage}
-              className="text-xs font-semibold px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer flex items-center gap-1"
-            >
-              <span>Mở rộng</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -452,16 +436,6 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
             Cloud Provider: {tenant.storageProviderName || 'Google Drive / Local'}
           </span>
         </div>
-
-        {onNavigateToStorage && (
-          <button
-            onClick={onNavigateToStorage}
-            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 self-start sm:self-auto cursor-pointer"
-          >
-            <span>Quản lý chi tiết ổ đĩa & phân vùng</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ interface TenantOverviewViewProps {
   events: TenantEvent[];
   onImpersonate: () => void;
   onDownloadBackup: () => void;
-  onNavigateTab: (tab: 'users' | 'departments' | 'storage' | 'activity') => void;
+  onNavigateTab: (tab: 'users' | 'departments' | 'activity') => void;
   onCreateDepartmentUser: () => void;
 }
 
@@ -60,11 +60,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
         </div>
 
         {/* Managed Storage Pool Statistics Card */}
-        <StorageStatsCard
-          tenant={tenant}
-          onNavigateToStorage={() => onNavigateTab('storage')}
-          onExpandStorage={() => onNavigateTab('storage')}
-        />
+        <StorageStatsCard tenant={tenant} />
       </div>
 
       {/* Right Column (Quick Actions & Recent Events) */}
