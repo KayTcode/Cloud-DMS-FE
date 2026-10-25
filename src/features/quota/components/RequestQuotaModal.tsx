@@ -2,21 +2,23 @@ import React, { useState } from 'react';
 import { X, HardDrive, Calendar, AlertCircle, Info, Sparkles } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
 import { QuotaRequestDto } from '../types/quota.types';
+import { GB_IN_BYTES, bytesToGB, checkAvailability } from '../utils/quotaAvailability';
 
 interface RequestQuotaModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentQuotaBytes?: number;
+  maxAvailableBytes?: number | null;
   onSuccess: (request: QuotaRequestDto) => void;
 }
 
-const GB_IN_BYTES = 1024 * 1024 * 1024;
 const MAX_GB = 500;
 const MAX_TEMPORARY_DAYS = 90;
 
 export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   isOpen,
   onClose,
+  maxAvailableBytes,
   onSuccess,
 }) => {
   const [requestedGB, setRequestedGB] = useState<number>(5);
@@ -49,6 +51,12 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
 
     if (requestedGB > MAX_GB) {
       setErrorMessage(`Dung lượng yêu cầu tối đa là ${MAX_GB} GB.`);
+      return;
+    }
+
+    const availability = checkAvailability(Math.round(requestedGB * GB_IN_BYTES), maxAvailableBytes);
+    if (!availability.ok) {
+      setErrorMessage(availability.message!);
       return;
     }
 
@@ -169,7 +177,8 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
                   type="button"
                   key={gb}
                   onClick={() => handleQuickAdd(gb)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all ${
+                  disabled={maxAvailableBytes != null && gb * GB_IN_BYTES > maxAvailableBytes}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     requestedGB === gb
                       ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
@@ -179,6 +188,22 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
                 </button>
               ))}
             </div>
+
+            {maxAvailableBytes != null ? (
+              <div className="mt-2 p-2.5 bg-blue-50/60 rounded-xl flex items-start gap-2 text-[11px] text-blue-700">
+                <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                <span>
+                  Hạn mức còn trống của cấp trên: {bytesToGB(maxAvailableBytes)} GB.
+                </span>
+              </div>
+            ) : (
+              <div className="mt-2 p-2.5 bg-slate-50 rounded-xl flex items-start gap-2 text-[11px] text-slate-500">
+                <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <span>
+                  Không thể xác minh hạn mức còn trống của cấp trên lúc này — yêu cầu vẫn được gửi, nhưng có thể bị từ chối nếu vượt quá.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Loại yêu cầu: Vĩnh viễn hay Tạm thời */}
