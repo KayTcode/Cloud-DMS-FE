@@ -124,6 +124,12 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             onManageSubscriptions={() => setIsSubscriptionModalOpen(true)}
             onNavigateToTenants={() => setActiveTab('hub')}
           />
+
+          {/* Thanh chuyển Tab điều hướng nhanh giữa các chức năng con */}
+          <TenantTabs
+            activeTab={activeTab}
+            onTabChange={(tab) => setActiveTab(tab)}
+          />
         </>
       )}
 
@@ -173,6 +179,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             <TenantStorageView
               tenant={tenant}
               onBackToOverview={() => setActiveTab('overview')}
+              onOpenExpandQuota={() => setActiveTab('quota')}
               onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
             />
           )}

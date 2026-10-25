@@ -58,6 +58,7 @@ type SortOrder = 'newest' | 'oldest' | 'size_desc' | 'size_asc';
 export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
   tenant,
   onBackToOverview,
+  onOpenExpandQuota,
 }) => {
   const { departments, users, addToast } = useTenantContext();
 
@@ -439,8 +440,19 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
           </div>
         </div>
 
-        {/* Nút hành động nhanh: Refresh, Xuất CSV, Tải tệp mới */}
+        {/* Nút hành động nhanh: Quota, Refresh, Xuất CSV, Tải tệp mới */}
         <div className="flex items-center gap-2">
+          {onOpenExpandQuota && (
+            <button
+              onClick={onOpenExpandQuota}
+              className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
+              title="Xin thêm dung lượng Quota"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Xin cấp Quota</span>
+            </button>
+          )}
+
           <button
             onClick={fetchReportFiles}
             disabled={isLoading}

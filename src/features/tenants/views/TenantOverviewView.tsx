@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserCheck, Download, UserPlus } from 'lucide-react';
-import { TenantInfo, TenantEvent } from '@/features/tenants/types';
+import { TenantInfo, TenantEvent, ActiveTab } from '@/features/tenants/types';
 import { StorageStatsCard } from '../components/StorageStatsCard';
+import { RequestQuotaModal } from '@/features/quota';
+import { useTenantContext } from '@/context/TenantContext';
 
 interface TenantOverviewViewProps {
   tenant: TenantInfo;
   events: TenantEvent[];
   onImpersonate: () => void;
   onDownloadBackup: () => void;
-  onNavigateTab: (tab: 'users' | 'departments' | 'storage' | 'activity') => void;
+  onNavigateTab: (tab: ActiveTab) => void;
   onCreateDepartmentUser: () => void;
 }
 
@@ -20,6 +22,14 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
   onNavigateTab,
   onCreateDepartmentUser,
 }) => {
+  const { addToast, refreshTenantData } = useTenantContext();
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+
+  const handleRequestCreated = () => {
+    setIsRequestModalOpen(false);
+    addToast('success', 'Đã gửi yêu cầu tăng hạn mức lưu trữ Tenant lên System Admin!');
+    refreshTenantData(tenant.id);
+  };
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-5">
       {/* Left Column (Stats & Storage) */}
@@ -63,7 +73,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
         <StorageStatsCard
           tenant={tenant}
           onNavigateToStorage={() => onNavigateTab('storage')}
-          onExpandStorage={() => onNavigateTab('storage')}
+          onExpandStorage={() => setIsRequestModalOpen(true)}
         />
       </div>
 
@@ -153,6 +163,13 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal gửi yêu cầu cấp thêm Quota */}
+      <RequestQuotaModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onSuccess={handleRequestCreated}
+      />
     </div>
   );
 };
