@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, XCircle, AlertTriangle, User, Calendar, FileText, HardDrive } from 'lucide-react';
+import { X, CheckCircle2, XCircle, AlertTriangle, User, Calendar, FileText, HardDrive, Loader2 } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
 import { QuotaRequestDto } from '../types/quota.types';
+import { GB_IN_BYTES, checkAvailability, bytesToGB } from '../utils/quotaAvailability';
+import { StorageProviderItem } from '../../system-admin/types/systemAdmin.dto';
+import { getStorageProvidersApi } from '../../system-admin/api/systemAdminQueries';
 
 interface DecideQuotaModalProps {
   isOpen: boolean;
   request: QuotaRequestDto | null;
   onClose: () => void;
   onSuccess: (updated: QuotaRequestDto, message: string) => void;
+  maxAvailableBytes?: number | null;
 }
-
-const GB_IN_BYTES = 1024 * 1024 * 1024;
 
 export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   isOpen,
   request,
   onClose,
   onSuccess,
+  maxAvailableBytes,
 }) => {
   const [mode, setMode] = useState<'approve' | 'reject'>('approve');
   const [approvalType, setApprovalType] = useState<'full' | 'partial'>('full');
@@ -24,6 +27,11 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [storageProviderId, setStorageProviderId] = useState<string>('');
+  const [providers, setProviders] = useState<StorageProviderItem[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState<boolean>(false);
+
+  const isTenantAdminRequest = request?.requesterRole === 'TenantAdmin';
 
   useEffect(() => {
     if (request) {
@@ -33,6 +41,16 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
       setPartialGB(reqGB > 1 ? Math.floor(reqGB / 2) : 1);
       setRejectionReason('');
       setErrorMessage(null);
+      setStorageProviderId('');
+      setProviders([]);
+
+      if (request.requesterRole === 'TenantAdmin') {
+        setIsLoadingProviders(true);
+        getStorageProvidersApi()
+          .then((data) => setProviders(data))
+          .catch((err) => console.error('Failed to load providers:', err))
+          .finally(() => setIsLoadingProviders(false));
+      }
     }
   }, [request]);
 
@@ -57,9 +75,26 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
       bytesToApprove = Math.round(partialGB * GB_IN_BYTES);
     }
 
+    const availability = checkAvailability(bytesToApprove, maxAvailableBytes);
+    if (!availability.ok) {
+      setErrorMessage(availability.message!);
+      return;
+    }
+
+    if (isTenantAdminRequest && !storageProviderId) {
+      setErrorMessage('Vui lòng chọn tài khoản lưu trữ để phân bổ quota.');
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const updated = await quotaApi.decideRequest(request.id, bytesToApprove);
+      const payload: { approvedAdditionalBytes: number; storageProviderId?: string } = {
+        approvedAdditionalBytes: bytesToApprove,
+      };
+      if (isTenantAdminRequest && storageProviderId) {
+        payload.storageProviderId = storageProviderId;
+      }
+      const updated = await quotaApi.decideRequest(request.id, payload);
       const isFull = bytesToApprove >= request.requestedAdditionalBytes;
       onSuccess(
         updated,
@@ -222,6 +257,55 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         {/* Form phê duyệt */}
         {mode === 'approve' && (
           <div className="mt-4 space-y-3 animate-in fade-in duration-150">
+            {/* Provider selector — only for TenantAdmin requests */}
+            {isTenantAdminRequest && (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Tài khoản lưu trữ <span className="text-rose-500">*</span>
+                </label>
+                {isLoadingProviders ? (
+                  <div className="flex items-center gap-2 p-3 text-xs text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                    <span>Đang tải danh sách tài khoản lưu trữ...</span>
+                  </div>
+                ) : providers.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                    Không tìm thấy tài khoản lưu trữ nào. Vui lòng kết nối Storage Provider trước.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {providers.map((p) => {
+                      const isSelected = p.id === storageProviderId;
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => { setStorageProviderId(p.id); setErrorMessage(null); }}
+                          className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/40 shadow-xs'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                              <HardDrive className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-800">{p.name}</div>
+                              <div className="text-[11px] text-slate-500 font-mono">{p.type}</div>
+                            </div>
+                          </div>
+                          <div className="text-right text-xs">
+                            <span className="text-slate-400 text-[11px] block">Tổng</span>
+                            <span className="font-mono font-semibold text-slate-700">{p.capacity}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                 <input

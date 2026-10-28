@@ -16,6 +16,7 @@ export interface QuotaRequestDto {
   requesterId: string;
   requesterName: string;
   requesterEmail: string;
+  requesterRole?: string;
   approverId: string;
   approverName: string;
   quotaType: string;

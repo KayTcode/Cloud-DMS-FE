@@ -2,6 +2,7 @@ import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import {
   CreateQuotaRequestPayload,
+  DecideQuotaRequestPayload,
   GetQuotaHistoryFilter,
   PagedResult,
   QuotaFeatureMetricsDto,
@@ -30,10 +31,8 @@ export const quotaApi = {
   },
 
   // Duyệt đủ hoặc duyệt một phần yêu cầu
-  decideRequest: async (requestId: string, approvedAdditionalBytes: number): Promise<QuotaRequestDto> => {
-    const res: any = await apiClient.post(API_ENDPOINTS.QUOTA.DECIDE(requestId), {
-      approvedAdditionalBytes,
-    });
+  decideRequest: async (requestId: string, payload: DecideQuotaRequestPayload): Promise<QuotaRequestDto> => {
+    const res: any = await apiClient.post(API_ENDPOINTS.QUOTA.DECIDE(requestId), payload);
     return res?.value ?? res?.data ?? res;
   },
 
