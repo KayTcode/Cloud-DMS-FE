@@ -4,7 +4,7 @@ import { X, FolderPlus } from 'lucide-react';
 interface NewFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateFolder: (name: string, department: string) => void;
+  onCreateFolder: (name: string, department: string, parentFolderId?: string | null) => void;
   userDepartment: string;
   parentFolderId?: string | null;
 }
@@ -14,6 +14,7 @@ export const NewFolderModal: React.FC<NewFolderModalProps> = ({
   onClose,
   onCreateFolder,
   userDepartment,
+  parentFolderId,
 }) => {
   const [folderName, setFolderName] = useState('');
   const [dept, setDept] = useState(userDepartment || 'Engineering');
@@ -23,7 +24,7 @@ export const NewFolderModal: React.FC<NewFolderModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!folderName.trim()) return;
-    onCreateFolder(folderName.trim(), dept);
+    onCreateFolder(folderName.trim(), dept, parentFolderId);
     setFolderName('');
     onClose();
   };

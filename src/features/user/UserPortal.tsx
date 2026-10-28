@@ -79,7 +79,6 @@ export const UserPortal: React.FC = () => {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
 
   // Modals state
@@ -155,7 +154,6 @@ export const UserPortal: React.FC = () => {
   const fetchFolders = useCallback(async (folderId: string | null) => {
     if (!authUser?.id) return;
     try {
-      setIsLoadingFolders(true);
       let res;
       if (folderId === null) {
         res = await folderApi.getRoot('Personal', authUser.id);
@@ -167,8 +165,6 @@ export const UserPortal: React.FC = () => {
       setApiFolders(res.folders);
     } catch (error) {
       console.error('Lỗi nạp thư mục:', error);
-    } finally {
-      setIsLoadingFolders(false);
     }
   }, [authUser?.id]);
 
@@ -360,9 +356,10 @@ export const UserPortal: React.FC = () => {
   };
 
   // Xử lý tạo thư mục mới
-  const handleCreateFolder = async (name: string, department: string) => {
+  const handleCreateFolder = async (name: string, department: string, parentFolderId?: string | null) => {
     try {
-      await driveApi.createFolder(name, currentFolderId);
+      const folderId = parentFolderId !== undefined ? parentFolderId : currentFolderId;
+      await driveApi.createFolder(name, folderId);
       await fetchDriveItems(currentFolderId);
       await fetchFolders(currentFolderId);
       showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
