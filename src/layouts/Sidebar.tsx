@@ -12,7 +12,8 @@ import {
   FolderTree,
   Layers,
   Trash2,
-  Share2
+  Share2,
+  FolderOpen,
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -114,6 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tài liệu & Upload', icon: FolderTree },
+        { id: 'shared-store', label: 'Kho chung', icon: FolderOpen },
         { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'trash', label: 'Thùng rác phòng ban', icon: Trash2 },
         { id: 'tenants', label: 'Quản lý nhân viên', icon: Users },

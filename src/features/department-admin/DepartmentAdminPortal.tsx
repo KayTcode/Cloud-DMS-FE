@@ -88,7 +88,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
     } else if (tab === 'quota') {
       setActiveNav('storage-providers');
     } else if (tab === 'shared-store') {
-      setActiveNav('shared-store' as any);
+      setActiveNav('shared-store');
     }
   };
 

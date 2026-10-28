@@ -52,6 +52,9 @@ interface DriveViewProps {
   onRenameFolder?: (folderId: string, newName: string) => Promise<void>;
   onMoveFolder?: (folder: FolderDto) => void;
   onTrashFolder?: (folderId: string) => void;
+  // Drive identity (optional, used by consumers to tag the drive context)
+  driveKind?: 'Personal' | 'DepartmentShared';
+  driveOwnerId?: string;
 }
 
 type SortField = 'name' | 'updatedAt' | 'size';

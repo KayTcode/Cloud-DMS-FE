@@ -82,7 +82,7 @@ export const SharedStoreView: React.FC = () => {
           starred: false,
           trashed: false,
           sharedWith: [],
-          tags: [f.storageProviderName || '', ''],
+          tags: [],
           contentSnippet: '',
         };
       });
@@ -291,6 +291,8 @@ export const SharedStoreView: React.FC = () => {
           onRenameFolder={handleRenameFolder}
           onMoveFolder={handleMoveFolder}
           onTrashFolder={handleTrashFolder}
+          driveKind="DepartmentShared"
+          driveOwnerId={deptId}
         />
       )}
 
