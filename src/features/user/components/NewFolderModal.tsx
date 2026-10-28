@@ -6,6 +6,7 @@ interface NewFolderModalProps {
   onClose: () => void;
   onCreateFolder: (name: string, department: string) => void;
   userDepartment: string;
+  parentFolderId?: string | null;
 }
 
 export const NewFolderModal: React.FC<NewFolderModalProps> = ({

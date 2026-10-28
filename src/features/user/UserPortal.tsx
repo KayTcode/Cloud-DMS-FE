@@ -8,9 +8,12 @@ import {
 import {
   AdjustQuotaModal,
   FilePreviewModal,
+  MoveFolderModal,
   NewFolderModal,
   ShareModal,
 } from './components';
+import { FolderDto, BreadcrumbItem } from './types/folder.types';
+import { folderApi } from './api/folderApi';
 import {
   INITIAL_DEPARTMENT_QUOTAS,
   INITIAL_USER,
@@ -74,6 +77,10 @@ export const UserPortal: React.FC = () => {
   );
   const [activities, setActivities] = useState<UserActivity[]>(INITIAL_USER_ACTIVITIES);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
+  const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
 
   // Modals state
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
@@ -143,6 +150,75 @@ export const UserPortal: React.FC = () => {
       console.warn('Không thể nạp hạn mức Quota từ máy chủ:', error);
     }
   }, []);
+
+  // Nạp thư mục từ backend theo currentFolderId
+  const fetchFolders = useCallback(async (folderId: string | null) => {
+    if (!authUser?.id) return;
+    try {
+      setIsLoadingFolders(true);
+      let res;
+      if (folderId === null) {
+        res = await folderApi.getRoot('Personal', authUser.id);
+        setBreadcrumb([]);
+      } else {
+        res = await folderApi.getChildren(folderId);
+        setBreadcrumb(res.breadcrumb);
+      }
+      setApiFolders(res.folders);
+    } catch (error) {
+      console.error('Lỗi nạp thư mục:', error);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    fetchFolders(currentFolderId);
+  }, [currentFolderId, fetchFolders]);
+
+  const handleNavigateFolder = (id: string | null) => {
+    setCurrentFolderId(id);
+  };
+
+  const handleRenameFolder = async (folderId: string, newName: string) => {
+    try {
+      await folderApi.renameFolder(folderId, { name: newName });
+      await fetchFolders(currentFolderId);
+      showNotification('Đã đổi tên thư mục thành công!', 'success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Đổi tên thư mục thất bại.';
+      showNotification(msg, 'error');
+    }
+  };
+
+  const handleMoveFolder = (folder: FolderDto) => {
+    setMovingFolder(folder);
+  };
+
+  const handleConfirmMove = async (targetFolderId: string | null) => {
+    if (!movingFolder) return;
+    try {
+      await folderApi.moveFolder(movingFolder.id, { targetParentFolderId: targetFolderId });
+      await fetchFolders(currentFolderId);
+      showNotification(`Đã di chuyển thư mục "${movingFolder.name}" thành công!`, 'success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Di chuyển thư mục thất bại.';
+      showNotification(msg, 'error');
+    } finally {
+      setMovingFolder(null);
+    }
+  };
+
+  const handleTrashFolder = async (folderId: string) => {
+    try {
+      await folderApi.trashFolder(folderId);
+      await fetchFolders(currentFolderId);
+      showNotification('Đã chuyển thư mục vào thùng rác.', 'info');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Không thể xóa thư mục.';
+      showNotification(msg, 'error');
+    }
+  };
 
   // Đồng bộ trạng thái điều hướng khi người dùng bấm Menu bên trái (Sidebar)
   useEffect(() => {
@@ -288,6 +364,7 @@ export const UserPortal: React.FC = () => {
     try {
       await driveApi.createFolder(name, currentFolderId);
       await fetchDriveItems(currentFolderId);
+      await fetchFolders(currentFolderId);
       showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
     } catch (error: any) {
       const newFolder: DriveItem = {
@@ -567,6 +644,12 @@ export const UserPortal: React.FC = () => {
             onPermanentDeleteFile={handlePermanentDelete}
             onShareItem={(item) => setShareItem(item)}
             onDownloadItem={handleDownloadItem}
+            folders={apiFolders}
+            breadcrumb={breadcrumb}
+            onNavigateFolder={handleNavigateFolder}
+            onRenameFolder={handleRenameFolder}
+            onMoveFolder={handleMoveFolder}
+            onTrashFolder={handleTrashFolder}
           />
         )}
 
@@ -620,6 +703,16 @@ export const UserPortal: React.FC = () => {
         onClose={() => setIsNewFolderOpen(false)}
         onCreateFolder={handleCreateFolder}
         userDepartment={currentUser.department}
+        parentFolderId={currentFolderId}
+      />
+
+      <MoveFolderModal
+        isOpen={movingFolder !== null}
+        item={movingFolder ? { id: movingFolder.id, name: movingFolder.name, type: 'folder' } : null}
+        driveKind="Personal"
+        driveOwnerId={authUser?.id ?? ''}
+        onClose={() => setMovingFolder(null)}
+        onMove={handleConfirmMove}
       />
 
       <AdjustQuotaModal
