@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
     EMPLOYEES: (deptId: string) => `/department/${deptId}/employees`,
     FILES: (deptId: string) => `/department/${deptId}/files`,
     LOGS: (deptId: string) => `/department/${deptId}/logs`,
+    SHARED_QUOTA: (deptId: string) => `/department/${deptId}/quota/shared`,
   },
   QUOTA: {
     REQUESTS: '/quota/requests',
@@ -58,5 +59,25 @@ export const API_ENDPOINTS = {
     TOGGLE_FEATURE: (tenantId: string) => `/admin/tenants/${tenantId}/quota-request-feature`,
     METRICS: '/admin/quota-requests/metrics',
     RETRY_FOLDER_PROVISIONING: (userId: string) => `/admin/users/${userId}/retry-folder-provisioning`,
+  },
+  FOLDERS: {
+    CHILDREN: (folderId: string) => `/folders/${folderId}/children`,
+    ROOT: (driveKind: string, driveOwnerId: string) =>
+      `/folders/root?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
+    CREATE: '/folders',
+    RENAME: (folderId: string) => `/folders/${folderId}/rename`,
+    MOVE: (folderId: string) => `/folders/${folderId}/move`,
+    TRASH: (folderId: string) => `/folders/${folderId}/trash`,
+    RESTORE: (folderId: string) => `/folders/${folderId}/restore`,
+    PURGE: (folderId: string) => `/folders/${folderId}`,
+    TRASH_LIST: (driveKind: string, driveOwnerId: string) =>
+      `/folders/trash?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
+    EMPTY_TRASH: (driveKind: string, driveOwnerId: string) =>
+      `/folders/trash/empty?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
+  },
+  ADMIN_QUOTA_ALLOC: {
+    LIST: (tenantId: string) => `/admin/tenants/${tenantId}/quota-allocations`,
+    ADD: (tenantId: string) => `/admin/tenants/${tenantId}/quota-allocations`,
+    REDUCE: (tenantId: string) => `/admin/tenants/${tenantId}/quota-allocations/reduce`,
   },
 } as const;

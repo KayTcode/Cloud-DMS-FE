@@ -82,3 +82,8 @@ export interface GetQuotaHistoryFilter {
   page?: number;
   pageSize?: number;
 }
+
+export interface DecideQuotaRequestPayload {
+  approvedAdditionalBytes: number;
+  storageProviderId?: string;
+}

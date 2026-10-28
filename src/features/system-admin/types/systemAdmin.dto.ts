@@ -216,3 +216,29 @@ export interface CreateSystemTenantPayload {
   adminEmail?: string;
   region?: string;
 }
+
+export interface QuotaAllocationPartDto {
+  allocationId: string;
+  storageProviderId: string;
+  storageProviderName: string;
+  storageProviderType: number;
+  grantedBytes: number;
+  allocatedToChildrenBytes: number;
+  usedBytes: number;
+}
+
+export interface TenantQuotaAllocationListResponse {
+  tenantId: string;
+  parts: QuotaAllocationPartDto[];
+  totalGrantedBytes: number;
+  totalUsedBytes: number;
+}
+
+export interface AllocateTenantQuotaAddPayload {
+  storageProviderId: string;
+  bytes: number;
+}
+
+export interface ReduceTenantQuotaPayload {
+  bytes: number;
+}

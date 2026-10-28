@@ -1,5 +1,6 @@
 import axiosClient from '@/api/axiosClient';
-import { 
+import { API_ENDPOINTS } from '@/api/endpoints';
+import {
   CreateAdminUserPayload, 
   UpdateAdminUserPayload, 
   AssignUserRolesPayload, 
@@ -261,3 +262,19 @@ export const exchangeOneDriveCodeApi = async (payload: {
   return response?.value || response?.data || response;
 };
 
+
+/**
+ * Thêm phân bổ quota cho tenant từ một nhà cung cấp lưu trữ cụ thể
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/quota-allocations
+ */
+export const addTenantQuotaApi = (tenantId: string, payload: import('../types').AllocateTenantQuotaAddPayload) =>
+  axiosClient.post(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.ADD(tenantId), payload)
+    .then((r) => r.data);
+
+/**
+ * Giảm quota đã phân bổ cho tenant
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/quota-allocations/reduce
+ */
+export const reduceTenantQuotaApi = (tenantId: string, payload: import('../types').ReduceTenantQuotaPayload) =>
+  axiosClient.post(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.REDUCE(tenantId), payload)
+    .then((r) => r.data);
