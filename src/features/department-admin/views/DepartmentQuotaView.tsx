@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Database,
@@ -10,6 +10,8 @@ import {
   Clock,
   Sparkles,
   Info,
+  FolderOpen,
+  Pencil,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import {
@@ -17,6 +19,136 @@ import {
   QuotaHistoryTable,
   RequestQuotaModal,
 } from '@/features/quota';
+import { getSharedStoreQuotaApi, setSharedStoreQuotaApi } from '../api/departmentApi';
+import { useDepartment } from '../context/DepartmentContext';
+
+const formatBytesSimple = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const gb = bytes / (1024 ** 3);
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  const mb = bytes / (1024 ** 2);
+  if (mb >= 1) return `${mb.toFixed(2)} MB`;
+  return `${(bytes / 1024).toFixed(2)} KB`;
+};
+
+interface SharedQuotaRowProps {
+  departmentId: string;
+  onShowToast?: (type: 'success' | 'error' | 'info', message: string) => void;
+}
+
+const SharedQuotaRow: React.FC<SharedQuotaRowProps> = ({ departmentId, onShowToast }) => {
+  const [sharedQuota, setSharedQuota] = useState<{ quotaBytes: number; usedBytes: number } | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [newQuotaGB, setNewQuotaGB] = useState<number>(0);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadSharedQuota = async () => {
+    try {
+      const data = await getSharedStoreQuotaApi(departmentId);
+      setSharedQuota(data);
+    } catch {
+      setSharedQuota({ quotaBytes: 0, usedBytes: 0 });
+    }
+  };
+
+  useEffect(() => {
+    loadSharedQuota();
+  }, [departmentId]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await setSharedStoreQuotaApi(departmentId, newQuotaGB * 1024 * 1024 * 1024);
+      onShowToast?.('success', `Đã cập nhật hạn mức Kho chung phòng lên ${newQuotaGB} GB.`);
+      setIsEditOpen(false);
+      await loadSharedQuota();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Không thể cập nhật hạn mức kho chung.';
+      onShowToast?.('error', msg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openEdit = () => {
+    setNewQuotaGB(sharedQuota ? Math.round(sharedQuota.quotaBytes / (1024 ** 3)) : 0);
+    setIsEditOpen(true);
+  };
+
+  if (!sharedQuota) return null;
+
+  return (
+    <>
+      <div className="bg-white rounded-2xl border border-indigo-200/80 p-4 shadow-2xs">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <FolderOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900">Kho chung phòng</p>
+              <p className="text-xs text-slate-500">Lưu trữ dùng chung cho toàn bộ phòng ban</p>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center gap-8 text-xs">
+            <div className="text-center">
+              <p className="text-slate-500 mb-0.5">Hạn mức</p>
+              <p className="font-bold text-slate-900">{formatBytesSimple(sharedQuota.quotaBytes)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-slate-500 mb-0.5">Đã dùng</p>
+              <p className="font-bold text-slate-900">{formatBytesSimple(sharedQuota.usedBytes)}</p>
+            </div>
+          </div>
+          <button
+            onClick={openEdit}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Sửa
+          </button>
+        </div>
+      </div>
+
+      {isEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <FolderOpen className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-base">Hạn mức Kho chung phòng</h3>
+              </div>
+              <button onClick={() => setIsEditOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <span className="text-base">✕</span>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-700">Hạn mức mới (GB)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={newQuotaGB}
+                  onChange={(e) => setNewQuotaGB(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                <button onClick={() => setIsEditOpen(false)} disabled={isSaving} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50">Huỷ</button>
+                <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                  {isSaving ? 'Đang lưu...' : 'Cập nhật'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 interface DepartmentQuotaViewProps {
   department: DepartmentInfo;
@@ -35,6 +167,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
 }) => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
+  const { departmentId } = useDepartment();
 
   const percentUsed =
     department.totalAllocatedGB > 0
@@ -148,7 +281,12 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Sub Tabs & Content */}
+      {/* 3. Kho chung phòng row */}
+      {departmentId && (
+        <SharedQuotaRow departmentId={departmentId} onShowToast={onShowToast} />
+      )}
+
+      {/* 4. Sub Tabs & Content */}
       <div className="space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-200">
           <button
