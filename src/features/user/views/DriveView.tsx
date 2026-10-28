@@ -37,7 +37,7 @@ interface DriveViewProps {
   searchQuery: string;
   activeFilter: DriveFilter;
   setActiveFilter: (filter: DriveFilter) => void;
-  onUploadFile: (files: FileList) => void;
+  onUploadFile?: (files: FileList) => void;
   onUploadDirectFile?: (files: FileList) => void;
   onOpenNewFolderModal: () => void;
   onOpenFilePreview: (file: DriveItem) => void;
@@ -191,13 +191,13 @@ export const DriveView: React.FC<DriveViewProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0 && onUploadFile) {
       onUploadFile(e.dataTransfer.files);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files && e.target.files.length > 0 && onUploadFile) {
       onUploadFile(e.target.files);
       e.target.value = '';
     }
@@ -207,7 +207,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
     if (e.target.files && e.target.files.length > 0) {
       if (onUploadDirectFile) {
         onUploadDirectFile(e.target.files);
-      } else {
+      } else if (onUploadFile) {
         onUploadFile(e.target.files);
       }
       e.target.value = '';
@@ -309,28 +309,32 @@ export const DriveView: React.FC<DriveViewProps> = ({
                 <span>Thư mục mới</span>
               </button>
 
-              {/* Nút 1: Tải trực tiếp Cloud (Phương pháp mới) */}
-              <button
-                onClick={() => directFileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-                title="Tải trực tiếp lên Cloud (Google Drive / OneDrive / S3) - Tốc độ cao, không nghẽn Server"
-              >
-                <UploadCloud className="w-4 h-4 stroke-[2.2]" />
-                <span>Tải lên Cloud (Direct)</span>
-                <span className="text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-full tracking-wide">
-                  Mới
-                </span>
-              </button>
+              {onUploadFile && (
+                <>
+                  {/* Nút 1: Tải trực tiếp Cloud (Phương pháp mới) */}
+                  <button
+                    onClick={() => directFileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                    title="Tải trực tiếp lên Cloud (Google Drive / OneDrive / S3) - Tốc độ cao, không nghẽn Server"
+                  >
+                    <UploadCloud className="w-4 h-4 stroke-[2.2]" />
+                    <span>Tải lên Cloud (Direct)</span>
+                    <span className="text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-full tracking-wide">
+                      Mới
+                    </span>
+                  </button>
 
-              {/* Nút 2: Tải qua Server (Phương pháp cũ) */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium shadow-xs transition-colors cursor-pointer"
-                title="Tải tệp qua Backend Server (Phương pháp truyền thống)"
-              >
-                <Server className="w-4 h-4 text-slate-500" />
-                <span>Tải qua Server</span>
-              </button>
+                  {/* Nút 2: Tải qua Server (Phương pháp cũ) */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium shadow-xs transition-colors cursor-pointer"
+                    title="Tải tệp qua Backend Server (Phương pháp truyền thống)"
+                  >
+                    <Server className="w-4 h-4 text-slate-500" />
+                    <span>Tải qua Server</span>
+                  </button>
+                </>
+              )}
             </>
 
           {/* View Mode Toggle */}

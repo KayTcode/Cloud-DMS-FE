@@ -76,8 +76,8 @@ export const API_ENDPOINTS = {
       `/folders/trash/empty?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
   },
   ADMIN_QUOTA_ALLOC: {
-    LIST: (tenantId: string) => `/admin/tenants/${tenantId}/quota-allocations`,
-    ADD: (tenantId: string) => `/admin/tenants/${tenantId}/quota-allocations`,
-    REDUCE: (tenantId: string) => `/admin/tenants/${tenantId}/quota-allocations/reduce`,
+    GET: (tenantId: string) => `/admin/tenants/${tenantId}/quota`,
+    GRANT: (tenantId: string) => `/admin/tenants/${tenantId}/quota/grant`,
+    REDUCE: (tenantId: string) => `/admin/tenants/${tenantId}/quota/reduce`,
   },
 } as const;

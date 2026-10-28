@@ -12,41 +12,37 @@ import {
 export const folderApi = {
   getRoot: (driveKind: string, driveOwnerId: string) =>
     apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.FOLDERS.ROOT(driveKind, driveOwnerId))
-      .then((r) => r.data),
+      .then((r: any) => r?.value ?? r),
 
   getChildren: (folderId: string) =>
     apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.FOLDERS.CHILDREN(folderId))
-      .then((r) => r.data),
+      .then((r: any) => r?.value ?? r),
 
   createFolder: (payload: CreateFolderPayload) =>
     apiClient.post<FolderDto>(API_ENDPOINTS.FOLDERS.CREATE, payload)
-      .then((r) => r.data),
+      .then((r: any) => r?.value ?? r),
 
   renameFolder: (folderId: string, payload: RenameFolderPayload) =>
     apiClient.put<FolderDto>(API_ENDPOINTS.FOLDERS.RENAME(folderId), payload)
-      .then((r) => r.data),
+      .then((r: any) => r?.value ?? r),
 
   moveFolder: (folderId: string, payload: MoveFolderPayload) =>
     apiClient.put<FolderDto>(API_ENDPOINTS.FOLDERS.MOVE(folderId), payload)
-      .then((r) => r.data),
+      .then((r: any) => r?.value ?? r),
 
   trashFolder: (folderId: string) =>
-    apiClient.put(API_ENDPOINTS.FOLDERS.TRASH(folderId))
-      .then((r) => r.data),
+    apiClient.put(API_ENDPOINTS.FOLDERS.TRASH(folderId)),
 
   restoreFolder: (folderId: string) =>
-    apiClient.put(API_ENDPOINTS.FOLDERS.RESTORE(folderId))
-      .then((r) => r.data),
+    apiClient.put(API_ENDPOINTS.FOLDERS.RESTORE(folderId)),
 
   purgeFolder: (folderId: string) =>
-    apiClient.delete(API_ENDPOINTS.FOLDERS.PURGE(folderId))
-      .then((r) => r.data),
+    apiClient.delete(API_ENDPOINTS.FOLDERS.PURGE(folderId)),
 
   getTrash: (driveKind: string, driveOwnerId: string) =>
     apiClient.get<TrashFolderItem[]>(API_ENDPOINTS.FOLDERS.TRASH_LIST(driveKind, driveOwnerId))
-      .then((r) => r.data),
+      .then((r: any) => r?.value ?? r),
 
   emptyTrash: (driveKind: string, driveOwnerId: string) =>
-    apiClient.delete(API_ENDPOINTS.FOLDERS.EMPTY_TRASH(driveKind, driveOwnerId))
-      .then((r) => r.data),
+    apiClient.delete(API_ENDPOINTS.FOLDERS.EMPTY_TRASH(driveKind, driveOwnerId)),
 };

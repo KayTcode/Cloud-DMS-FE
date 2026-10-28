@@ -81,7 +81,7 @@ export const AllocateQuotaModal: React.FC<AllocateQuotaModalProps> = ({
     setIsLoadingAllocations(true);
     try {
       const res = await getTenantQuotaAllocationsApi(tenantUser.tenantId);
-      setAllocations(res?.parts ?? []);
+      setAllocations(res?.allocations ?? []);
     } catch {
       setAllocations([]);
     } finally {
@@ -120,7 +120,7 @@ export const AllocateQuotaModal: React.FC<AllocateQuotaModalProps> = ({
           }
         }
 
-        setAllocations(allocationRes?.parts ?? []);
+        setAllocations(allocationRes?.allocations ?? []);
 
         let targetId = '';
         if (
@@ -164,7 +164,7 @@ export const AllocateQuotaModal: React.FC<AllocateQuotaModalProps> = ({
 
   if (!isOpen || !tenantUser) return null;
 
-  const handleReduce = async (allocationId: string) => {
+  const handleReduce = async (_allocationId: string) => {
     if (!tenantUser.tenantId) return;
     setIsReducing(true);
     setReduceError(null);

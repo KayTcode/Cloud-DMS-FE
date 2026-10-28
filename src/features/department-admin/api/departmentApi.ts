@@ -119,8 +119,8 @@ export const getSharedStoreQuotaApi = (deptId: string): Promise<{
   quotaBytes: number;
   usedBytes: number;
 }> =>
-  apiClient.get(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId)).then(r => (r as any).data);
+  apiClient.get(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId));
 
 // PUT /department/{deptId}/quota/shared
 export const setSharedStoreQuotaApi = (deptId: string, quotaBytes: number): Promise<void> =>
-  apiClient.put(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId), { quotaBytes }).then(r => (r as any).data);
+  apiClient.put(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId), { quotaBytes });

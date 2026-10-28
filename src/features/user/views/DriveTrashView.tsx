@@ -89,10 +89,11 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
   const loadTrash = useCallback(async () => {
     setLoading(true);
     try {
-      const [folderTrash, fileTrash] = await Promise.all([
+      const [folderTrash, fileTrashRaw] = await Promise.all([
         folderApi.getTrash(driveKind, driveOwnerId),
-        driveApi.getTrashFiles(1, 100),
+        driveKind === 'Personal' ? driveApi.getTrashFiles(1, 100) : Promise.resolve({ items: [], totalCount: 0 }),
       ]);
+      const fileTrash = fileTrashRaw as { items: DriveItem[]; totalCount: number };
 
       const folderItems: TrashDisplayItem[] = (folderTrash as TrashFolderItem[]).map((f) => ({
         id: f.id,
@@ -174,9 +175,11 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
     setActionLoading(true);
     try {
       await folderApi.emptyTrash(driveKind, driveOwnerId);
-      // Also delete all individual file items
-      const fileItems = items.filter((i) => i.type === 'file' && !i.lockedByParent);
-      await Promise.allSettled(fileItems.map((f) => driveApi.deletePermanently(f.id)));
+      if (driveKind === 'Personal') {
+        // Also delete all individual file items
+        const fileItems = items.filter((i) => i.type === 'file' && !i.lockedByParent);
+        await Promise.allSettled(fileItems.map((f) => driveApi.deletePermanently(f.id)));
+      }
       showNotification('Đã dọn sạch thùng rác!', 'success');
       await loadTrash();
     } catch (e: any) {

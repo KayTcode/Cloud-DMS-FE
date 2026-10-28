@@ -255,6 +255,7 @@ export const SharedStoreView: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === 'files' && (
+        // TODO: replace with shared-store scoped file listing when BE endpoint available
         <DriveView
           items={driveItems}
           currentUser={currentUser}
@@ -263,8 +264,8 @@ export const SharedStoreView: React.FC = () => {
           searchQuery={searchQuery}
           activeFilter={activeFilter}
           setActiveFilter={setActiveFilter}
-          onUploadFile={handleUploadFiles}
-          onUploadDirectFile={handleUploadDirectFiles}
+          onUploadFile={undefined}
+          onUploadDirectFile={undefined}
           onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
           onOpenFilePreview={() => {}}
           onToggleStar={() => {}}
