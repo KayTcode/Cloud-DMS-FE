@@ -11,12 +11,14 @@ import {
   Inbox
 } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
-import { QuotaRequestDto } from '../types/quota.types';
+import { PendingQuotaRequestDto, QuotaRequestDto } from '../types/quota.types';
 import { DecideQuotaModal } from './DecideQuotaModal';
 
 interface PendingQuotaTableProps {
   onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
   onCountChange?: (count: number) => void;
+  onDecisionSuccess?: () => void;
+  onRequestTopUp?: (shortfallBytes: number) => void;
 }
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
@@ -24,10 +26,12 @@ const GB_IN_BYTES = 1024 * 1024 * 1024;
 export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
   onShowToast,
   onCountChange,
+  onDecisionSuccess,
+  onRequestTopUp,
 }) => {
-  const [requests, setRequests] = useState<QuotaRequestDto[]>([]);
+  const [requests, setRequests] = useState<PendingQuotaRequestDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [selectedRequest, setSelectedRequest] = useState<QuotaRequestDto | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<PendingQuotaRequestDto | null>(null);
   const [isDecideModalOpen, setIsDecideModalOpen] = useState<boolean>(false);
 
   const fetchPending = useCallback(async () => {
@@ -48,7 +52,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
     fetchPending();
   }, [fetchPending]);
 
-  const handleOpenDecide = (req: QuotaRequestDto) => {
+  const handleOpenDecide = (req: PendingQuotaRequestDto) => {
     setSelectedRequest(req);
     setIsDecideModalOpen(true);
   };
@@ -56,6 +60,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
   const handleDecideSuccess = (_updated: QuotaRequestDto, message: string) => {
     onShowToast?.(message, 'success');
     fetchPending();
+    onDecisionSuccess?.();
   };
 
   return (
@@ -141,6 +146,11 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
                           <span className="text-[11px] text-slate-400 truncate block">
                             {req.requesterEmail}
                           </span>
+                          {req.requesterDepartmentName && (
+                            <span className="text-[11px] text-slate-500 truncate block">
+                              Phòng ban: {req.requesterDepartmentName}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {/* Cảnh báo leo thang nếu có */}
@@ -216,6 +226,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
           setSelectedRequest(null);
         }}
         onSuccess={handleDecideSuccess}
+        onRequestTopUp={onRequestTopUp}
       />
     </div>
   );

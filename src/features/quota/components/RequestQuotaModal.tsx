@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, HardDrive, Calendar, AlertCircle, Info, Sparkles } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
 import { QuotaRequestDto } from '../types/quota.types';
@@ -10,6 +10,7 @@ interface RequestQuotaModalProps {
   currentQuotaBytes?: number;
   maxAvailableBytes?: number | null;
   onSuccess: (request: QuotaRequestDto) => void;
+  initialRequestedBytes?: number;
 }
 
 const MAX_GB = 500;
@@ -20,6 +21,7 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   onClose,
   maxAvailableBytes,
   onSuccess,
+  initialRequestedBytes,
 }) => {
   const [requestedGB, setRequestedGB] = useState<number>(5);
   const [isTemporary, setIsTemporary] = useState<boolean>(false);
@@ -31,6 +33,12 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   const [reason, setReason] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialRequestedBytes && initialRequestedBytes > 0) {
+      setRequestedGB(Math.ceil(initialRequestedBytes / GB_IN_BYTES));
+    }
+  }, [isOpen, initialRequestedBytes]);
 
   if (!isOpen) return null;
 

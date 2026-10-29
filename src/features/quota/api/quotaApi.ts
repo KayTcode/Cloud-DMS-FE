@@ -5,6 +5,7 @@ import {
   DecideQuotaRequestPayload,
   GetQuotaHistoryFilter,
   PagedResult,
+  PendingQuotaRequestDto,
   QuotaFeatureMetricsDto,
   QuotaHistoryDto,
   QuotaRequestDto,
@@ -24,7 +25,7 @@ export const quotaApi = {
   },
 
   // Lấy danh sách yêu cầu đang chờ chính người dùng hiện tại duyệt (DeptAdmin / TenantAdmin)
-  getPendingForMe: async (): Promise<QuotaRequestDto[]> => {
+  getPendingForMe: async (): Promise<PendingQuotaRequestDto[]> => {
     const res: any = await apiClient.get(API_ENDPOINTS.QUOTA.PENDING_FOR_ME);
     const data = res?.value ?? res?.data ?? res;
     return Array.isArray(data) ? data : [];

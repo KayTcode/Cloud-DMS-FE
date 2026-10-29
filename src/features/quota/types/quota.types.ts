@@ -33,6 +33,14 @@ export interface QuotaRequestDto {
   escalatedForOverdue: boolean;
 }
 
+export interface PendingQuotaRequestDto extends QuotaRequestDto {
+  requesterDepartmentId?: string | null;
+  requesterDepartmentName?: string | null;
+  sourceRemainingBytes: number | null;
+  viewerOwnsSource: boolean;
+  viewerHasPendingRequest: boolean;
+}
+
 export interface QuotaHistoryDto {
   id: string;
   accountId: string;

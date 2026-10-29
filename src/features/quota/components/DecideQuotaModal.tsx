@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, XCircle, AlertTriangle, User, Calendar, FileText, HardDrive, Loader2 } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
-import { QuotaRequestDto } from '../types/quota.types';
-import { GB_IN_BYTES, checkAvailability, bytesToGB } from '../utils/quotaAvailability';
+import { PendingQuotaRequestDto, QuotaRequestDto } from '../types/quota.types';
+import { GB_IN_BYTES, bytesToGB } from '../utils/quotaAvailability';
 import { StorageProviderItem } from '../../system-admin/types/systemAdmin.dto';
 import { getStorageProvidersApi } from '../../system-admin/api/systemAdminQueries';
 
 interface DecideQuotaModalProps {
   isOpen: boolean;
-  request: QuotaRequestDto | null;
+  request: PendingQuotaRequestDto | null;
   onClose: () => void;
   onSuccess: (updated: QuotaRequestDto, message: string) => void;
-  maxAvailableBytes?: number | null;
+  onRequestTopUp?: (shortfallBytes: number) => void;
 }
 
 export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
@@ -19,7 +19,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   request,
   onClose,
   onSuccess,
-  maxAvailableBytes,
+  onRequestTopUp,
 }) => {
   const [mode, setMode] = useState<'approve' | 'reject'>('approve');
   const [approvalType, setApprovalType] = useState<'full' | 'partial'>('full');
@@ -31,7 +31,17 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   const [providers, setProviders] = useState<StorageProviderItem[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState<boolean>(false);
 
-  const isTenantAdminRequest = request?.requesterRole === 'TenantAdmin';
+  const bytesToApprove = !request
+    ? 0
+    : approvalType === 'partial'
+      ? Math.round((partialGB || 0) * GB_IN_BYTES)
+      : request.requestedAdditionalBytes;
+  const remaining = request?.sourceRemainingBytes ?? null;
+  const isShort = remaining !== null && bytesToApprove > remaining;
+  const showProviderSelector =
+    !!request &&
+    (request.requesterRole === 'TenantAdmin' ||
+      (request.requesterRole === 'DepartmentAdmin' && !request.viewerOwnsSource && isShort));
 
   useEffect(() => {
     if (request) {
@@ -43,16 +53,19 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
       setErrorMessage(null);
       setStorageProviderId('');
       setProviders([]);
-
-      if (request.requesterRole === 'TenantAdmin') {
-        setIsLoadingProviders(true);
-        getStorageProvidersApi()
-          .then((data) => setProviders(data))
-          .catch((err) => console.error('Failed to load providers:', err))
-          .finally(() => setIsLoadingProviders(false));
-      }
     }
   }, [request]);
+
+  useEffect(() => {
+    if (!showProviderSelector) return;
+    let cancelled = false;
+    setIsLoadingProviders(true);
+    getStorageProvidersApi()
+      .then((data) => { if (!cancelled) setProviders(data); })
+      .catch((err) => console.error('Failed to load providers:', err))
+      .finally(() => { if (!cancelled) setIsLoadingProviders(false); });
+    return () => { cancelled = true; };
+  }, [showProviderSelector, request]);
 
   if (!isOpen || !request) return null;
 
@@ -61,7 +74,6 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
 
   const handleApprove = async () => {
     setErrorMessage(null);
-    let bytesToApprove = request.requestedAdditionalBytes;
 
     if (approvalType === 'partial') {
       if (!partialGB || partialGB <= 0) {
@@ -72,16 +84,14 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         setErrorMessage(`Dung lượng duyệt một phần không được vượt quá mức yêu cầu (${requestedGB} GB).`);
         return;
       }
-      bytesToApprove = Math.round(partialGB * GB_IN_BYTES);
     }
 
-    const availability = checkAvailability(bytesToApprove, maxAvailableBytes);
-    if (!availability.ok) {
-      setErrorMessage(availability.message!);
+    if (isShort && !showProviderSelector) {
+      setErrorMessage('Nguồn cấp không đủ dung lượng cho mức duyệt này.');
       return;
     }
 
-    if (isTenantAdminRequest && !storageProviderId) {
+    if (showProviderSelector && !storageProviderId) {
       setErrorMessage('Vui lòng chọn tài khoản lưu trữ để phân bổ quota.');
       return;
     }
@@ -91,7 +101,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
       const payload: { approvedAdditionalBytes: number; storageProviderId?: string } = {
         approvedAdditionalBytes: bytesToApprove,
       };
-      if (isTenantAdminRequest && storageProviderId) {
+      if (showProviderSelector && storageProviderId) {
         payload.storageProviderId = storageProviderId;
       }
       const updated = await quotaApi.decideRequest(request.id, payload);
@@ -156,7 +166,8 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
               Xử lý yêu cầu tăng Quota
             </h3>
             <p className="text-xs text-slate-500">
-              Yêu cầu từ nhân viên <span className="font-semibold text-slate-700">{request.requesterName}</span>
+              Yêu cầu từ <span className="font-semibold text-slate-700">{request.requesterName}</span>
+              {request.requesterDepartmentName ? ` (${request.requesterDepartmentName})` : ''}
             </p>
           </div>
           <button
@@ -257,8 +268,41 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         {/* Form phê duyệt */}
         {mode === 'approve' && (
           <div className="mt-4 space-y-3 animate-in fade-in duration-150">
-            {/* Provider selector — only for TenantAdmin requests */}
-            {isTenantAdminRequest && (
+            {isShort && remaining !== null && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    {(request.requesterRole === 'Employee' || request.requesterRole === 'DepartmentAdmin') && (
+                      <span className="font-semibold block">
+                        {request.requesterRole === 'Employee' ? 'Phòng ban' : 'Tổ chức'}
+                      </span>
+                    )}
+                    <span>
+                      Nguồn cấp còn {bytesToGB(remaining)} GB, thiếu {bytesToGB(bytesToApprove - remaining)} GB.
+                    </span>
+                  </div>
+                </div>
+                {request.viewerOwnsSource && !request.viewerHasPendingRequest && (
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => {
+                      onRequestTopUp?.(bytesToApprove - remaining);
+                      onClose();
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Xin thêm từ cấp trên
+                  </button>
+                )}
+                {request.viewerOwnsSource && request.viewerHasPendingRequest && (
+                  <p className="font-medium">Bạn đã gửi yêu cầu lên cấp trên, đang chờ duyệt.</p>
+                )}
+              </div>
+            )}
+            {/* Provider selector — TenantAdmin requests, hoặc System admin bù quota cho Tổ chức */}
+            {showProviderSelector && (
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-700">
                   Tài khoản lưu trữ <span className="text-rose-500">*</span>
@@ -392,7 +436,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
           {mode === 'approve' ? (
             <button
               type="button"
-              disabled={isLoading}
+              disabled={isLoading || (isShort && !showProviderSelector)}
               onClick={handleApprove}
               className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
