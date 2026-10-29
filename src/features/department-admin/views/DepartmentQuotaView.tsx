@@ -166,6 +166,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
   onShowToast,
 }) => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [topUpBytes, setTopUpBytes] = useState<number | undefined>(undefined);
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
   const { departmentId } = useDepartment();
 
@@ -210,7 +211,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
         {/* Nút yêu cầu xin thêm hạn ngạch phòng ban */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsRequestModalOpen(true)}
+            onClick={() => { setTopUpBytes(undefined); setIsRequestModalOpen(true); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
@@ -322,6 +323,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
               </div>
             </div>
             <PendingQuotaTable
+              onRequestTopUp={(bytes) => { setTopUpBytes(bytes); setIsRequestModalOpen(true); }}
               onDecisionSuccess={() => {
                 onShowToast?.('success', 'Đã ghi nhận quyết định phê duyệt thành công.');
                 onQuotaUpdated?.();
@@ -336,6 +338,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
       {/* Request Quota Modal */}
       <RequestQuotaModal
         isOpen={isRequestModalOpen}
+        initialRequestedBytes={topUpBytes}
         onClose={() => setIsRequestModalOpen(false)}
         onSuccess={handleRequestCreated}
       />

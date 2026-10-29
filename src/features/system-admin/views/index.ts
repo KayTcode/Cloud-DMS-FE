@@ -4,3 +4,4 @@ export * from './StorageProvidersView';
 export * from './AuditLogsView';
 export * from './SettingsView';
 export * from './AdminHubView';
+export * from './QuotaApprovalsView';

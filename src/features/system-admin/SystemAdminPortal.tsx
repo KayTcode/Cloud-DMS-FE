@@ -34,7 +34,8 @@ import {
   StorageProvidersView, 
   AuditLogsView, 
   SettingsView,
-  AdminHubView 
+  AdminHubView,
+  QuotaApprovalsView
 } from './views';
 import { 
   CreateTenantModal, 
@@ -398,6 +399,10 @@ export const SystemAdminPortal: React.FC = () => {
           onAddToast={addToast}
           onProvidersChange={refreshProviders}
         />
+      )}
+
+      {activeNav === 'quota-approvals' && (
+        <QuotaApprovalsView onAddToast={addToast} />
       )}
 
       {/* --------------------------------------------------------------------------------- */}

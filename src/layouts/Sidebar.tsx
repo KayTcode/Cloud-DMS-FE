@@ -14,6 +14,7 @@ import {
   Trash2,
   Share2,
   FolderOpen,
+  Inbox,
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -95,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
         { id: 'tenants', label: 'Tenants', icon: Database },
         { id: 'storage-providers', label: 'Storage Providers', icon: HardDrive },
+        { id: 'quota-approvals', label: 'Duyệt quota', icon: Inbox },
         { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
         { id: 'settings', label: 'Settings', icon: Settings },
       ];
