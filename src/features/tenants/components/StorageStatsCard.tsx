@@ -27,9 +27,9 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
   const [files, setFiles] = useState<FileItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch real files from database for dynamic categorization
+  // Fetch real files from database for dynamic categorization only if fileCategories is not yet provided
   useEffect(() => {
-    if (tenant.id) {
+    if (tenant.id && !tenant.fileCategories) {
       let isMounted = true;
       setIsLoading(true);
       getTenantFilesApi(tenant.id)
@@ -49,7 +49,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
         isMounted = false;
       };
     }
-  }, [tenant.id, tenant.storageUsedBytes]);
+  }, [tenant.id, tenant.storageUsedBytes, tenant.fileCategories]);
 
   // Real Quota from DB (storageQuotaBytes) with fallback to TB conversion
   const totalAllocatedGB = tenant.storageQuotaBytes
@@ -61,7 +61,10 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
     return acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3)));
   }, 0);
 
-  const realFilesUsedBytes = files.reduce((acc, f) => acc + f.sizeBytes, 0);
+  const realFilesUsedBytes = tenant.storageUsedBytes
+    ?? (tenant.fileCategories
+      ? (tenant.fileCategories.documentsBytes + tenant.fileCategories.mediaBytes + tenant.fileCategories.archivesBytes + tenant.fileCategories.othersBytes)
+      : files.reduce((acc, f) => acc + f.sizeBytes, 0));
 
   // Dung lượng Tenant đã cấp / sử dụng: ưu tiên tổng dung lượng đã cấp cho các phòng ban
   const effectiveAllocatedBytes = (tenant.allocatedToDepartmentsBytes && tenant.allocatedToDepartmentsBytes > 0)
@@ -73,48 +76,62 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
   const percentUsed = totalAllocatedGB > 0 ? Math.min(100, Math.round((totalUsedGB / totalAllocatedGB) * 100)) : 0;
   const percentFree = Math.max(0, 100 - percentUsed);
 
-  // Dynamically calculate category storage usage from real files in database
+  // Total files count from overview summary or fallback to files list
+  const totalFilesCount = tenant.totalFilesCount ?? files.length;
+
+  // Dynamically calculate category storage usage from BE aggregated breakdown or fallback to client file list
   const categories = useMemo(() => {
     let docsBytes = 0, docsCount = 0;
     let mediaBytes = 0, mediaCount = 0;
     let dataBytes = 0, dataCount = 0;
     let archiveBytes = 0, archiveCount = 0;
 
-    files.forEach((file) => {
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const mime = (file.contentType || '').toLowerCase();
+    if (tenant.fileCategories) {
+      docsBytes = tenant.fileCategories.documentsBytes || 0;
+      docsCount = tenant.fileCategories.documentsCount || 0;
+      mediaBytes = tenant.fileCategories.mediaBytes || 0;
+      mediaCount = tenant.fileCategories.mediaCount || 0;
+      archiveBytes = tenant.fileCategories.archivesBytes || 0;
+      archiveCount = tenant.fileCategories.archivesCount || 0;
+      dataBytes = tenant.fileCategories.othersBytes || 0;
+      dataCount = tenant.fileCategories.othersCount || 0;
+    } else {
+      files.forEach((file) => {
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const mime = (file.contentType || '').toLowerCase();
 
-      if (
-        mime.includes('pdf') ||
-        mime.includes('word') ||
-        mime.includes('text') ||
-        ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext)
-      ) {
-        docsBytes += file.sizeBytes;
-        docsCount++;
-      } else if (
-        mime.includes('image') ||
-        mime.includes('video') ||
-        mime.includes('audio') ||
-        ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'mp4', 'mov', 'avi', 'mp3'].includes(ext)
-      ) {
-        mediaBytes += file.sizeBytes;
-        mediaCount++;
-      } else if (
-        mime.includes('excel') ||
-        mime.includes('spreadsheet') ||
-        mime.includes('csv') ||
-        mime.includes('json') ||
-        mime.includes('sql') ||
-        ['xls', 'xlsx', 'csv', 'json', 'sql', 'db'].includes(ext)
-      ) {
-        dataBytes += file.sizeBytes;
-        dataCount++;
-      } else {
-        archiveBytes += file.sizeBytes;
-        archiveCount++;
-      }
-    });
+        if (
+          mime.includes('pdf') ||
+          mime.includes('word') ||
+          mime.includes('text') ||
+          ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext)
+        ) {
+          docsBytes += file.sizeBytes;
+          docsCount++;
+        } else if (
+          mime.includes('image') ||
+          mime.includes('video') ||
+          mime.includes('audio') ||
+          ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'mp4', 'mov', 'avi', 'mp3'].includes(ext)
+        ) {
+          mediaBytes += file.sizeBytes;
+          mediaCount++;
+        } else if (
+          mime.includes('excel') ||
+          mime.includes('spreadsheet') ||
+          mime.includes('csv') ||
+          mime.includes('json') ||
+          mime.includes('sql') ||
+          ['xls', 'xlsx', 'csv', 'json', 'sql', 'db'].includes(ext)
+        ) {
+          dataBytes += file.sizeBytes;
+          dataCount++;
+        } else {
+          archiveBytes += file.sizeBytes;
+          archiveCount++;
+        }
+      });
+    }
 
     const formatAdaptiveSize = (bytes: number, targetUnit: 'GB' | 'TB') => {
       if (!bytes || bytes <= 0) return '0 B';
@@ -180,7 +197,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
         filesCount: `${archiveCount.toLocaleString()} tệp`,
       },
     ];
-  }, [files, unit]);
+  }, [tenant.fileCategories, files, unit]);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs hover:shadow-xs transition-shadow">
@@ -296,7 +313,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
               <span>ClamAV & SHA-256</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
-              {files.length > 0 ? `${files.length} tệp tin an toàn` : 'Chưa có tệp tin'}
+              {totalFilesCount > 0 ? `${totalFilesCount.toLocaleString()} tệp tin an toàn` : 'Chưa có tệp tin'}
             </div>
           </div>
         </div>
@@ -309,7 +326,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
-              {files.length.toLocaleString()}
+              {totalFilesCount.toLocaleString()}
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
               đã đồng bộ trên Cloud

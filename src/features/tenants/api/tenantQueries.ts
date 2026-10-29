@@ -7,11 +7,14 @@ export interface TenantQuotaData {
   tenantId: string;
   tenantName: string;
   tenantCode: string;
+  isActive?: boolean;
   storageProviderId?: string;
   storageProviderName?: string;
   storageQuotaBytes: number;
-  storageUsedBytes: number;
-  allocatedToDepartmentsBytes?: number;
+  storageUsedBytes: number; // Số lượng quota tenant còn lại sau khi cấp cho các phòng ban
+  allocatedToDepartmentsBytes?: number; // Tổng Quota đã cấp cho các phòng ban
+  unallocatedBytes?: number; // Quota còn lại chưa phân bổ cho phòng ban
+  actualStorageUsedBytes?: number; // Dung lượng dữ liệu file thực tế
   availableBytes: number;
   usagePercentage: number;
 }
@@ -26,11 +29,12 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
     const data = res?.value || res?.data || res;
     if (data && (typeof data.storageQuotaBytes === 'number' || data.tenantId)) {
       const qBytes = Number(data.storageQuotaBytes || 0);
-      const uBytes = Number(data.storageUsedBytes || 0);
       const allocDeptsBytes = Number(data.allocatedToDepartmentsBytes || 0);
-      const effectiveAllocated = Math.max(allocDeptsBytes, uBytes);
-      const availBytes = Number(data.availableBytes ?? Math.max(0, qBytes - effectiveAllocated));
-      const usagePct = Number(data.usagePercentage ?? (qBytes > 0 ? Math.round((effectiveAllocated / qBytes) * 100) : 0));
+      const unallocBytes = Number(data.unallocatedBytes ?? (data.storageUsedBytes !== undefined ? data.storageUsedBytes : Math.max(0, qBytes - allocDeptsBytes)));
+      const uBytes = unallocBytes; // Quota còn lại sau khi cấp cho các phòng ban
+      const actualUsed = Number(data.actualStorageUsedBytes || 0);
+      const availBytes = Number(data.availableBytes ?? unallocBytes);
+      const usagePct = Number(data.usagePercentage ?? (qBytes > 0 ? Math.round((allocDeptsBytes / qBytes) * 100) : 0));
 
       return {
         tenantId: data.tenantId,
@@ -41,6 +45,8 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
         storageQuotaBytes: qBytes,
         storageUsedBytes: uBytes,
         allocatedToDepartmentsBytes: allocDeptsBytes,
+        unallocatedBytes: unallocBytes,
+        actualStorageUsedBytes: actualUsed,
         availableBytes: availBytes,
         usagePercentage: usagePct,
       };
@@ -48,6 +54,78 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
     return null;
   } catch (error) {
     console.warn('[Tenant] Lỗi khi lấy Quota của Tenant:', error);
+    return null;
+  }
+}
+
+export interface TenantOverviewSummary {
+  tenantId: string;
+  tenantName: string;
+  tenantCode: string;
+  isActive: boolean;
+  storageProviderId?: string;
+  storageProviderName?: string;
+  storageQuotaBytes: number;
+  allocatedToDepartmentsBytes: number;
+  unallocatedBytes: number;
+  availableBytes: number;
+  usagePercentage: number;
+  usersCount: number;
+  departmentsCount: number;
+  totalFilesCount: number;
+  actualStorageUsedBytes: number;
+  fileCategories: {
+    documentsBytes: number;
+    documentsCount: number;
+    mediaBytes: number;
+    mediaCount: number;
+    archivesBytes: number;
+    archivesCount: number;
+    othersBytes: number;
+    othersCount: number;
+  };
+}
+
+/**
+ * Query: Lấy toàn bộ số liệu tổng quan của Tenant trong 1 API duy nhất (Single Overview Summary BFF API)
+ * Khớp BE: GET /api/tenant/{tenantId}/overview-summary
+ */
+export async function getTenantOverviewSummary(tenantId: string): Promise<TenantOverviewSummary | null> {
+  try {
+    const res: any = await apiClient.get(`/tenant/${tenantId}/overview-summary`);
+    const data = res?.value || res?.data || res;
+    if (data && (typeof data.storageQuotaBytes === 'number' || data.tenantId)) {
+      return {
+        tenantId: data.tenantId,
+        tenantName: data.tenantName,
+        tenantCode: data.tenantCode,
+        isActive: !!data.isActive,
+        storageProviderId: data.storageProviderId,
+        storageProviderName: data.storageProviderName,
+        storageQuotaBytes: Number(data.storageQuotaBytes || 0),
+        allocatedToDepartmentsBytes: Number(data.allocatedToDepartmentsBytes || 0),
+        unallocatedBytes: Number(data.unallocatedBytes || 0),
+        availableBytes: Number(data.availableBytes || 0),
+        usagePercentage: Number(data.usagePercentage || 0),
+        usersCount: Number(data.usersCount || 0),
+        departmentsCount: Number(data.departmentsCount || 0),
+        totalFilesCount: Number(data.totalFilesCount || 0),
+        actualStorageUsedBytes: Number(data.actualStorageUsedBytes || 0),
+        fileCategories: data.fileCategories || {
+          documentsBytes: 0,
+          documentsCount: 0,
+          mediaBytes: 0,
+          mediaCount: 0,
+          archivesBytes: 0,
+          archivesCount: 0,
+          othersBytes: 0,
+          othersCount: 0,
+        },
+      };
+    }
+    return null;
+  } catch (error) {
+    console.warn('[Tenant] Không thể nạp /overview-summary từ BE:', error);
     return null;
   }
 }
@@ -70,9 +148,8 @@ export async function getTenantDetails(tenantId: string): Promise<TenantInfo> {
  */
 export async function getTenantUsers(tenantId: string): Promise<TenantUser[]> {
   try {
-    const res: any = await apiClient.get('/admin/users', {
+    const res: any = await apiClient.get(`/tenants/${tenantId}/users`, {
       params: {
-        TenantId: tenantId,
         PageSize: 100,
       },
     });

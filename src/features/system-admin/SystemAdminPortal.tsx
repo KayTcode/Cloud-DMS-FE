@@ -20,8 +20,7 @@ import {
 import { 
   createAdminUserApi,
   updateAdminUserApi,
-  resetUserPasswordApi,
-  changeUserStatusApi,
+    changeUserStatusApi,
   deleteAdminUserApi,
   createSystemTenantApi, 
   toggleTenantStatusApi, 
@@ -34,14 +33,14 @@ import {
   StorageProvidersView, 
   AuditLogsView, 
   SettingsView,
-  AdminHubView 
+  AdminHubView,
+  QuotaRequestsView 
 } from './views';
 import { 
   CreateTenantModal, 
   TenantDetailsModal,
   EditUserModal,
-  ResetPasswordModal,
-  AllocateQuotaModal
+    AllocateQuotaModal
 } from './components';
 import { TenantPortal } from '@/features/tenants/TenantPortal';
 import { ArrowLeft } from 'lucide-react';
@@ -89,8 +88,7 @@ export const SystemAdminPortal: React.FC = () => {
   // State quản lý Trạng thái bật/tắt của các Dialog / Pop-up (Modals)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserDto | null>(null);
-  const [resettingUser, setResettingUser] = useState<AdminUserDto | null>(null);
-  const [selectedQuickTenant, setSelectedQuickTenant] = useState<SystemTenant | null>(null);
+    const [selectedQuickTenant, setSelectedQuickTenant] = useState<SystemTenant | null>(null);
   const [deepDetailTenantId, setDeepDetailTenantId] = useState<string | null>(null);
   const [quotaUser, setQuotaUser] = useState<AdminUserDto | null>(null);
 
@@ -235,15 +233,7 @@ export const SystemAdminPortal: React.FC = () => {
     }
   };
 
-  // [POST API] Đặt lại mật khẩu người dùng -> POST /api/admin/users/{id}/reset-password
-  const handleResetPassword = async (id: string, newPassword: string) => {
-    try {
-      await resetUserPasswordApi(id, { newPassword });
-      addToast('success', 'Đã đặt lại mật khẩu thành công!');
-    } catch (err: any) {
-      addToast('error', err.message || 'Lỗi khi đặt lại mật khẩu.');
-    }
-  };
+  
 
   // [PATCH/POST API] Khóa / Mở khóa tài khoản người dùng -> POST /api/admin/users/{id}/status
   const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
@@ -364,8 +354,7 @@ export const SystemAdminPortal: React.FC = () => {
             });
           }}
           onOpenEditModal={(u) => setEditingUser(u)}
-          onOpenResetPasswordModal={(u) => setResettingUser(u)}
-          onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
+                    onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
           onToggleStatus={handleToggleUserStatus}
           onDeleteUser={handleDeleteUser}
         />
@@ -401,6 +390,13 @@ export const SystemAdminPortal: React.FC = () => {
       )}
 
       {/* --------------------------------------------------------------------------------- */}
+      {/* SUB-VIEW 3b: Màn hình Phê duyệt Yêu cầu Quota của Tenant (Quota Requests)          */}
+      {/* --------------------------------------------------------------------------------- */}
+      {activeNav === 'quota-requests' && (
+        <QuotaRequestsView />
+      )}
+
+      {/* --------------------------------------------------------------------------------- */}
       {/* SUB-VIEW 4: Màn hình Nhật ký kiểm toán hệ thống (Audit Logs)                       */}
       {/* --------------------------------------------------------------------------------- */}
       {activeNav === 'audit-logs' && (
@@ -432,19 +428,17 @@ export const SystemAdminPortal: React.FC = () => {
         onUpdate={handleUpdateUser}
       />
 
-      <ResetPasswordModal
-        user={resettingUser}
-        isOpen={!!resettingUser}
-        onClose={() => setResettingUser(null)}
-        onReset={handleResetPassword}
-      />
-
-      <TenantDetailsModal
+            <TenantDetailsModal
         tenant={selectedQuickTenant}
         onClose={() => setSelectedQuickTenant(null)}
         onToggleStatus={(tenantId) => toggleTenantStatusApi(tenantId, selectedQuickTenant?.status || 'Active')}
         onChangePlan={(tenantId, plan) => changeTenantPlanApi(tenantId, plan)}
         onOpenPortal={handleOpenDeepPortal}
+        onQuotaUpdated={() => {
+          loadDashboardData();
+          getStorageProvidersApi().then(setProviders).catch(() => {});
+          addToast('success', 'Hạn mức Quota của Tenant đã được cập nhật!');
+        }}
       />
 
       <AllocateQuotaModal

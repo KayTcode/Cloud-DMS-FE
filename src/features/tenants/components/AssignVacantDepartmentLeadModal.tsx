@@ -59,7 +59,7 @@ export const AssignVacantDepartmentLeadModal: React.FC<AssignVacantDepartmentLea
     setIsLoadingEmployees(true);
 
     apiClient
-      .get('/admin/users', {
+      .get(`/tenants/${tenantId}/users`, {
         params: {
           TenantId: tenantId,
           DepartmentId: department.id,

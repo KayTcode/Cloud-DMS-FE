@@ -17,6 +17,7 @@ import {
   getTenantDepartments,
   getTenantUsers,
   getTenantStorageQuota,
+  getTenantOverviewSummary,
   TenantQuotaData,
   exportTenantBackup,
   updateTenantSettings,
@@ -165,7 +166,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   /**
-   * Fetches real Quota, Departments, and Users for a Tenant from Database
+   * Fetches real Quota, Departments, and Users for a Tenant from Database.
+   * Leverages the single composite BFF Overview Summary API if available.
    */
   const refreshTenantData = useCallback(async (targetIdOverride?: string) => {
     const targetId = targetIdOverride || authUser?.tenantId || tenant.id;
@@ -177,16 +179,62 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsLoadingDepartments(true);
 
     try {
-      const [quotaRes, deptsRes, usersRes] = await Promise.allSettled([
-        getTenantStorageQuota(targetId),
+      // 1. Fetch single composite Overview Summary BFF API
+      const summary = await getTenantOverviewSummary(targetId);
+
+      if (summary) {
+        setQuotaData({
+          tenantId: summary.tenantId,
+          tenantName: summary.tenantName,
+          tenantCode: summary.tenantCode,
+          isActive: summary.isActive,
+          storageProviderId: summary.storageProviderId,
+          storageProviderName: summary.storageProviderName,
+          storageQuotaBytes: summary.storageQuotaBytes,
+          storageUsedBytes: summary.unallocatedBytes,
+          allocatedToDepartmentsBytes: summary.allocatedToDepartmentsBytes,
+          unallocatedBytes: summary.unallocatedBytes,
+          actualStorageUsedBytes: summary.actualStorageUsedBytes,
+          availableBytes: summary.availableBytes,
+          usagePercentage: summary.usagePercentage,
+        });
+
+        const qBytes = summary.storageQuotaBytes;
+        const effectiveAllocatedBytes = summary.allocatedToDepartmentsBytes;
+        const availBytes = summary.availableBytes;
+        const usagePct = summary.usagePercentage;
+        const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
+        const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
+
+        setTenant((prev) => ({
+          ...prev,
+          id: targetId,
+          name: summary.tenantName || prev.name,
+          licenseUsed: summary.usersCount,
+          departmentsCount: summary.departmentsCount,
+          totalFilesCount: summary.totalFilesCount,
+          fileCategories: summary.fileCategories,
+          diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
+          diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
+          storageQuotaBytes: qBytes,
+          storageUsedBytes: summary.actualStorageUsedBytes,
+          allocatedToDepartmentsBytes: effectiveAllocatedBytes,
+          unallocatedBytes: summary.unallocatedBytes,
+          availableBytes: availBytes,
+          storageProviderName: summary.storageProviderName,
+          usagePercentage: usagePct,
+        }));
+      }
+
+      // 2. Concurrently fetch Departments and Users lists for sub-tabs and dropdowns
+      const [quotaFallbackRes, deptsRes, usersRes] = await Promise.allSettled([
+        summary ? Promise.resolve(null) : getTenantStorageQuota(targetId),
         getTenantDepartments(targetId),
         getTenantUsers(targetId),
       ]);
 
-      let loadedQuota: TenantQuotaData | null = null;
-      if (quotaRes.status === 'fulfilled' && quotaRes.value) {
-        loadedQuota = quotaRes.value;
-        setQuotaData(loadedQuota);
+      if (!summary && quotaFallbackRes.status === 'fulfilled' && quotaFallbackRes.value) {
+        setQuotaData(quotaFallbackRes.value);
       }
 
       let loadedDepts: Department[] = [];
@@ -213,35 +261,39 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setDepartments(syncedDepts);
       }
 
-      // Update tenant info state
-      setTenant((prev) => {
-        const qBytes = loadedQuota?.storageQuotaBytes ?? prev.storageQuotaBytes ?? 0;
-        const uBytes = loadedQuota?.storageUsedBytes ?? prev.storageUsedBytes ?? 0;
-        const allocDeptsBytes = loadedQuota?.allocatedToDepartmentsBytes
-          ?? loadedDepts.reduce((acc, d) => acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3))), 0);
-        const effectiveAllocatedBytes = Math.max(allocDeptsBytes, uBytes);
-        const availBytes = Math.max(0, qBytes - effectiveAllocatedBytes);
-        const usagePct = qBytes > 0 ? Math.round((effectiveAllocatedBytes / qBytes) * 100) : 0;
+      // Fallback: If overview summary was null, calculate tenant metrics from individual endpoints
+      if (!summary) {
+        const loadedQuota = quotaFallbackRes.status === 'fulfilled' ? quotaFallbackRes.value : null;
+        setTenant((prev) => {
+          const qBytes = loadedQuota?.storageQuotaBytes ?? prev.storageQuotaBytes ?? 0;
+          const uBytes = loadedQuota?.storageUsedBytes ?? prev.storageUsedBytes ?? 0;
+          const allocDeptsBytes = loadedQuota?.allocatedToDepartmentsBytes
+            ?? loadedDepts.reduce((acc, d) => acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3))), 0);
+          const effectiveAllocatedBytes = Math.max(allocDeptsBytes, uBytes);
+          const availBytes = Math.max(0, qBytes - effectiveAllocatedBytes);
+          const usagePct = qBytes > 0 ? Math.round((effectiveAllocatedBytes / qBytes) * 100) : 0;
 
-        const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
-        const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
+          const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
+          const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
 
-        return {
-          ...prev,
-          id: targetId,
-          name: loadedQuota?.tenantName || prev.name,
-          licenseUsed: loadedUsers.length,
-          departmentsCount: loadedDepts.length,
-          diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
-          diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
-          storageQuotaBytes: qBytes,
-          storageUsedBytes: uBytes,
-          allocatedToDepartmentsBytes: effectiveAllocatedBytes,
-          availableBytes: availBytes,
-          storageProviderName: loadedQuota?.storageProviderName,
-          usagePercentage: usagePct,
-        };
-      });
+          return {
+            ...prev,
+            id: targetId,
+            name: loadedQuota?.tenantName || prev.name,
+            licenseUsed: loadedUsers.length,
+            departmentsCount: loadedDepts.length,
+            diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
+            diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
+            storageQuotaBytes: qBytes,
+            storageUsedBytes: uBytes,
+            allocatedToDepartmentsBytes: effectiveAllocatedBytes,
+            unallocatedBytes: availBytes,
+            availableBytes: availBytes,
+            storageProviderName: loadedQuota?.storageProviderName,
+            usagePercentage: usagePct,
+          };
+        });
+      }
     } catch (err) {
       console.error('[TenantContext] Error refreshing real tenant data:', err);
     } finally {

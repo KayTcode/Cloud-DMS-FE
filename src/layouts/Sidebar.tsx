@@ -12,7 +12,8 @@ import {
   FolderTree,
   Layers,
   Trash2,
-  Share2
+  Share2,
+  ClipboardCheck
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -93,6 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
         { id: 'tenants', label: 'Tenants', icon: Database },
+        { id: 'quota-requests', label: 'Duyệt Quota', icon: ClipboardCheck },
         { id: 'storage-providers', label: 'Storage Providers', icon: HardDrive },
         { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
         { id: 'settings', label: 'Settings', icon: Settings },

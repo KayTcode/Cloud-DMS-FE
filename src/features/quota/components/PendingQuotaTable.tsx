@@ -17,6 +17,7 @@ import { DecideQuotaModal } from './DecideQuotaModal';
 interface PendingQuotaTableProps {
   onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
   onCountChange?: (count: number) => void;
+  onDecisionSuccess?: () => void;
 }
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
@@ -24,6 +25,7 @@ const GB_IN_BYTES = 1024 * 1024 * 1024;
 export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
   onShowToast,
   onCountChange,
+  onDecisionSuccess,
 }) => {
   const [requests, setRequests] = useState<QuotaRequestDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -55,6 +57,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
 
   const handleDecideSuccess = (_updated: QuotaRequestDto, message: string) => {
     onShowToast?.(message, 'success');
+    onDecisionSuccess?.();
     fetchPending();
   };
 
