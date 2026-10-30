@@ -103,7 +103,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tenant Overview', icon: LayoutGrid },
-        { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'tenants', label: 'Phòng ban & Nhân viên', icon: Building2 },
         { id: 'storage-providers', label: 'Kho lưu trữ', icon: HardDrive },
         { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },

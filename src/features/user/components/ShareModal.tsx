@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Share2 } from 'lucide-react';
 import { DriveItem } from '../types';
 import { driveApi, FileShareRecipient } from '../api/driveApi';
+import { useAuth } from '@/context/AuthContext';
 
 interface ShareModalProps {
   item: DriveItem | null;
@@ -16,6 +17,8 @@ const errorMessage = (error: unknown): string => {
 };
 
 export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSuccess, onChanged }) => {
+  const { user } = useAuth();
+  const sharingExcluded = user?.role?.toLowerCase() === 'tenantadmin';
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'Viewer' | 'Editor'>('Viewer');
   const [recipients, setRecipients] = useState<FileShareRecipient[]>([]);
@@ -35,6 +38,11 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
     setLoadError('');
     setLoading(true);
     setBusy(false);
+    if (sharingExcluded) {
+      setLoadError('TenantAdmin không được tham gia chia sẻ tài liệu.');
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
     if (item) {
       driveApi.getFileShares(item.id).then((data) => {
         if (!cancelled) setRecipients(data);
@@ -45,12 +53,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
       });
     }
     return () => { cancelled = true; };
-  }, [item?.id]);
+  }, [item?.id, sharingExcluded]);
 
   if (!item) return null;
 
   const mutate = async (action: () => Promise<unknown>, message: string) => {
-    if (busy) return;
+    if (busy || sharingExcluded) return;
     const fileId = item.id;
     setBusy(true);
     setError('');

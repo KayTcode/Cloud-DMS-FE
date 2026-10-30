@@ -1,3 +1,4 @@
+import { pickDirectory } from '../api/pickDirectory';
 import React, { useState, useRef } from 'react';
 import {
   Upload,
@@ -40,7 +41,7 @@ interface DriveViewProps {
   trashTotalCount: number;
   trashTotalSizeBytes: number;
   isLoadingTrash: boolean;
-  onUploadFile: (files: FileList) => void;
+  onUploadFile: (files: FileList, directories?: string[]) => void;
   onUploadDirectFile?: (files: FileList) => void;
   onOpenNewFolderModal: () => void;
   onOpenFilePreview: (file: DriveItem) => void;
@@ -77,6 +78,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onShareItem,
   onDownloadItem,
 }) => {
+  const [folderError, setFolderError] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
@@ -87,6 +89,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Find current folder hierarchy
   const currentFolder = items.find((i) => i.id === currentFolderId && i.type === 'folder');
@@ -252,6 +255,11 @@ export const DriveView: React.FC<DriveViewProps> = ({
         className="hidden"
       />
 
+      <input type="file" ref={folderInputRef} multiple className="hidden"
+        {...({ webkitdirectory: '', directory: '' } as any)}
+        onChange={(event) => { if (event.target.files?.length) onUploadFile(event.target.files); event.target.value = ''; }} />
+
+      {folderError && <p role="alert" className="text-red-600 text-sm">{folderError}</p>}
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
         <div className="absolute inset-0 z-40 bg-blue-50/95 border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center pointer-events-none backdrop-blur-xs">
@@ -310,6 +318,9 @@ export const DriveView: React.FC<DriveViewProps> = ({
                 <span>Thư mục mới</span>
               </button>
 
+              <button onClick={() => { setFolderError(''); void pickDirectory(() => folderInputRef.current?.click(), onUploadFile, setFolderError); }} className="px-3 py-2 border rounded-lg text-sm bg-white">
+                Tải thư mục ZIP
+              </button>
               {/* Nút 1: Tải trực tiếp Cloud (Phương pháp mới) */}
               <button
                 onClick={() => directFileInputRef.current?.click()}
