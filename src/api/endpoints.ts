@@ -80,4 +80,10 @@ export const API_ENDPOINTS = {
     GRANT: (tenantId: string) => `/admin/tenants/${tenantId}/quota/grant`,
     REDUCE: (tenantId: string) => `/admin/tenants/${tenantId}/quota/reduce`,
   },
+  NOTIFICATIONS: {
+    LIST: (pageNumber: number, pageSize: number) => `/notifications?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+    UNREAD_COUNT: '/notifications/unread-count',
+    READ: (id: string) => `/notifications/${id}/read`,
+    READ_ALL: '/notifications/read-all',
+  },
 } as const;
