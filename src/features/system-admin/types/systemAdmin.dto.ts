@@ -126,6 +126,9 @@ export interface StorageProviderItem {
   availableCapacityBytes?: number;
   allocatedToTenantsBytes?: number;
   unallocatedCapacityBytes?: number;
+  externalUsedBytes?: number;
+  systemUsedBytes?: number;
+  availableToGrantBytes?: number;
   rootFolderId?: string;
   tenantsCount?: number;
   createdAt?: string;

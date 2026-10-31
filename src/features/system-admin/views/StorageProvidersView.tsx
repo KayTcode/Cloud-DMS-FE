@@ -16,6 +16,7 @@ import { ConnectProviderModal } from '../components/ConnectProviderModal';
 import { EditProviderModal } from '../components/EditProviderModal';
 import { getStorageProvidersApi } from '../api/systemAdminQueries';
 import { deleteStorageProviderApi } from '../api/systemAdminCommands';
+import { formatBytes } from '../../department-admin/utils/quotaUtils';
 
 interface StorageProvidersViewProps {
   providers: StorageProviderItem[];
@@ -119,11 +120,12 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
       {/* Cloud Pool Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {providers.map((p) => {
-          const usedBytes = p.usedCapacityBytes || 0;
-          const totalBytes = p.totalCapacityBytes || 1;
-          const usedPercent = Math.min(100, Math.round((usedBytes / totalBytes) * 100));
-          const allocatedBytes = p.allocatedToTenantsBytes || 0;
-          const allocatedGB = Math.round(allocatedBytes / (1024 * 1024 * 1024));
+          const totalBytes = p.totalCapacityBytes || 0;
+          const externalUsed = p.externalUsedBytes ?? 0;
+          const systemUsed = p.systemUsedBytes ?? 0;
+          const realUsed = externalUsed + systemUsed;
+          const showBar = realUsed > 0 && totalBytes > 0;
+          const usedPercent = showBar ? Math.min(100, Math.round((realUsed / totalBytes) * 100)) : 0;
 
           return (
             <div
@@ -165,45 +167,81 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                 </p>
 
                 {/* Capacity Progress Bar */}
-                <div className="mt-4 space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-slate-500">Dung lượng sử dụng:</span>
-                    <span className="text-slate-800 font-mono">{p.storageUsed} / {p.capacity}</span>
+                {showBar && (
+                  <div className="mt-4 space-y-1.5">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-slate-500">Thực tế sử dụng:</span>
+                      <span className="text-slate-800 font-mono">{formatBytes(realUsed)} / {formatBytes(totalBytes)}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(4, usedPercent)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(4, usedPercent)}%` }}
-                    />
-                  </div>
-                </div>
+                )}
 
                 {/* Metrics detail */}
                 <div className="mt-4 space-y-2 text-xs border-t border-slate-100 pt-3">
                   <div className="flex justify-between py-0.5">
                     <span className="text-slate-500 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                      Tenants đang dùng:
+                      <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                      Tổng dung lượng thật:
                     </span>
-                    <span className="font-bold text-slate-800">{p.tenantsCount || 0} tổ chức</span>
-                  </div>
-
-                  <div className="flex justify-between py-0.5">
-                    <span className="text-slate-500 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-slate-400" />
-                      Đã cấp cho Tenant:
-                    </span>
-                    <span className="font-mono font-semibold text-indigo-600">
-                      {allocatedGB} GB
+                    <span className="font-mono font-semibold text-slate-800">
+                      {totalBytes > 0 ? formatBytes(totalBytes) : 'Chưa xác định'}
                     </span>
                   </div>
 
                   <div className="flex justify-between py-0.5">
                     <span className="text-slate-500 flex items-center gap-1.5">
                       <Activity className="w-3.5 h-3.5 text-slate-400" />
-                      Độ trễ trung bình:
+                      Dùng ngoài hệ thống:
                     </span>
-                    <span className="font-mono text-emerald-600 font-semibold">{p.latency}</span>
+                    <span className="font-mono font-semibold text-slate-700">
+                      {p.externalUsedBytes != null ? formatBytes(p.externalUsedBytes) : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <Cloud className="w-3.5 h-3.5 text-slate-400" />
+                      Dùng bởi hệ thống:
+                    </span>
+                    <span className="font-mono font-semibold text-slate-700">
+                      {p.systemUsedBytes != null ? formatBytes(p.systemUsedBytes) : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-slate-400" />
+                      Đã cấp cho tổ chức:
+                    </span>
+                    <span className="font-mono font-semibold text-indigo-600">
+                      {p.allocatedToTenantsBytes != null ? formatBytes(p.allocatedToTenantsBytes) : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                      Còn cấp được:
+                    </span>
+                    <span className="font-mono font-semibold text-emerald-600">
+                      {p.availableToGrantBytes != null ? formatBytes(p.availableToGrantBytes) : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-slate-500 flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                      Cập nhật lần cuối:
+                    </span>
+                    <span className="font-mono text-slate-600">
+                      {p.lastSyncAt ? new Date(p.lastSyncAt).toLocaleString('vi-VN') : '—'}
+                    </span>
                   </div>
                 </div>
               </div>
