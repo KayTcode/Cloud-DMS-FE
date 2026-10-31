@@ -32,6 +32,8 @@ import {
   File as FileGenericIcon,
   FolderOpen,
   Server,
+  Clock,
+  AlertOctagon,
 } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
 import { useTenantContext } from '@/context/TenantContext';
@@ -43,6 +45,10 @@ import {
   deleteTenantFileApi,
   uploadTenantFilesApi,
   uploadDirectTenantFilesApi,
+  ExpiringFileItemDto,
+  ExpiringFilesSummaryDto,
+  getExpiringFilesApi,
+  permanentDeleteFileApi,
 } from '@/features/tenants/api/fileApi';
 
 interface TenantStorageViewProps {
@@ -90,6 +96,52 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
   const [uploadDeptId, setUploadDeptId] = useState<string>('');
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+
+  // State quản lý Vòng đời & Tệp sắp hết hạn (Expiring Files)
+  const [storageTab, setStorageTab] = useState<'all_files' | 'expiring_files'>('all_files');
+  const [expiringSummary, setExpiringSummary] = useState<ExpiringFilesSummaryDto | null>(null);
+  const [expiringFiles, setExpiringFiles] = useState<ExpiringFileItemDto[]>([]);
+  const [isLoadingExpiring, setIsLoadingExpiring] = useState<boolean>(false);
+  const [expiringDays, setExpiringDays] = useState<number>(7);
+  const [expiringPage, setExpiringPage] = useState<number>(1);
+  const [fileToPermanentDelete, setFileToPermanentDelete] = useState<ExpiringFileItemDto | null>(null);
+  const [isPermanentDeleting, setIsPermanentDeleting] = useState<boolean>(false);
+
+  const fetchExpiringFiles = useCallback(async () => {
+    setIsLoadingExpiring(true);
+    try {
+      const res = await getExpiringFilesApi(expiringDays, expiringPage, 20);
+      setExpiringSummary(res);
+      setExpiringFiles(res?.items || []);
+    } catch (err: any) {
+      console.error('Lỗi khi tải tệp sắp hết hạn:', err);
+      addToast('error', 'Không thể tải danh sách tệp sắp hết hạn lưu trữ');
+    } finally {
+      setIsLoadingExpiring(false);
+    }
+  }, [expiringDays, expiringPage, addToast]);
+
+  useEffect(() => {
+    if (storageTab === 'expiring_files') {
+      fetchExpiringFiles();
+    }
+  }, [storageTab, fetchExpiringFiles]);
+
+  const handleConfirmPermanentDelete = async () => {
+    if (!fileToPermanentDelete) return;
+    setIsPermanentDeleting(true);
+    try {
+      await permanentDeleteFileApi(fileToPermanentDelete.id);
+      addToast('success', `Đã xóa vĩnh viễn tệp '${fileToPermanentDelete.name}' và giải phóng ${fileToPermanentDelete.formattedSize} Quota!`);
+      setFileToPermanentDelete(null);
+      fetchExpiringFiles();
+      fetchReportFiles();
+    } catch (err: any) {
+      addToast('error', 'Xóa vĩnh viễn tệp tin thất bại.');
+    } finally {
+      setIsPermanentDeleting(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
@@ -483,7 +535,231 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
         </div>
       </div>
 
-      {/* 5.2. 4 Thẻ chỉ số tổng quan (KPI Stat Cards) */}
+      {/* Tab chuyển đổi chế độ xem: Toàn bộ tệp tin vs Tệp sắp hết hạn */}
+      <div className="flex items-center gap-4 border-b border-slate-200">
+        <button
+          onClick={() => setStorageTab('all_files')}
+          className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            storageTab === 'all_files'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Tất cả tệp tin ({totalFilesCount.toLocaleString()})</span>
+        </button>
+        <button
+          onClick={() => setStorageTab('expiring_files')}
+          className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer flex items-center gap-2 ${
+            storageTab === 'expiring_files'
+              ? 'text-rose-600 border-b-2 border-rose-600'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-rose-500" />
+          <span>Tệp sắp hết hạn lưu trữ</span>
+          {expiringSummary && expiringSummary.totalCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-700 font-mono font-bold">
+              {expiringSummary.totalCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {storageTab === 'expiring_files' ? (
+        <div className="space-y-6">
+          {/* Expiring Overview Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                <span className="font-medium">Số tệp sắp hết hạn</span>
+                <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-extrabold text-rose-600">
+                {isLoadingExpiring ? '...' : expiringSummary?.totalCount ?? 0}{' '}
+                <span className="text-xs font-semibold text-slate-500">tệp</span>
+              </p>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Hết hạn trong vòng {expiringDays} ngày tới
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                <span className="font-medium">Dung lượng giải phóng được</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <HardDrive className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-extrabold text-emerald-600">
+                {isLoadingExpiring ? '...' : expiringSummary?.formattedTotalSize ?? '0 B'}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Dung lượng hoàn trả ngay vào Quota của tổ chức khi xóa
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                <span className="font-medium">Khung thời gian cảnh báo</span>
+                <Filter className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                {[3, 7, 14, 30].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => { setExpiringDays(d); setExpiringPage(1); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      expiringDays === d
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {d} ngày
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-2">
+                Xem trước các tệp tin trong diện cảnh báo
+              </p>
+            </div>
+          </div>
+
+          {/* Expiring Files Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs">
+            <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-rose-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Danh sách tệp tin sắp hết hạn lưu trữ
+                </h3>
+              </div>
+              <button
+                onClick={fetchExpiringFiles}
+                disabled={isLoadingExpiring}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingExpiring ? 'animate-spin text-rose-600' : ''}`} />
+                <span>Làm mới</span>
+              </button>
+            </div>
+
+            {isLoadingExpiring ? (
+              <div className="p-12 text-center text-xs text-slate-500">
+                <RefreshCw className="w-6 h-6 animate-spin text-rose-600 mx-auto mb-2" />
+                <span>Đang quét danh sách tệp sắp hết hạn...</span>
+              </div>
+            ) : expiringFiles.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-500 space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                <p className="font-semibold text-slate-700 text-sm">Không có tệp tin nào sắp hết hạn!</p>
+                <p className="text-slate-400">Tất cả tệp tin trong tổ chức đều đang trong thời hạn lưu trữ an toàn (hơn {expiringDays} ngày nữa).</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3 px-4">Tên tệp tin</th>
+                      <th className="py-3 px-4">Dung lượng</th>
+                      <th className="py-3 px-4">Phòng ban</th>
+                      <th className="py-3 px-4">Người tải lên</th>
+                      <th className="py-3 px-4">Ngày hết hạn</th>
+                      <th className="py-3 px-4">Còn lại</th>
+                      <th className="py-3 px-4 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {expiringFiles.map((file) => (
+                      <tr key={file.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-900 max-w-xs truncate" title={file.name}>
+                          {file.name}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-600">
+                          {file.formattedSize}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {file.departmentName || 'Chưa gán'}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {file.ownerName}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">
+                          {new Date(file.expiresAt).toLocaleDateString('vi-VN')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                            file.daysRemaining <= 3
+                              ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                              : 'bg-amber-100 text-amber-700 border border-amber-200'
+                          }`}>
+                            {file.daysRemaining === 0 ? 'Hôm nay' : `${file.daysRemaining} ngày`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-2">
+                          <button
+                            onClick={() => handleDownload({ id: file.id, name: file.name } as any)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="Tải về tệp tin"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setFileToPermanentDelete(file)}
+                            className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                            title="Xóa vĩnh viễn (Giải phóng Quota)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Modal xác nhận xóa vĩnh viễn */}
+          {fileToPermanentDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-2xs">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95">
+                <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                  <AlertOctagon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-900">Xác nhận xóa vĩnh viễn tệp tin?</h4>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Bạn sắp xóa vĩnh viễn tệp <strong className="text-slate-900">'{fileToPermanentDelete.name}'</strong> ({fileToPermanentDelete.formattedSize}).
+                  </p>
+                  <p className="text-xs text-rose-600 font-semibold mt-2">
+                    Hành động này sẽ xóa vật lý tệp tin khỏi Cloud Provider ngay lập tức và giải phóng Quota lưu trữ cho tổ chức. Thao tác này KHÔNG THỂ khôi phục.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => setFileToPermanentDelete(null)}
+                    disabled={isPermanentDeleting}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    onClick={handleConfirmPermanentDelete}
+                    disabled={isPermanentDeleting}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    {isPermanentDeleting ? 'Đang xóa...' : 'Xóa vĩnh viễn & Giải phóng Quota'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* 5.2. 4 Thẻ chỉ số tổng quan (KPI Stat Cards) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Tổng số tệp tin đã lưu */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">

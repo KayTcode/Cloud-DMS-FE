@@ -129,4 +129,13 @@ export const departmentApi = {
     const res: any = await apiClient.post(API_ENDPOINTS.DEPARTMENT.SETUP, payload);
     return res?.value ?? res?.data ?? res;
   },
+
+  /**
+   * Trưởng phòng cập nhật thời hạn lưu trữ tệp tin mặc định cho phòng ban của mình
+   * Khớp BE: PUT /api/department/retention-policy
+   */
+  setRetentionPolicy: async (retentionDays: number): Promise<string> => {
+    const res: any = await apiClient.put(API_ENDPOINTS.DEPARTMENT.RETENTION_POLICY, { retentionDays });
+    return res?.value ?? res?.data ?? res;
+  },
 };

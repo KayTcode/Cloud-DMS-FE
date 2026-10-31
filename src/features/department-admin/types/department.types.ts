@@ -59,6 +59,7 @@ export interface DepartmentInfo {
   backupsStorageGB: number;
   otherStorageGB: number;
   growthDeltaSinceAprGB: number;
+  retentionDays?: number;
 }
 
 export type DepartmentNavTab = 'hub' | 'files' | 'trash' | 'staff' | 'logs' | 'storage' | 'settings' | 'report' | 'quota';

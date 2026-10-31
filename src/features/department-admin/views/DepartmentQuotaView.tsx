@@ -10,8 +10,10 @@ import {
   Clock,
   Sparkles,
   Info,
+  Save,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
+import { departmentApi } from '../api';
 import {
   PendingQuotaTable,
   QuotaHistoryTable,
@@ -34,7 +36,9 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
   onShowToast,
 }) => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history' | 'retention'>('pending');
+  const [retentionDays, setRetentionDays] = useState<number>(department.retentionDays || 30);
+  const [isUpdatingRetention, setIsUpdatingRetention] = useState<boolean>(false);
 
   const percentUsed =
     department.totalAllocatedGB > 0
@@ -45,6 +49,25 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
     setIsRequestModalOpen(false);
     onShowToast?.('success', 'Đã gửi yêu cầu tăng hạn mức phòng ban thành công!');
     onQuotaUpdated?.();
+  };
+
+  const handleUpdateRetention = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (retentionDays <= 0) {
+      onShowToast?.('error', 'Thời hạn lưu trữ tệp tin phòng ban phải lớn hơn 0 ngày.');
+      return;
+    }
+    setIsUpdatingRetention(true);
+    try {
+      await departmentApi.setRetentionPolicy(retentionDays);
+      onShowToast?.('success', `Đã cập nhật thời hạn lưu trữ phòng ban thành công: ${retentionDays} ngày.`);
+      onQuotaUpdated?.();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể cập nhật chính sách lưu trữ.';
+      onShowToast?.('error', msg);
+    } finally {
+      setIsUpdatingRetention(false);
+    }
   };
 
   return (
@@ -62,14 +85,14 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Quản lý Hạn mức & Phê duyệt Quota
+                Quản lý Hạn mức & Chính sách Phòng ban
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                 Department Approver
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Phê duyệt các yêu cầu tăng dung lượng của nhân viên và yêu cầu nâng tổng hạn ngạch phòng ban {department.name}
+              Phê duyệt Quota nhân viên, quản lý hạn ngạch tổng và thiết lập thời hạn lưu trữ dữ liệu · Phòng {department.name}
             </p>
           </div>
         </div>
@@ -87,7 +110,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
       </div>
 
       {/* 2. Overview Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {/* Card 1: Tổng hạn mức được cấp */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
@@ -102,7 +125,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
           </p>
           <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-purple-500" />
-            <span>Hạn mức từ Quản trị viên Doanh nghiệp</span>
+            <span>Hạn mức từ Doanh nghiệp</span>
           </div>
         </div>
 
@@ -143,7 +166,25 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
           </p>
           <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Có thể cấp phát cho nhân viên hoặc dùng chung</span>
+            <span>Có thể cấp phát cho nhân viên</span>
+          </div>
+        </div>
+
+        {/* Card 4: Thời hạn lưu trữ tệp tin */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-medium">Thời hạn lưu trữ tệp</span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-indigo-600">
+            {retentionDays}{' '}
+            <span className="text-xs font-semibold text-slate-500">ngày</span>
+          </p>
+          <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-500" />
+            <span>Tự động gán cho tệp mới</span>
           </div>
         </div>
       </div>
@@ -171,9 +212,19 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
           >
             <span>Lịch sử cấp phát Quota</span>
           </button>
+          <button
+            onClick={() => setActiveSubTab('retention')}
+            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+              activeSubTab === 'retention'
+                ? 'text-purple-600 border-b-2 border-purple-600'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>Chính sách Lưu trữ (Retention)</span>
+          </button>
         </div>
 
-        {activeSubTab === 'pending' ? (
+        {activeSubTab === 'pending' && (
           <div>
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -190,8 +241,56 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
               }}
             />
           </div>
-        ) : (
-          <QuotaHistoryTable />
+        )}
+
+        {activeSubTab === 'history' && <QuotaHistoryTable />}
+
+        {activeSubTab === 'retention' && (
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-2xs space-y-5">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                Chính sách Vòng đời Lưu trữ Tệp tin Phòng ban
+              </h3>
+              <p className="text-xs text-slate-500">
+                Quyền tự quyết độc quyền của Trưởng phòng: Cấu hình số ngày lưu trữ mặc định cho toàn bộ tệp tin do nhân viên tải lên phòng ban.
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateRetention} className="space-y-4 max-w-lg">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Thời hạn lưu trữ (ngày)</span>
+                  <span className="font-mono text-indigo-600 font-bold">{retentionDays} ngày</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  required
+                  value={retentionDays}
+                  onChange={(e) => setRetentionDays(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-800 text-xs flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-[11px] leading-relaxed">
+                  <p><strong>Hiệu lực chính sách:</strong> Khi bạn thay đổi số ngày, chỉ các tệp tin được tải lên <em>sau thời điểm này</em> mới áp dụng thời hạn mới.</p>
+                  <p>Các tệp tin đã lưu trước đó vẫn giữ nguyên ngày hết hạn ban đầu để bảo toàn tính toàn vẹn dữ liệu.</p>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isUpdatingRetention}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isUpdatingRetention ? 'Đang lưu...' : 'Lưu thay đổi chính sách'}</span>
+              </button>
+            </form>
+          </div>
         )}
       </div>
 

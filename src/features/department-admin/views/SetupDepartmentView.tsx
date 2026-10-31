@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, HardDrive, ShieldCheck, ArrowRight, Sparkles, AlertCircle, Info } from 'lucide-react';
+import { Building2, HardDrive, ShieldCheck, ArrowRight, Sparkles, AlertCircle, Info, Clock } from 'lucide-react';
 import { useDepartment } from '../context/DepartmentContext';
 import { useAuth } from '@/context/AuthContext';
 import { departmentApi } from '../api';
@@ -11,6 +11,7 @@ export const SetupDepartmentView: React.FC = () => {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
+  const [retentionDays, setRetentionDays] = useState<number>(30);
   const [personalQuotaGB, setPersonalQuotaGB] = useState<number>(2);
   const [assignedQuotaGB, setAssignedQuotaGB] = useState<number>(10);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -55,12 +56,17 @@ export const SetupDepartmentView: React.FC = () => {
       setErrorMessage('Vui lòng nhập mã phòng ban');
       return;
     }
+    if (retentionDays <= 0) {
+      setErrorMessage('Thời hạn lưu trữ tệp tin phòng ban phải lớn hơn 0 ngày');
+      return;
+    }
 
     try {
       await setupDepartment({
         name: name.trim(),
         code: code.trim().toUpperCase(),
         description: description.trim() || undefined,
+        retentionDays: retentionDays > 0 ? retentionDays : 30,
         adminPersonalQuotaGB: personalQuotaGB > 0 ? personalQuotaGB : undefined,
       });
     } catch (err: any) {
@@ -94,7 +100,7 @@ export const SetupDepartmentView: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold tracking-tight">Thiết lập Phòng ban của bạn</h2>
             <p className="text-xs text-blue-100 max-w-md leading-relaxed">
-              Tài khoản của bạn đã được kích hoạt thành công. Hãy hoàn tất bước thiết lập ban đầu để khởi tạo phòng ban, thư mục gốc và kích hoạt cổng quản trị.
+              Tài khoản của bạn đã được kích hoạt thành công. Hãy hoàn tất bước thiết lập ban đầu để khởi tạo phòng ban, thời hạn lưu trữ dữ liệu, thư mục gốc và kích hoạt cổng quản trị.
             </p>
           </div>
         </div>
@@ -142,6 +148,28 @@ export const SetupDepartmentView: React.FC = () => {
             />
             <p className="text-[11px] text-slate-400 mt-1">
               Mã phòng ban là duy nhất trong tổ chức và dùng làm định danh tiền tố dữ liệu.
+            </p>
+          </div>
+
+          {/* Thời hạn lưu trữ tệp tin mặc định của phòng ban */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                Thời hạn lưu trữ tệp tin phòng ban (ngày) *
+              </span>
+              <span className="text-[11px] font-mono text-blue-600 font-semibold">{retentionDays} ngày</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              required
+              value={retentionDays}
+              onChange={(e) => setRetentionDays(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Chính sách độc quyền do Trưởng phòng tự quyết định: Các tệp tin tải lên sẽ tự động có thời hạn lưu trữ theo số ngày này.
             </p>
           </div>
 

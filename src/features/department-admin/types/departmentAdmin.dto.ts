@@ -44,8 +44,13 @@ export interface SetupDepartmentPayload {
   name: string;
   code: string;
   description?: string;
+  retentionDays: number;
   adminPersonalQuotaGB?: number;
   adminPersonalQuotaBytes?: number;
+}
+
+export interface SetDepartmentRetentionPolicyPayload {
+  retentionDays: number;
 }
 
 export interface DepartmentSetupInfoDto {
@@ -65,6 +70,7 @@ export interface DepartmentDto {
   description?: string;
   storageQuotaBytes: number;
   storageUsedBytes: number;
+  retentionDays?: number;
   isActive: boolean;
   departmentAdminName?: string;
   departmentAdminEmail?: string;

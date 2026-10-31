@@ -20,6 +20,7 @@ export interface FileItemDto {
   createdAt: string;
   departmentId?: string | null;
   departmentName?: string | null;
+  expiresAt?: string | null;
 }
 
 export interface FolderItemDto {
@@ -66,6 +67,31 @@ export interface MultipleFileUploadResultDto {
   failed: FileUploadFailureDto[];
   allSucceeded: boolean;
   totalFiles: number;
+}
+
+export interface ExpiringFileItemDto {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  formattedSize: string;
+  contentType: string;
+  createdAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+  ownerId: string;
+  ownerName: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
+}
+
+export interface ExpiringFilesSummaryDto {
+  totalCount: number;
+  totalSizeBytes: number;
+  formattedTotalSize: string;
+  items: ExpiringFileItemDto[];
+  pageNumber: number;
+  pageSize: number;
+  hasMore: boolean;
 }
 
 export async function uploadTenantFilesApi(
@@ -247,4 +273,48 @@ export async function deleteTenantFileApi(fileId: string): Promise<boolean> {
     headers: { 'Idempotency-Key': key },
   });
   return response?.value ?? true;
+}
+
+/**
+ * Xóa vĩnh viễn tệp tin (Hard Delete) để giải phóng ngay lập tức Quota lưu trữ
+ * Khớp BE: DELETE /api/files/{id}/permanent
+ */
+export async function permanentDeleteFileApi(fileId: string): Promise<boolean> {
+  const key = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const response = await apiClient.delete<any, any>(API_ENDPOINTS.FILES.PERMANENT_DELETE(fileId), {
+    headers: { 'Idempotency-Key': key },
+  });
+  return response?.value ?? true;
+}
+
+/**
+ * Lấy danh sách tệp tin sắp hết hạn lưu trữ của toàn Tenant (dành cho TenantAdmin)
+ * Khớp BE: GET /api/files/expiring
+ */
+export async function getExpiringFilesApi(
+  days: number = 7,
+  pageNumber: number = 1,
+  pageSize: number = 20
+): Promise<ExpiringFilesSummaryDto> {
+  const response = await apiClient.get<any, any>(API_ENDPOINTS.FILES.EXPIRING, {
+    params: { days, pageNumber, pageSize },
+  });
+  return response?.value ?? response?.data ?? response;
+}
+
+/**
+ * Lấy danh sách tệp tin sắp hết hạn lưu trữ của chính User hiện tại
+ * Khớp BE: GET /api/files/my-expiring
+ */
+export async function getMyExpiringFilesApi(
+  days: number = 7,
+  pageNumber: number = 1,
+  pageSize: number = 20
+): Promise<ExpiringFilesSummaryDto> {
+  const response = await apiClient.get<any, any>(API_ENDPOINTS.FILES.MY_EXPIRING, {
+    params: { days, pageNumber, pageSize },
+  });
+  return response?.value ?? response?.data ?? response;
 }
