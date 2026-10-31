@@ -104,6 +104,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
     id: user?.departmentId || summary?.departmentId || '',
     name: summary?.departmentName || 'Phòng ban',
     tenantName: 'Tổ chức Doanh nghiệp',
+    adminId: user?.id || '',
     adminName: user?.fullName || 'Trưởng phòng',
     adminRole: 'Department Admin',
     adminEmail: user?.email || '',

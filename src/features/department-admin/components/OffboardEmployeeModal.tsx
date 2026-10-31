@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   X,
   UserX,
@@ -19,6 +19,7 @@ import {
   EmployeeHandoverScenario,
 } from '../types/departmentAdmin.dto';
 import { formatBytes } from '../utils/quotaUtils';
+import { useAuth } from '@/context/AuthContext';
 
 interface OffboardEmployeeModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
   custodianUserId,
   onSuccess,
 }) => {
+  const { user: currentUser } = useAuth();
   const [scenario, setScenario] = useState<EmployeeHandoverScenario>('DESIGNATED_PEER');
   const [targetUserId, setTargetUserId] = useState<string>('');
   const [newEmployeeEmail, setNewEmployeeEmail] = useState('');
@@ -89,6 +91,16 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
         setError('Vui lòng nhập đầy đủ Họ và Tên của nhân sự mới.');
         return;
       }
+    } else if (scenario === 'DEPARTMENT_HEAD_CUSTODY') {
+      const effectiveAdminId = department.adminId || currentUser?.id;
+      if (!effectiveAdminId) {
+        setError('Không xác định được tài khoản Trưởng phòng để tiếp nhận tạm giữ dữ liệu.');
+        return;
+      }
+      if (effectiveAdminId === employee.id) {
+        setError('Trưởng phòng không thể tự bàn giao cho chính mình khi thôi việc.');
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -98,7 +110,9 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
         targetUserId:
           scenario === 'DESIGNATED_PEER'
             ? targetUserId
-            : scenario === 'DEPARTMENT_HEAD_CUSTODY' ? custodianUserId : null,
+            : scenario === 'DEPARTMENT_HEAD_CUSTODY'
+              ? (custodianUserId || department.adminId || currentUser?.id || null)
+              : null,
         newEmployeeEmail:
           scenario === 'INVITE_NEW_EMPLOYEE' ? newEmployeeEmail.trim() : null,
         newEmployeeFirstName:

@@ -49,6 +49,7 @@ export interface DepartmentInfo {
   name: string;
   code?: string;
   tenantName: string;
+  adminId?: string;
   adminName: string;
   adminRole: string;
   adminEmail: string;
