@@ -118,6 +118,7 @@ export const departmentApi = {
 export const getSharedStoreQuotaApi = (deptId: string): Promise<{
   quotaBytes: number;
   usedBytes: number;
+  uploadableBytes?: number;
 }> =>
   apiClient.get(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId));
 

@@ -37,7 +37,7 @@ interface SharedQuotaRowProps {
 }
 
 const SharedQuotaRow: React.FC<SharedQuotaRowProps> = ({ departmentId, onShowToast }) => {
-  const [sharedQuota, setSharedQuota] = useState<{ quotaBytes: number; usedBytes: number } | null>(null);
+  const [sharedQuota, setSharedQuota] = useState<{ quotaBytes: number; usedBytes: number; uploadableBytes?: number } | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [newQuotaGB, setNewQuotaGB] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -98,6 +98,18 @@ const SharedQuotaRow: React.FC<SharedQuotaRowProps> = ({ departmentId, onShowToa
             <div className="text-center">
               <p className="text-slate-500 mb-0.5">Đã dùng</p>
               <p className="font-bold text-slate-900">{formatBytesSimple(sharedQuota.usedBytes)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-slate-500 mb-0.5">Còn có thể tải lên</p>
+              <p className="font-bold text-slate-900">
+                {formatBytesSimple(sharedQuota.uploadableBytes !== undefined ? sharedQuota.uploadableBytes : Math.max(0, sharedQuota.quotaBytes - sharedQuota.usedBytes))}
+              </p>
+              {sharedQuota.uploadableBytes === 0 && sharedQuota.usedBytes >= sharedQuota.quotaBytes && (
+                <p className="text-[10px] text-rose-600 mt-0.5">Đã vượt hạn mức</p>
+              )}
+              {sharedQuota.uploadableBytes === 0 && sharedQuota.usedBytes < sharedQuota.quotaBytes && (
+                <p className="text-[10px] text-amber-600 mt-0.5">Kho đang đầy</p>
+              )}
             </div>
           </div>
           <button
