@@ -1,3 +1,4 @@
+import { ArchiveBrowser } from './components/ArchiveBrowser';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   DriveView,
@@ -232,12 +233,12 @@ export const UserPortal: React.FC = () => {
   }, [fetchPersonalQuota]);
 
   // Xử lý tải lên tệp tin
-  const handleUploadFiles = async (fileList: FileList) => {
-    if (!fileList || fileList.length === 0) return;
+  const handleUploadFiles = async (fileList: FileList, directories: string[] = []) => {
+    if (!fileList || (fileList.length === 0 && directories.length === 0)) return;
 
     try {
       showNotification(`Đang tải lên ${fileList.length} tệp tin...`, 'info');
-      const result = await driveApi.uploadFiles(fileList, currentFolderId);
+      const result = await driveApi.uploadFiles(fileList, currentFolderId, directories);
 
       // Refresh lại danh sách files và Quota
       await fetchDriveItems(currentFolderId);
@@ -282,6 +283,7 @@ export const UserPortal: React.FC = () => {
 
   // Xử lý tải lên trực tiếp Cloud (Direct-to-Storage)
   const handleUploadDirectFiles = async (fileList: FileList) => {
+    if (fileList?.length > 1 || Array.from(fileList || []).some((file) => !!file.webkitRelativePath)) return handleUploadFiles(fileList);
     if (!fileList || fileList.length === 0) return;
 
     try {
@@ -563,7 +565,7 @@ export const UserPortal: React.FC = () => {
             onUploadFile={handleUploadFiles}
             onUploadDirectFile={handleUploadDirectFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
-            onOpenFilePreview={(file) => setPreviewFile(file)}
+            onOpenFilePreview={(file) => { if (file.name.toLowerCase().endsWith('.zip')) setPreviewFile(file); else void handleDownloadItem(file); }}
             onToggleStar={handleToggleStar}
             onDeleteFile={handleDeleteItem}
             onShareItem={(item) => setShareItem(item)}
@@ -579,7 +581,7 @@ export const UserPortal: React.FC = () => {
 
         {activeTab === 'shared' && (
           <SharedFilesView
-            onOpenFilePreview={setPreviewFile}
+            onOpenFilePreview={(file) => { if (file.name.toLowerCase().endsWith('.zip')) setPreviewFile(file); else void handleDownloadItem(file); }}
             onDownloadItem={handleDownloadItem}
             onShowToast={showNotification}
           />
@@ -605,14 +607,8 @@ export const UserPortal: React.FC = () => {
       </div>
 
       {/* Modals */}
-      <FilePreviewModal
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-        onToggleStar={handleToggleStar}
-        onDelete={handleDeleteItem}
-        onDownload={handleDownloadItem}
-        onShare={(item) => setShareItem(item)}
-      />
+      {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
+        onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownloadItem(previewFile)} />}
 
       <ShareModal
         key={shareItem?.id}

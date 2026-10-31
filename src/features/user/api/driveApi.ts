@@ -139,12 +139,24 @@ export const driveApi = {
   },
 
   // Upload files to current directory (Traditional / Legacy Stream through Backend)
-  uploadFiles: async (files: FileList | File[], folderId?: string | null): Promise<any> => {
+  uploadFiles: async (files: FileList | File[], folderId?: string | null, directories: string[] = []): Promise<any> => {
     const formData = new FormData();
-    Array.from(files).forEach((f) => formData.append('files', f));
+    const selection = Array.from(files);
+    const packaged = directories.length > 0 || selection.length > 1 || selection.some((f) => !!f.webkitRelativePath);
+    selection.forEach((f) => {
+      formData.append('files', f);
+      if (packaged) formData.append('relativePaths', f.webkitRelativePath || f.name);
+    });
+    if (packaged) {
+      formData.append('compression', 'fastest');
+      directories.forEach((directory) => formData.append('directories', directory));
+      const root = selection[0]?.webkitRelativePath?.split('/')[0] || directories[0]?.split('/')[0];
+      formData.append('name', root ? `${root}.zip` : `package-${Date.now()}.zip`);
+    }
     if (folderId) formData.append('folderId', folderId);
 
-    const res: any = await apiClient.post('/files/upload', formData);
+    const res: any = await apiClient.post(packaged ? '/files/packages' : '/files/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 });
+    if (packaged) return { uploaded: [res?.value ?? res?.data ?? res], failed: [], allSucceeded: true };
     return res?.value ?? res?.data ?? res;
   },
 
@@ -155,6 +167,9 @@ export const driveApi = {
     onProgress?: (fileName: string, progress: DirectUploadProgress) => void
   ): Promise<any> => {
     const fileArray = Array.from(files);
+    // Batches/folders must remain one indexed package, including when initiated from the Direct button.
+    if (fileArray.length > 1 || fileArray.some((file) => !!file.webkitRelativePath))
+      return driveApi.uploadFiles(fileArray, folderId);
     const uploaded: any[] = [];
     const failed: any[] = [];
 
@@ -402,6 +417,17 @@ export const driveApi = {
     }
   },
 
+  getArchiveTree: async (fileId: string): Promise<ArchiveMember[]> => {
+    const res: any = await apiClient.get(`/files/${fileId}/archive`);
+    return res?.value ?? res?.data ?? res;
+  },
+  downloadArchiveMember: async (fileId: string, memberId: string, name: string): Promise<void> => {
+    const blob: any = await apiClient.get(`/files/${fileId}/archive/${memberId}/download`, { responseType: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
   getFileShares: async (fileId: string): Promise<FileShareRecipient[]> => {
     const res: any = await apiClient.get(`/files/${fileId}/shares`);
     return res?.value ?? res?.data ?? res;
@@ -461,3 +487,12 @@ export const userApi = {
     return res?.value ?? res?.data ?? res;
   },
 };
+
+export interface ArchiveMember {
+  id: string;
+  path: string;
+  parentPath: string;
+  name: string;
+  isDirectory: boolean;
+  sizeBytes: number;
+}

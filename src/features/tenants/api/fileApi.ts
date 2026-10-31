@@ -1,3 +1,4 @@
+import { driveApi } from '@/features/user/api/driveApi';
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
@@ -101,11 +102,14 @@ export async function uploadTenantFilesApi(
   _storageProviderId?: string,
   _userId?: string
 ): Promise<MultipleFileUploadResultDto> {
+  const selection = Array.from(files);
+  if (selection.length > 1 || selection.some((file) => !!file.webkitRelativePath))
+    return driveApi.uploadFiles(selection, folderId);
   const formData = new FormData();
   Array.from(files).forEach((f) => formData.append('files', f));
   if (folderId) formData.append('folderId', folderId);
 
-  const response = await apiClient.post<any, any>(API_ENDPOINTS.FILES.UPLOAD, formData);
+  const response = await apiClient.post<any, any>(API_ENDPOINTS.FILES.UPLOAD, formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 });
 
   const data = response?.value || response?.data || response;
   if (data?.uploaded) return data;
@@ -125,6 +129,8 @@ export async function uploadDirectTenantFilesApi(
   onProgress?: (fileName: string, progress: DirectUploadProgress) => void
 ): Promise<MultipleFileUploadResultDto> {
   const fileArray = Array.from(files);
+  if (fileArray.length > 1 || fileArray.some((file) => !!file.webkitRelativePath))
+    return driveApi.uploadFiles(fileArray, folderId);
   const uploaded: FileItemDto[] = [];
   const failed: FileUploadFailureDto[] = [];
 

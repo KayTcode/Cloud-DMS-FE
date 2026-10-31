@@ -473,7 +473,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                   <button
                     onClick={() => onOpenFilePreview(toDriveItem(file))}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                    title="Xem trước tệp"
+                    title="Mở / Tải xuống tệp"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
@@ -569,7 +569,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                         <button
                           onClick={() => onOpenFilePreview(toDriveItem(file))}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="Xem trước tệp"
+                          title="Mở / Tải xuống tệp"
                         >
                           <Eye className="w-4 h-4" />
                         </button>

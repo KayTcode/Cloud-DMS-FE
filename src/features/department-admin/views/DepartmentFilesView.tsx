@@ -1,3 +1,4 @@
+import { pickDirectory } from '@/features/user/api/pickDirectory';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Upload,
@@ -42,7 +43,7 @@ import {
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
-import { FilePreviewModal } from '@/features/user/components/FilePreviewModal';
+import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import {
   getDepartmentFilesApi,
   uploadTenantFilesApi,
@@ -114,6 +115,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -499,8 +501,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   };
 
   // Upload handler with real backend integration
-  const handleUploadFiles = async (fileList: FileList | File[]) => {
-    if (!fileList || fileList.length === 0) return;
+  const handleUploadFiles = async (fileList: FileList | File[], directories: string[] = []) => {
+    if (!fileList || (fileList.length === 0 && directories.length === 0)) return;
 
     setIsUploading(true);
     setUploadProgress(20);
@@ -519,11 +521,13 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         ? currentFolderId
         : undefined;
 
-      const result = await uploadTenantFilesApi(
-        fileList,
-        undefined,
-        uploadFolderId
-      );
+      const result = directories.length
+        ? await driveApi.uploadFiles(fileList, uploadFolderId, directories)
+        : await uploadTenantFilesApi(
+            fileList,
+            undefined,
+            uploadFolderId
+          );
 
       setUploadProgress(100);
       setUploadStepMsg('Tải lên hoàn tất!');
@@ -724,6 +728,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           if (e.target.files) handleUploadDirectFiles(e.target.files);
         }}
       />
+
+      <input type="file" ref={folderInputRef} multiple className="hidden" {...({ webkitdirectory: '', directory: '' } as any)}
+        onChange={(event) => { if (event.target.files?.length) handleUploadFiles(event.target.files); event.target.value = ''; }} />
 
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
@@ -970,6 +977,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                     </span>
                   </button>
 
+                  <button onClick={() => { setIsNewMenuOpen(false); void pickDirectory(() => folderInputRef.current?.click(), handleUploadFiles, (message) => onAddToast?.('error', message)); }}
+                    className="w-full px-3 py-2 text-xs text-left hover:bg-slate-100 rounded-xl">Tải thư mục ZIP</button>
                   {/* Tùy chọn 2: Tải qua Server */}
                   <button
                     onClick={() => {
@@ -1256,7 +1265,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {sortedTrashItems.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => setPreviewFile(file)}
+                      onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-rose-50/40 border border-slate-200/80 hover:border-rose-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header */}
@@ -1333,7 +1342,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {sortedTrashItems.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => setPreviewFile(file)}
+                          onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
                           className="hover:bg-rose-50/30 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1511,7 +1520,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => setPreviewFile(file)}
+                      onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header (File Icon + Name + 3-dots) */}
@@ -1542,13 +1551,13 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                             >
                               <button
                                 onClick={() => {
-                                  setPreviewFile(file);
+                                  (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file));
                                   setActiveMenuId(null);
                                 }}
                                 className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
-                                <span>Xem trước</span>
+                                <span>Mở / Tải xuống</span>
                               </button>
                               <button
                                 onClick={() => handleDownload(file)}
@@ -1644,7 +1653,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {files.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => setPreviewFile(file)}
+                          onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
                           className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1864,20 +1873,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Xem trước tài liệu (FilePreviewModal) */}
-      <FilePreviewModal
-        file={previewFile}
-        onClose={() => setPreviewFile(null)}
-        onToggleStar={(id) => handleToggleStar(id)}
-        onDelete={(id) => {
-          if (previewFile) handleDeleteItem(id, previewFile.name);
-          setPreviewFile(null);
-        }}
-        onDownload={(item) => handleDownload(item)}
-        onShare={(item) => {
-          if (onAddToast) onAddToast('info', `Đã sao chép liên kết chia sẻ tệp "${item.name}".`);
-        }}
-      />
+      {/* Modal: Mở / Tải xuống tài liệu (FilePreviewModal) */}
+      {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
+        onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownload(previewFile)} />}
     </div>
   );
 };
