@@ -374,6 +374,22 @@ export const driveApi = {
     window.URL.revokeObjectURL(url);
   },
 
+  getSharedChildren: async (folderId?: string, pageNumber = 1, pageSize = 20): Promise<{
+    folders: { id: string; name: string; parentId: string | null }[];
+    files: SharedFileListResponse;
+    totalFolders: number;
+  }> => {
+    const res: any = await apiClient.get('/drive/shared/children', {
+      params: { folderId, pageNumber, pageSize },
+    });
+    const data = res?.value ?? res?.data ?? res;
+    return {
+      folders: data.folders ?? [],
+      totalFolders: data.totalFolders ?? 0,
+      files: { ...data.files, items: (data.files?.items ?? []).map(mapSharedFileItemDto) },
+    };
+  },
+
   // Lấy danh sách tệp tin được chia sẻ với người dùng hiện tại
   getSharedFiles: async (params?: {
     pageNumber?: number;

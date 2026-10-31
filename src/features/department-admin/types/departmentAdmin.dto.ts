@@ -129,16 +129,16 @@ export interface OffboardEmployeePayload {
 }
 
 export interface OffboardEmployeeResultDto {
-  employeeId: string;
+  offboardedUserId: string;
+  handoverFolderId: string;
+  targetUserName: string;
   offboardedAt: string;
-  revokedTokensCount: number;
   abortedUploadSessionsCount: number;
   transferredFilesCount: number;
   transferredFoldersCount: number;
   reclaimedQuotaBytes: number;
   handoverFolderName: string;
-  scenario: EmployeeHandoverScenario;
-  targetUserId?: string | null;
-  newEmployeeEmail?: string | null;
-  readOnlyShareId?: string | null;
+  scenario: 1 | 2 | 3 | 'DesignatedColleague' | 'DepartmentAdminCustody' | 'InviteNewEmployee';
+  targetUserId: string;
+  transferredBytes: number;
 }

@@ -26,6 +26,7 @@ interface OffboardEmployeeModalProps {
   employee: DepartmentMember | null;
   department: DepartmentInfo;
   departmentMembers: DepartmentMember[];
+  custodianUserId: string;
   onSuccess: (result: OffboardEmployeeResultDto) => void;
 }
 
@@ -35,6 +36,7 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
   employee,
   department,
   departmentMembers,
+  custodianUserId,
   onSuccess,
 }) => {
   const [scenario, setScenario] = useState<EmployeeHandoverScenario>('DESIGNATED_PEER');
@@ -65,6 +67,10 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
       return;
     }
 
+    if (scenario === 'DEPARTMENT_HEAD_CUSTODY' && !custodianUserId) {
+      setError('Không xác định được tài khoản Trưởng phòng tiếp nhận.');
+      return;
+    }
     if (scenario === 'DESIGNATED_PEER') {
       if (!targetUserId) {
         setError('Vui lòng chọn Đồng nghiệp cùng phòng ban để tiếp quản bàn giao.');
@@ -92,7 +98,7 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
         targetUserId:
           scenario === 'DESIGNATED_PEER'
             ? targetUserId
-            : null,
+            : scenario === 'DEPARTMENT_HEAD_CUSTODY' ? custodianUserId : null,
         newEmployeeEmail:
           scenario === 'INVITE_NEW_EMPLOYEE' ? newEmployeeEmail.trim() : null,
         newEmployeeFirstName:
@@ -209,7 +215,9 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                   </div>
                   <div>
                     Chế độ tiếp quản:{' '}
-                    <strong className="text-blue-600">Bản chụp Chỉ đọc (Read-only)</strong>
+                    <strong className="text-blue-600">{scenario === 'DEPARTMENT_HEAD_CUSTODY'
+                      ? 'Trưởng phòng quản lý tại Kho chung'
+                      : 'Quyền Chỉ đọc kế thừa trên thư mục'}</strong>
                   </div>
                   <div>
                     Thời gian hoàn tất:{' '}
@@ -258,15 +266,15 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                 </div>
               </div>
 
-              {/* Policy Banner: Phương án A - Read-Only Snapshot */}
+              {/* Colleagues inherit Viewer access; department heads retain drive management. */}
               <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200/90 text-xs text-indigo-950 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <div className="font-bold text-indigo-900">
-                    Chính sách Bản chụp Chỉ đọc (Read-only Snapshot Policy)
+                    Chính sách Bản chụp Chỉ đọc — chia sẻ thư mục bàn giao
                   </div>
                   <p className="text-[11px] text-indigo-800 leading-relaxed">
-                    Dữ liệu được bàn giao về Kho chung phòng ban trong Thư mục Bàn giao Chỉ đọc. Người tiếp nhận chỉ có quyền xem và tải về; Quota cá nhân của người nhận không bị xáo trộn. Người tiếp nhận muốn làm tiếp sẽ sao chép tệp sang kho cá nhân của mình.
+                    Dữ liệu được chuyển vào thư mục bàn giao tại Kho chung phòng ban. Đồng nghiệp hoặc nhân sự mới được cấp quyền xem và tải về toàn bộ cây thư mục, kể cả tệp được quản lý thêm sau này. Người nhận không được tải lên, tạo thư mục, sửa hoặc xóa; cần sao chép sang kho cá nhân để tiếp tục công việc. Quota cá nhân của người nhận không thay đổi khi nhận bàn giao. Trưởng phòng tiếp tục quản lý dữ liệu theo quyền Kho chung.
                   </p>
                 </div>
               </div>

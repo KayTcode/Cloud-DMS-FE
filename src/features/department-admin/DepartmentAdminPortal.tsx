@@ -321,6 +321,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
         employee={selectedMemberForOffboard}
         department={departmentInfo}
         departmentMembers={members}
+        custodianUserId={user?.id || ''}
         onSuccess={async (result) => {
           const empName = selectedMemberForOffboard?.name || 'nhân viên';
           await refreshData();

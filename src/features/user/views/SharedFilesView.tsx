@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { SharedFileItem, FileType, DriveItem } from '../types';
 import { driveApi } from '../api/driveApi';
+import { SharedFolderBrowser } from '../components/SharedFolderBrowser';
 
 interface SharedFilesViewProps {
   onOpenFilePreview: (file: DriveItem) => void;
@@ -233,6 +234,11 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           </div>
         </div>
       </div>
+
+      <SharedFolderBrowser
+        onOpenFile={file => onOpenFilePreview(toDriveItem(file))}
+        onDownloadFile={file => onDownloadItem(toDriveItem(file))}
+      />
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
