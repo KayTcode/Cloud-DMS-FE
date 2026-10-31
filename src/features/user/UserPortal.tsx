@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   DriveView,
+  DriveTrashView,
   StorageView,
   ProfileView,
   SharedFilesView,
@@ -8,9 +9,12 @@ import {
 import {
   AdjustQuotaModal,
   FilePreviewModal,
+  MoveFolderModal,
   NewFolderModal,
   ShareModal,
 } from './components';
+import { FolderDto, BreadcrumbItem } from './types/folder.types';
+import { folderApi } from './api/folderApi';
 import {
   INITIAL_DEPARTMENT_QUOTAS,
   INITIAL_USER,
@@ -21,7 +25,6 @@ import {
   DriveFilter,
   DriveItem,
   PersonalStorageQuotaDto,
-  TrashFileListResponse,
   UserActivity,
   UserProfile,
   UserNavTab,
@@ -58,22 +61,16 @@ export const UserPortal: React.FC = () => {
   }, [authUser]);
 
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
-  const [trashResponse, setTrashResponse] = useState<TrashFileListResponse>({
-    items: [],
-    totalCount: 0,
-    pageNumber: 1,
-    pageSize: 50,
-    totalSizeBytes: 0,
-    hasMore: false,
-  });
   const [personalQuota, setPersonalQuota] = useState<PersonalStorageQuotaDto | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
-  const [isLoadingTrash, setIsLoadingTrash] = useState(false);
   const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>(
     INITIAL_DEPARTMENT_QUOTAS
   );
   const [activities, setActivities] = useState<UserActivity[]>(INITIAL_USER_ACTIVITIES);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
+  const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
 
   // Modals state
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
@@ -106,20 +103,6 @@ export const UserPortal: React.FC = () => {
     }
   }, []);
 
-  // Nạp danh sách thùng rác thực tế từ backend (GET /api/files/trash)
-  const fetchTrashFiles = useCallback(async (searchTerm?: string) => {
-    try {
-      setIsLoadingTrash(true);
-      const res = await driveApi.getTrashFiles(1, 100, searchTerm);
-      setTrashResponse(res);
-    } catch (error) {
-      console.error('Lỗi nạp thùng rác:', error);
-      showNotification('Không thể nạp danh sách thùng rác từ máy chủ.', 'error');
-    } finally {
-      setIsLoadingTrash(false);
-    }
-  }, []);
-
   // Nạp hạn mức dung lượng cá nhân từ backend
   const fetchPersonalQuota = useCallback(async () => {
     try {
@@ -143,6 +126,72 @@ export const UserPortal: React.FC = () => {
       console.warn('Không thể nạp hạn mức Quota từ máy chủ:', error);
     }
   }, []);
+
+  // Nạp thư mục từ backend theo currentFolderId
+  const fetchFolders = useCallback(async (folderId: string | null) => {
+    if (!authUser?.id) return;
+    try {
+      let res;
+      if (folderId === null) {
+        res = await folderApi.getRoot('Personal', authUser.id);
+        setBreadcrumb([]);
+      } else {
+        res = await folderApi.getChildren(folderId);
+        setBreadcrumb(res.breadcrumb);
+      }
+      setApiFolders(res.folders);
+    } catch (error) {
+      console.error('Lỗi nạp thư mục:', error);
+    }
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    fetchFolders(currentFolderId);
+  }, [currentFolderId, fetchFolders]);
+
+  const handleNavigateFolder = (id: string | null) => {
+    setCurrentFolderId(id);
+  };
+
+  const handleRenameFolder = async (folderId: string, newName: string) => {
+    try {
+      await folderApi.renameFolder(folderId, { name: newName });
+      await fetchFolders(currentFolderId);
+      showNotification('Đã đổi tên thư mục thành công!', 'success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Đổi tên thư mục thất bại.';
+      showNotification(msg, 'error');
+    }
+  };
+
+  const handleMoveFolder = (folder: FolderDto) => {
+    setMovingFolder(folder);
+  };
+
+  const handleConfirmMove = async (targetFolderId: string | null) => {
+    if (!movingFolder) return;
+    try {
+      await folderApi.moveFolder(movingFolder.id, { targetParentFolderId: targetFolderId });
+      await fetchFolders(currentFolderId);
+      showNotification(`Đã di chuyển thư mục "${movingFolder.name}" thành công!`, 'success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Di chuyển thư mục thất bại.';
+      showNotification(msg, 'error');
+    } finally {
+      setMovingFolder(null);
+    }
+  };
+
+  const handleTrashFolder = async (folderId: string) => {
+    try {
+      await folderApi.trashFolder(folderId);
+      await fetchFolders(currentFolderId);
+      showNotification('Đã chuyển thư mục vào thùng rác.', 'info');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Không thể xóa thư mục.';
+      showNotification(msg, 'error');
+    }
+  };
 
   // Đồng bộ trạng thái điều hướng khi người dùng bấm Menu bên trái (Sidebar)
   useEffect(() => {
@@ -173,17 +222,14 @@ export const UserPortal: React.FC = () => {
 
   // Tự động load dữ liệu khi thay đổi tab lọc, thư mục hoặc từ khóa tìm kiếm
   useEffect(() => {
-    if (activeFilter === 'trash') {
-      fetchTrashFiles(searchQuery);
-    } else {
+    if (activeFilter !== 'trash') {
       fetchDriveItems(currentFolderId, searchQuery);
     }
-  }, [activeFilter, currentFolderId, fetchTrashFiles, fetchDriveItems, searchQuery]);
+  }, [activeFilter, currentFolderId, fetchDriveItems, searchQuery]);
 
   useEffect(() => {
     fetchPersonalQuota();
-    fetchTrashFiles(); // Nạp số lượng tài liệu trong thùng rác để hiển thị badge số lượng
-  }, [fetchPersonalQuota, fetchTrashFiles]);
+  }, [fetchPersonalQuota]);
 
   // Xử lý tải lên tệp tin
   const handleUploadFiles = async (fileList: FileList) => {
@@ -284,10 +330,12 @@ export const UserPortal: React.FC = () => {
   };
 
   // Xử lý tạo thư mục mới
-  const handleCreateFolder = async (name: string, department: string) => {
+  const handleCreateFolder = async (name: string, department: string, parentFolderId?: string | null) => {
     try {
-      await driveApi.createFolder(name, currentFolderId);
+      const folderId = parentFolderId !== undefined ? parentFolderId : currentFolderId;
+      await driveApi.createFolder(name, folderId);
       await fetchDriveItems(currentFolderId);
+      await fetchFolders(currentFolderId);
       showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
     } catch (error: any) {
       const newFolder: DriveItem = {
@@ -340,52 +388,9 @@ export const UserPortal: React.FC = () => {
       setDriveItems((prev) => prev.filter((item) => item.id !== id));
       showNotification('Đã chuyển tài liệu vào thùng rác.', 'info');
       await fetchPersonalQuota();
-      // Nếu đang mở xem thùng rác, nạp lại thùng rác
-      if (activeFilter === 'trash') {
-        await fetchTrashFiles();
-      }
     } catch (error: any) {
       console.error('Lỗi khi xóa tài liệu:', error);
       const errMsg = error?.response?.data?.message || error?.message || 'Không thể xóa tài liệu.';
-      showNotification(errMsg, 'error');
-    }
-  };
-
-  // Xử lý khôi phục tệp tin từ thùng rác (POST /api/files/{id}/restore)
-  const handleRestoreFile = async (id: string) => {
-    try {
-      await driveApi.restoreFile(id);
-      // Loại bỏ khỏi danh sách thùng rác
-      setTrashResponse((prev) => ({
-        ...prev,
-        items: prev.items.filter((item) => item.id !== id),
-        totalCount: Math.max(0, prev.totalCount - 1),
-      }));
-      showNotification('Đã khôi phục tài liệu từ thùng rác về thư mục thành công!', 'success');
-      await fetchPersonalQuota();
-      await fetchDriveItems(currentFolderId);
-    } catch (error: any) {
-      console.error('Lỗi khi khôi phục tài liệu:', error);
-      const errMsg = error?.response?.data?.message || error?.message || 'Khôi phục tài liệu thất bại.';
-      showNotification(errMsg, 'error');
-    }
-  };
-
-  // Xử lý xóa vĩnh viễn tệp tin (DELETE /api/files/{id}/permanent)
-  const handlePermanentDelete = async (id: string) => {
-    try {
-      await driveApi.deletePermanently(id);
-      // Loại bỏ khỏi danh sách thùng rác
-      setTrashResponse((prev) => ({
-        ...prev,
-        items: prev.items.filter((item) => item.id !== id),
-        totalCount: Math.max(0, prev.totalCount - 1),
-      }));
-      showNotification('Đã xóa vĩnh viễn tài liệu và giải phóng hạn mức Quota!', 'success');
-      await fetchPersonalQuota();
-    } catch (error: any) {
-      console.error('Lỗi khi xóa vĩnh viễn:', error);
-      const errMsg = error?.response?.data?.message || error?.message || 'Không thể xóa vĩnh viễn tài liệu.';
       showNotification(errMsg, 'error');
     }
   };
@@ -482,11 +487,6 @@ export const UserPortal: React.FC = () => {
           >
             <Trash2 className="w-4 h-4 text-rose-500" />
             <span>Thùng rác</span>
-            {trashResponse.totalCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold">
-                {trashResponse.totalCount}
-              </span>
-            )}
           </button>
 
           <button
@@ -544,7 +544,14 @@ export const UserPortal: React.FC = () => {
 
       {/* Main Tab View */}
       <div className="tab-content-area">
-        {activeTab === 'documents' && (
+        {activeTab === 'documents' && activeFilter === 'trash' && (
+          <DriveTrashView
+            driveKind="Personal"
+            driveOwnerId={authUser?.id ?? ''}
+          />
+        )}
+
+        {activeTab === 'documents' && activeFilter !== 'trash' && (
           <DriveView
             items={driveItems}
             currentUser={currentUser}
@@ -553,20 +560,20 @@ export const UserPortal: React.FC = () => {
             searchQuery={searchQuery}
             activeFilter={activeFilter}
             setActiveFilter={handleFilterChange}
-            trashItems={trashResponse.items}
-            trashTotalCount={trashResponse.totalCount}
-            trashTotalSizeBytes={trashResponse.totalSizeBytes}
-            isLoadingTrash={isLoadingTrash}
             onUploadFile={handleUploadFiles}
             onUploadDirectFile={handleUploadDirectFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
             onOpenFilePreview={(file) => setPreviewFile(file)}
             onToggleStar={handleToggleStar}
             onDeleteFile={handleDeleteItem}
-            onRestoreFile={handleRestoreFile}
-            onPermanentDeleteFile={handlePermanentDelete}
             onShareItem={(item) => setShareItem(item)}
             onDownloadItem={handleDownloadItem}
+            folders={apiFolders}
+            breadcrumb={breadcrumb}
+            onNavigateFolder={handleNavigateFolder}
+            onRenameFolder={handleRenameFolder}
+            onMoveFolder={handleMoveFolder}
+            onTrashFolder={handleTrashFolder}
           />
         )}
 
@@ -620,6 +627,16 @@ export const UserPortal: React.FC = () => {
         onClose={() => setIsNewFolderOpen(false)}
         onCreateFolder={handleCreateFolder}
         userDepartment={currentUser.department}
+        parentFolderId={currentFolderId}
+      />
+
+      <MoveFolderModal
+        isOpen={movingFolder !== null}
+        item={movingFolder ? { id: movingFolder.id, name: movingFolder.name, type: 'folder' } : null}
+        driveKind="Personal"
+        driveOwnerId={authUser?.id ?? ''}
+        onClose={() => setMovingFolder(null)}
+        onMove={handleConfirmMove}
       />
 
       <AdjustQuotaModal

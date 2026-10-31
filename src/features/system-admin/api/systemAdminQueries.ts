@@ -1,4 +1,5 @@
 import axiosClient from '@/api/axiosClient';
+import { API_ENDPOINTS } from '@/api/endpoints';
 import {
   SystemTenant,
   SystemActivityItem,
@@ -7,7 +8,9 @@ import {
   SystemMetricsSummary,
   AdminUserDto,
   PaginatedResult,
-  GetUsersQueryFilter
+  GetUsersQueryFilter,
+  TenantQuotaAllocationListResponse,
+  TenantStorageQuotaResponse,
 } from '../types';
 import {
   INITIAL_SYSTEM_TENANTS,
@@ -250,6 +253,9 @@ export const getStorageProvidersApi = async (): Promise<StorageProviderItem[]> =
         availableCapacityBytes: p.availableCapacityBytes,
         allocatedToTenantsBytes: p.allocatedToTenantsBytes,
         unallocatedCapacityBytes: p.unallocatedCapacityBytes,
+        externalUsedBytes: p.externalUsedBytes,
+        systemUsedBytes: p.systemUsedBytes,
+        availableToGrantBytes: p.availableToGrantBytes,
         rootFolderId: p.rootFolderId,
         tenantsCount: p.tenantsCount || 0,
         createdAt: p.createdAt,
@@ -299,3 +305,10 @@ export const getAuditLogsApi = async (pageNumber: number = 1, pageSize: number =
   }
   return AUDIT_LOGS;
 };
+
+/**
+ * Lấy danh sách phân bổ quota theo nhà cung cấp lưu trữ của một tenant
+ * Backend Endpoint: GET /api/admin/tenants/{tenantId}/quota-allocations
+ */
+export const getTenantQuotaAllocationsApi = (tenantId: string): Promise<TenantStorageQuotaResponse> =>
+  axiosClient.get(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.GET(tenantId));

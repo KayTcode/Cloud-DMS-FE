@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import {
   ActiveTab,
   NavItem,
@@ -23,6 +23,7 @@ import {
   updateTenantSettings,
 } from '@/features/tenants/api';
 import { CreateDepartmentAdminPayload, Department } from '@/features/tenants/types';
+import { notificationApi, NotificationDto } from '@/features/notifications';
 
 interface TenantContextType {
   // Navigation & Tabs
@@ -43,7 +44,13 @@ interface TenantContextType {
   isNotificationOpen: boolean;
   setIsNotificationOpen: (open: boolean) => void;
   notificationCount: number;
-  clearNotifications: () => void;
+  notifications: NotificationDto[];
+  notificationsLoading: boolean;
+  notificationsHasMore: boolean;
+  refreshNotifications: () => Promise<void>;
+  loadMoreNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 
   // Modals & Impersonation
   isSubscriptionModalOpen: boolean;
@@ -128,7 +135,11 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(1);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsHasMore, setNotificationsHasMore] = useState(false);
+  const notificationsPageRef = useRef(1);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isImpersonateModalOpen, setIsImpersonateModalOpen] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -498,10 +509,84 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const clearNotifications = () => {
-    setNotificationCount(0);
-    addToast('info', 'All notifications marked as read.');
-  };
+  // Polling số chưa đọc mỗi 60 giây khi đã đăng nhập
+  useEffect(() => {
+    if (!authUser) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const count = await notificationApi.unreadCount();
+        setNotificationCount(count);
+      } catch {
+        // Giữ số cũ, không toast
+      }
+    };
+
+    fetchUnreadCount();
+    const intervalId = setInterval(fetchUnreadCount, 60_000);
+    return () => clearInterval(intervalId);
+  }, [authUser]);
+
+  const refreshNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const [page, count] = await Promise.all([
+        notificationApi.list(1, 20),
+        notificationApi.unreadCount(),
+      ]);
+      notificationsPageRef.current = 1;
+      setNotifications(page.items);
+      setNotificationsHasMore(page.hasNextPage);
+      setNotificationCount(count);
+    } catch {
+      // Giữ nguyên
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const loadMoreNotifications = useCallback(async () => {
+    const nextPage = notificationsPageRef.current + 1;
+    setNotificationsLoading(true);
+    try {
+      const page = await notificationApi.list(nextPage, 20);
+      notificationsPageRef.current = nextPage;
+      setNotifications((prev) => [...prev, ...page.items]);
+      setNotificationsHasMore(page.hasNextPage);
+    } catch {
+      // Giữ nguyên
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    // Cập nhật lạc quan
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id && !n.isRead ? { ...n, isRead: true } : n))
+    );
+    setNotificationCount((prev) => Math.max(0, prev - 1));
+    try {
+      await notificationApi.markRead(id);
+    } catch {
+      // Rollback nếu lỗi
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: false } : n))
+      );
+      setNotificationCount((prev) => prev + 1);
+    }
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      await notificationApi.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setNotificationCount(0);
+      addToast('success', 'Đã đánh dấu tất cả là đã đọc.');
+    } catch {
+      addToast('error', 'Không thể đánh dấu tất cả đã đọc.');
+    }
+  }, [addToast]);
 
   return (
     <TenantContext.Provider
@@ -519,7 +604,13 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isNotificationOpen,
         setIsNotificationOpen,
         notificationCount,
-        clearNotifications,
+        notifications,
+        notificationsLoading,
+        notificationsHasMore,
+        refreshNotifications,
+        loadMoreNotifications,
+        markNotificationRead,
+        markAllNotificationsRead,
         isSubscriptionModalOpen,
         setIsSubscriptionModalOpen,
         isImpersonateModalOpen,

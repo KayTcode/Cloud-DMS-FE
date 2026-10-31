@@ -6,3 +6,4 @@ export * from './StorageOverviewView';
 export * from './SetupDepartmentView';
 export * from './DepartmentStorageReportView';
 export * from './DepartmentQuotaView';
+export * from './SharedStoreView';

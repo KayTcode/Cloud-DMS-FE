@@ -13,7 +13,9 @@ import {
   Layers,
   Trash2,
   Share2,
-  ClipboardCheck
+  ClipboardCheck,
+  FolderOpen,
+  Inbox,
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -96,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'tenants', label: 'Tenants', icon: Database },
         { id: 'quota-requests', label: 'Duyệt Quota', icon: ClipboardCheck },
         { id: 'storage-providers', label: 'Storage Providers', icon: HardDrive },
+        { id: 'quota-approvals', label: 'Duyệt quota', icon: Inbox },
         { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
         { id: 'settings', label: 'Settings', icon: Settings },
       ];
@@ -116,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tài liệu & Upload', icon: FolderTree },
+        { id: 'shared-store', label: 'Kho chung', icon: FolderOpen },
         { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'trash', label: 'Thùng rác phòng ban', icon: Trash2 },
         { id: 'tenants', label: 'Quản lý nhân viên', icon: Users },

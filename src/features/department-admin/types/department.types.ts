@@ -62,7 +62,7 @@ export interface DepartmentInfo {
   retentionDays?: number;
 }
 
-export type DepartmentNavTab = 'hub' | 'files' | 'trash' | 'staff' | 'logs' | 'storage' | 'settings' | 'report' | 'quota';
+export type DepartmentNavTab = 'hub' | 'files' | 'trash' | 'staff' | 'logs' | 'storage' | 'settings' | 'report' | 'quota' | 'shared-store';
 
 export interface DepartmentActivityLog {
   id: string;

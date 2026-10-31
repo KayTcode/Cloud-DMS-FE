@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, XCircle, AlertTriangle, User, Calendar, FileText, HardDrive } from 'lucide-react';
+import { X, CheckCircle2, XCircle, AlertTriangle, User, Calendar, FileText, HardDrive, Loader2 } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
-import { QuotaRequestDto } from '../types/quota.types';
+import { PendingQuotaRequestDto, QuotaRequestDto } from '../types/quota.types';
+import { GB_IN_BYTES, bytesToGB } from '../utils/quotaAvailability';
+import { StorageProviderItem } from '../../system-admin/types/systemAdmin.dto';
+import { getStorageProvidersApi } from '../../system-admin/api/systemAdminQueries';
 
 interface DecideQuotaModalProps {
   isOpen: boolean;
-  request: QuotaRequestDto | null;
+  request: PendingQuotaRequestDto | null;
   onClose: () => void;
   onSuccess: (updated: QuotaRequestDto, message: string) => void;
+  onRequestTopUp?: (shortfallBytes: number) => void;
 }
-
-const GB_IN_BYTES = 1024 * 1024 * 1024;
 
 export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   isOpen,
   request,
   onClose,
   onSuccess,
+  onRequestTopUp,
 }) => {
   const [mode, setMode] = useState<'approve' | 'reject'>('approve');
   const [approvalType, setApprovalType] = useState<'full' | 'partial'>('full');
@@ -24,6 +27,21 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [storageProviderId, setStorageProviderId] = useState<string>('');
+  const [providers, setProviders] = useState<StorageProviderItem[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState<boolean>(false);
+
+  const bytesToApprove = !request
+    ? 0
+    : approvalType === 'partial'
+      ? Math.round((partialGB || 0) * GB_IN_BYTES)
+      : request.requestedAdditionalBytes;
+  const remaining = request?.sourceRemainingBytes ?? null;
+  const isShort = remaining !== null && bytesToApprove > remaining;
+  const showProviderSelector =
+    !!request &&
+    (request.requesterRole === 'TenantAdmin' ||
+      (request.requesterRole === 'DepartmentAdmin' && !request.viewerOwnsSource && isShort));
 
   useEffect(() => {
     if (request) {
@@ -33,8 +51,21 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
       setPartialGB(reqGB > 1 ? Math.floor(reqGB / 2) : 1);
       setRejectionReason('');
       setErrorMessage(null);
+      setStorageProviderId('');
+      setProviders([]);
     }
   }, [request]);
+
+  useEffect(() => {
+    if (!showProviderSelector) return;
+    let cancelled = false;
+    setIsLoadingProviders(true);
+    getStorageProvidersApi()
+      .then((data) => { if (!cancelled) setProviders(data); })
+      .catch((err) => console.error('Failed to load providers:', err))
+      .finally(() => { if (!cancelled) setIsLoadingProviders(false); });
+    return () => { cancelled = true; };
+  }, [showProviderSelector, request]);
 
   if (!isOpen || !request) return null;
 
@@ -43,7 +74,6 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
 
   const handleApprove = async () => {
     setErrorMessage(null);
-    let bytesToApprove = request.requestedAdditionalBytes;
 
     if (approvalType === 'partial') {
       if (!partialGB || partialGB <= 0) {
@@ -54,12 +84,27 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         setErrorMessage(`Dung lượng duyệt một phần không được vượt quá mức yêu cầu (${requestedGB} GB).`);
         return;
       }
-      bytesToApprove = Math.round(partialGB * GB_IN_BYTES);
+    }
+
+    if (isShort && !showProviderSelector) {
+      setErrorMessage('Nguồn cấp không đủ dung lượng cho mức duyệt này.');
+      return;
+    }
+
+    if (showProviderSelector && !storageProviderId) {
+      setErrorMessage('Vui lòng chọn tài khoản lưu trữ để phân bổ quota.');
+      return;
     }
 
     try {
       setIsLoading(true);
-      const updated = await quotaApi.decideRequest(request.id, bytesToApprove);
+      const payload: { approvedAdditionalBytes: number; storageProviderId?: string } = {
+        approvedAdditionalBytes: bytesToApprove,
+      };
+      if (showProviderSelector && storageProviderId) {
+        payload.storageProviderId = storageProviderId;
+      }
+      const updated = await quotaApi.decideRequest(request.id, payload);
       const isFull = bytesToApprove >= request.requestedAdditionalBytes;
       onSuccess(
         updated,
@@ -121,7 +166,8 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
               Xử lý yêu cầu tăng Quota
             </h3>
             <p className="text-xs text-slate-500">
-              Yêu cầu từ nhân viên <span className="font-semibold text-slate-700">{request.requesterName}</span>
+              Yêu cầu từ <span className="font-semibold text-slate-700">{request.requesterName}</span>
+              {request.requesterDepartmentName ? ` (${request.requesterDepartmentName})` : ''}
             </p>
           </div>
           <button
@@ -222,6 +268,88 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         {/* Form phê duyệt */}
         {mode === 'approve' && (
           <div className="mt-4 space-y-3 animate-in fade-in duration-150">
+            {isShort && remaining !== null && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    {(request.requesterRole === 'Employee' || request.requesterRole === 'DepartmentAdmin') && (
+                      <span className="font-semibold block">
+                        {request.requesterRole === 'Employee' ? 'Phòng ban' : 'Tổ chức'}
+                      </span>
+                    )}
+                    <span>
+                      Nguồn cấp còn {bytesToGB(remaining)} GB, thiếu {bytesToGB(bytesToApprove - remaining)} GB.
+                    </span>
+                  </div>
+                </div>
+                {request.viewerOwnsSource && !request.viewerHasPendingRequest && (
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => {
+                      onRequestTopUp?.(bytesToApprove - remaining);
+                      onClose();
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Xin thêm từ cấp trên
+                  </button>
+                )}
+                {request.viewerOwnsSource && request.viewerHasPendingRequest && (
+                  <p className="font-medium">Bạn đã gửi yêu cầu lên cấp trên, đang chờ duyệt.</p>
+                )}
+              </div>
+            )}
+            {/* Provider selector — TenantAdmin requests, hoặc System admin bù quota cho Tổ chức */}
+            {showProviderSelector && (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Tài khoản lưu trữ <span className="text-rose-500">*</span>
+                </label>
+                {isLoadingProviders ? (
+                  <div className="flex items-center gap-2 p-3 text-xs text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                    <span>Đang tải danh sách tài khoản lưu trữ...</span>
+                  </div>
+                ) : providers.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                    Không tìm thấy tài khoản lưu trữ nào. Vui lòng kết nối Storage Provider trước.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {providers.map((p) => {
+                      const isSelected = p.id === storageProviderId;
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => { setStorageProviderId(p.id); setErrorMessage(null); }}
+                          className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/40 shadow-xs'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                              <HardDrive className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-800">{p.name}</div>
+                              <div className="text-[11px] text-slate-500 font-mono">{p.type}</div>
+                            </div>
+                          </div>
+                          <div className="text-right text-xs">
+                            <span className="text-slate-400 text-[11px] block">Tổng</span>
+                            <span className="font-mono font-semibold text-slate-700">{p.capacity}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                 <input
@@ -308,7 +436,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
           {mode === 'approve' ? (
             <button
               type="button"
-              disabled={isLoading}
+              disabled={isLoading || (isShort && !showProviderSelector)}
               onClick={handleApprove}
               className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >

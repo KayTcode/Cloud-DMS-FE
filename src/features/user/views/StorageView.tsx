@@ -158,6 +158,8 @@ export const StorageView: React.FC<StorageViewProps> = ({
   const quotaBytes = (quota as any)?.quotaBytes ?? (quota as any)?.QuotaBytes ?? 0;
   const usedBytes = (quota as any)?.usedBytes ?? (quota as any)?.UsedBytes ?? 0;
   const availableBytes = (quota as any)?.availableBytes ?? (quota as any)?.AvailableBytes ?? Math.max(0, quotaBytes - usedBytes);
+  const uploadableBytes: number | undefined = (quota as any)?.uploadableBytes ?? (quota as any)?.UploadableBytes;
+  const uploadableDisplay = uploadableBytes !== undefined ? uploadableBytes : availableBytes;
   const usagePercent = (quota as any)?.usagePercent ?? (quota as any)?.UsagePercent ?? (quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0);
   const departmentName = quota?.departmentName || (quota as any)?.DepartmentName;
 
@@ -283,15 +285,27 @@ export const StorageView: React.FC<StorageViewProps> = ({
 
         <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn khả dụng</p>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn có thể tải lên</p>
             <FolderLock className="w-4 h-4 text-emerald-500" />
           </div>
           <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-            {isLoading ? 'Đang tải...' : formatBytes(availableBytes)}
+            {isLoading ? 'Đang tải...' : formatBytes(uploadableDisplay)}
           </p>
-          <p className="text-xs text-slate-400 mt-2">
-            Không gian còn lại để lưu trữ tệp mới
-          </p>
+          {!isLoading && uploadableBytes === 0 && usedBytes >= quotaBytes && (
+            <p className="text-xs text-rose-600 mt-2 font-medium">
+              Đã vượt hạn mức — hãy xoá hẳn tệp (kể cả trong thùng rác) để tải lên lại.
+            </p>
+          )}
+          {!isLoading && uploadableBytes === 0 && usedBytes < quotaBytes && (
+            <p className="text-xs text-amber-600 mt-2 font-medium">
+              Phòng hiện không còn chỗ trống để tải lên. Trưởng phòng đã được thông báo.
+            </p>
+          )}
+          {!isLoading && uploadableBytes !== 0 && (
+            <p className="text-xs text-slate-400 mt-2">
+              Dung lượng có thể tải lên thêm
+            </p>
+          )}
         </div>
       </div>
 

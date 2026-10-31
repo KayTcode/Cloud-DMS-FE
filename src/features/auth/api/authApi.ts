@@ -15,7 +15,6 @@ export interface InvitationValidationResponse {
 export interface AcceptInvitationPayload {
   token: string;
   email: string;
-  newPassword?: string;
 }
 
 export interface RefreshTokenPayload {

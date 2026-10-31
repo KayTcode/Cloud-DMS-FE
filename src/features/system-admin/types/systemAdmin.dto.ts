@@ -130,6 +130,9 @@ export interface StorageProviderItem {
   availableCapacityBytes?: number;
   allocatedToTenantsBytes?: number;
   unallocatedCapacityBytes?: number;
+  externalUsedBytes?: number;
+  systemUsedBytes?: number;
+  availableToGrantBytes?: number;
   rootFolderId?: string;
   tenantsCount?: number;
   createdAt?: string;
@@ -172,14 +175,16 @@ export interface StorageProviderAvailableQuotaResponse {
 export interface TenantStorageQuotaResponse {
   tenantId: string;
   tenantName: string;
-  tenantCode: string;
+  tenantCode?: string;
   storageProviderId?: string;
   storageProviderName?: string;
   storageProviderType?: number;
   storageQuotaBytes: number;
   storageUsedBytes: number;
-  availableBytes: number;
-  usagePercentage: number;
+  availableBytes?: number;
+  usagePercentage?: number;
+  allocatedToDepartmentsBytes?: number;
+  allocations: QuotaAllocationPartDto[];
 }
 
 export interface AllocateTenantQuotaPayload {
@@ -219,4 +224,26 @@ export interface CreateSystemTenantPayload {
   storageAllocated: string;
   adminEmail?: string;
   region?: string;
+}
+
+export interface QuotaAllocationPartDto {
+  allocationId: string;
+  storageProviderId: string;
+  storageProviderName: string;
+  storageProviderType: number;
+  grantedBytes: number;
+  allocatedToChildrenBytes: number;
+  usedBytes: number;
+}
+
+/** @deprecated Use TenantStorageQuotaResponse */
+export type TenantQuotaAllocationListResponse = TenantStorageQuotaResponse;
+
+export interface AllocateTenantQuotaAddPayload {
+  storageProviderId: string;
+  bytes: number;
+}
+
+export interface ReduceTenantQuotaPayload {
+  bytes: number;
 }

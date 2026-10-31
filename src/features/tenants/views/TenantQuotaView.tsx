@@ -30,6 +30,7 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
 }) => {
   const { addToast, refreshTenantData } = useTenantContext();
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [topUpBytes, setTopUpBytes] = useState<number | undefined>(undefined);
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
 
   const formatBytesToGB = (bytes?: number) => {
@@ -81,7 +82,7 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
         {/* Nút gửi yêu cầu tăng Quota Tenant lên SystemAdmin */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsRequestModalOpen(true)}
+            onClick={() => { setTopUpBytes(undefined); setIsRequestModalOpen(true); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
@@ -209,6 +210,7 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
               </div>
             </div>
             <PendingQuotaTable
+              onRequestTopUp={(bytes) => { setTopUpBytes(bytes); setIsRequestModalOpen(true); }}
               onDecisionSuccess={() => {
                 addToast('success', 'Đã ghi nhận quyết định phê duyệt thành công.');
                 refreshTenantData(tenant.id);
@@ -223,6 +225,7 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
       {/* Request Quota Modal */}
       <RequestQuotaModal
         isOpen={isRequestModalOpen}
+        initialRequestedBytes={topUpBytes}
         onClose={() => setIsRequestModalOpen(false)}
         onSuccess={handleRequestCreated}
       />

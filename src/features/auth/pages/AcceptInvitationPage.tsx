@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Building,
-  Lock,
-  Eye,
-  EyeOff,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -27,12 +24,6 @@ export const AcceptInvitationPage: React.FC = () => {
   const [pageState, setPageState] = useState<'validating' | 'ready' | 'invalid' | 'submitting' | 'success'>('validating');
   const [invitationInfo, setInvitationInfo] = useState<InvitationValidationResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Form states
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const getRoleMeta = (role?: string) => {
     switch (role) {
@@ -137,47 +128,6 @@ export const AcceptInvitationPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    if (!newPassword.trim()) {
-      setErrorMessage('Vui lòng nhập mật khẩu mới.');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setErrorMessage('Mật khẩu phải có độ dài tối thiểu 6 ký tự.');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setErrorMessage('Mật khẩu xác nhận không khớp với mật khẩu mới.');
-      return;
-    }
-
-    setPageState('submitting');
-    try {
-      const loginResponse = await acceptInvitationApi({
-        token,
-        email,
-        newPassword: newPassword.trim(),
-      });
-
-      setPageState('success');
-
-      // Auto login after 1.5s
-      setTimeout(() => {
-        setSession(loginResponse);
-        window.location.href = '/';
-      }, 1500);
-    } catch (err: any) {
-      setPageState('ready');
-      const apiError = err?.response?.data?.message || err?.message || 'Kích hoạt tài khoản không thành công. Vui lòng thử lại.';
-      setErrorMessage(apiError);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative overflow-hidden font-sans select-none">
       {/* Background ambient lighting effects */}
@@ -267,7 +217,7 @@ export const AcceptInvitationPage: React.FC = () => {
 
           {/* STATE 4: READY / SUBMITTING FORM */}
           {(pageState === 'ready' || pageState === 'submitting') && (
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-5">
               {/* Organization & Recipient summary banner */}
               <div className="p-4 bg-slate-800/60 border border-slate-700/80 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -351,106 +301,7 @@ export const AcceptInvitationPage: React.FC = () => {
                   <span>Kích hoạt tài khoản ngay (Không cần đặt mật khẩu)</span>
                 </button>
               </div>
-
-              {/* Đường ngăn cách nếu muốn đặt mật khẩu truyền thống */}
-              <div className="relative flex py-2 items-center">
-                <div className="grow border-t border-slate-800"></div>
-                <span className="shrink mx-3 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                  Hoặc đặt mật khẩu riêng nếu muốn
-                </span>
-                <div className="grow border-t border-slate-800"></div>
-              </div>
-
-              {/* Password Input */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Mật khẩu mới (Tùy chọn)
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Tối thiểu 6 ký tự"
-                    className="w-full pl-10 pr-10 py-2.5 text-sm bg-slate-950/60 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password Input */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Xác nhận lại mật khẩu mới <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Nhập lại mật khẩu mới"
-                    className="w-full pl-10 pr-10 py-2.5 text-sm bg-slate-950/60 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Password requirements hint */}
-              <div className="p-3 bg-slate-950/40 border border-slate-800 rounded-lg text-[11px] text-slate-400 space-y-1">
-                <p className="font-semibold text-slate-300">Yêu cầu bảo mật:</p>
-                <div className="flex items-center gap-2">
-                  <span className={newPassword.length >= 6 ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                    ✓ Độ dài tối thiểu 6 ký tự
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={newPassword && newPassword === confirmPassword ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
-                    ✓ Mật khẩu xác nhận trùng khớp
-                  </span>
-                </div>
-              </div>
-
-              {/* Submit button */}
-              <button
-                type="submit"
-                disabled={pageState === 'submitting'}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all disabled:opacity-60 cursor-pointer"
-              >
-                {pageState === 'submitting' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang kích hoạt tài khoản...</span>
-                  </>
-                ) : (
-                  <>
-                    <UserCheck className="w-4 h-4" />
-                    <span>Hoàn tất Kích hoạt & Đăng nhập</span>
-                  </>
-                )}
-              </button>
-            </form>
+            </div>
           )}
         </div>
       </div>

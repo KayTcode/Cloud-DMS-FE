@@ -7,6 +7,7 @@ import {
   SetupDepartmentView,
   DepartmentStorageReportView,
   DepartmentQuotaView,
+  SharedStoreView,
 } from './views';
 import {
   AddMemberModal,
@@ -69,6 +70,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('logs');
     } else if (activeNav === 'storage-providers') {
       setActiveTab('quota');
+    } else if (activeNav === 'shared-store') {
+      setActiveTab('shared-store');
     }
   }, [activeNav]);
 
@@ -86,6 +89,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('audit-logs');
     } else if (tab === 'quota') {
       setActiveNav('storage-providers');
+    } else if (tab === 'shared-store') {
+      setActiveNav('shared-store');
     }
   };
 
@@ -284,6 +289,11 @@ const DepartmentAdminPortalContent: React.FC = () => {
             onQuotaUpdated={refreshData}
             onShowToast={showNotification}
           />
+        )}
+
+        {/* 7. CHỨC NĂNG 6: KHO CHUNG PHÒNG BAN */}
+        {activeTab === 'shared-store' && (
+          <SharedStoreView />
         )}
       </div>
 
