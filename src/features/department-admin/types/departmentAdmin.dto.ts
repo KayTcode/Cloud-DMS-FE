@@ -15,7 +15,6 @@ export interface UserStorageQuotaDto {
   usagePercentage: number;
 }
 
-
 export interface DepartmentUsersQuotaSummaryDto {
   departmentId: string;
   departmentName: string;
@@ -108,3 +107,32 @@ export interface DepartmentAuditLogDto {
   tenantName?: string;
 }
 
+export type EmployeeHandoverScenario =
+  | 'DESIGNATED_PEER'
+  | 'DEPARTMENT_HEAD_CUSTODY'
+  | 'INVITE_NEW_EMPLOYEE';
+
+export interface OffboardEmployeePayload {
+  employeeId: string;
+  targetUserId?: string | null;
+  newEmployeeEmail?: string | null;
+  newEmployeeFirstName?: string | null;
+  newEmployeeLastName?: string | null;
+  newEmployeePhoneNumber?: string | null;
+  handoverReason?: string | null;
+}
+
+export interface OffboardEmployeeResultDto {
+  employeeId: string;
+  offboardedAt: string;
+  revokedTokensCount: number;
+  abortedUploadSessionsCount: number;
+  transferredFilesCount: number;
+  transferredFoldersCount: number;
+  reclaimedQuotaBytes: number;
+  handoverFolderName: string;
+  scenario: EmployeeHandoverScenario;
+  targetUserId?: string | null;
+  newEmployeeEmail?: string | null;
+  readOnlyShareId?: string | null;
+}

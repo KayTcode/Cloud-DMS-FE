@@ -11,6 +11,8 @@ import {
   DepartmentDto,
   DepartmentSetupInfoDto,
   DepartmentAuditLogDto,
+  OffboardEmployeePayload,
+  OffboardEmployeeResultDto,
 } from '../types';
 
 export const departmentApi = {
@@ -90,6 +92,21 @@ export const departmentApi = {
   ): Promise<DepartmentEmployeeDto> => {
     const res: any = await apiClient.post(
       API_ENDPOINTS.DEPARTMENT.EMPLOYEES(departmentId),
+      payload
+    );
+    return res?.value ?? res?.data ?? res;
+  },
+
+  /**
+   * Vô hiệu hóa tài khoản Nhân viên và Bàn giao Tài sản số về Kho chung phòng ban (Phương án A: Read-Only Snapshot)
+   * Khớp BE: POST /api/department/{departmentId}/employees/offboard
+   */
+  offboardEmployee: async (
+    departmentId: string,
+    payload: OffboardEmployeePayload
+  ): Promise<OffboardEmployeeResultDto> => {
+    const res: any = await apiClient.post(
+      API_ENDPOINTS.DEPARTMENT.EMPLOYEES_OFFBOARD(departmentId),
       payload
     );
     return res?.value ?? res?.data ?? res;

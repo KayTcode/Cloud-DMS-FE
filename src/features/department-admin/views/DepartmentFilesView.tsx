@@ -77,6 +77,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>(initialTab);
   const [items, setItems] = useState<DriveItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [storageSummary, setStorageSummary] = useState<TenantStorageSummaryDto | null>(null);
 
   // Trash states
@@ -106,6 +107,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderType, setNewFolderType] = useState<'shared' | 'personal'>('shared');
+  const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
@@ -130,16 +133,62 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const fetchDepartmentFiles = async () => {
     try {
       setIsLoading(true);
+      setErrorMessage(null);
+      const isVirtualRoot = currentFolderId === 'drive-shared' || currentFolderId === 'drive-personal';
+      const actualFolderId = currentFolderId && !isVirtualRoot ? currentFolderId : undefined;
+
       const res = await getDepartmentFilesApi(
         department.id || '',
-        currentFolderId || undefined,
+        actualFolderId,
         1,
         100,
         searchQuery.trim() || undefined
       );
       setStorageSummary(res);
 
-      const apiFiles: DriveItem[] = (res.files || []).map((f) => {
+      const ROOT_SHARED_ID = 'drive-shared';
+      const ROOT_PERSONAL_ID = 'drive-personal';
+
+      // 2 Thư mục gốc đại diện cho 2 kho vật lý thực tế trên Google Drive
+      const rootSharedFolder: DriveItem = {
+        id: ROOT_SHARED_ID,
+        name: res.sharedFolderName || `FPR-${department.code || department.name}-shared`,
+        type: 'folder',
+        size: 0,
+        sizeFormatted: 'Kho chung',
+        updatedAt: 'Hệ thống',
+        createdAt: 'Hệ thống',
+        owner: {
+          name: 'Kho dùng chung phòng ban',
+          email: department.adminEmail || '',
+        },
+        parentId: null,
+        starred: false,
+        trashed: false,
+        sharedWith: [],
+        tags: ['Kho chung phòng ban', 'Google Drive'],
+      };
+
+      const rootPersonalFolder: DriveItem = {
+        id: ROOT_PERSONAL_ID,
+        name: res.personalFolderName || `FPR-${department.code || department.name}-personal`,
+        type: 'folder',
+        size: 0,
+        sizeFormatted: 'Kho riêng',
+        updatedAt: 'Hệ thống',
+        createdAt: 'Hệ thống',
+        owner: {
+          name: 'Kho riêng cá nhân',
+          email: department.adminEmail || '',
+        },
+        parentId: null,
+        starred: false,
+        trashed: false,
+        sharedWith: [],
+        tags: ['Thư mục cá nhân', 'Google Drive'],
+      };
+
+      const apiFiles: DriveItem[] = (res.files || []).map((f: any) => {
         const ext = f.name.split('.').pop()?.toLowerCase() || '';
         let fType: FileType = 'other';
         if (ext === 'pdf') fType = 'pdf';
@@ -149,6 +198,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) fType = 'archive';
         else if (['cs', 'ts', 'tsx', 'js', 'json', 'py', 'java', 'html', 'css', 'sql'].includes(ext)) fType = 'code';
         else if (['ppt', 'pptx'].includes(ext)) fType = 'slide';
+
+        const isPersonal = f.driveKind === 'Personal';
+        const effectiveParentId = f.folderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
 
         return {
           id: f.id,
@@ -164,37 +216,51 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
             name: f.ownerName || department.adminName || 'Thành viên phòng',
             email: department.adminEmail || '',
           },
-          parentId: f.folderId || null,
+          parentId: effectiveParentId,
           starred: false,
           trashed: false,
           sharedWith: [],
-          tags: [f.storageProviderName || 'Google Drive', department.name],
+          tags: [f.storageProviderName || 'Google Drive', isPersonal ? 'Thư mục cá nhân' : 'Kho chung'],
           contentSnippet: `Tài liệu lưu trữ thuộc ${department.name}. Dung lượng: ${formatBytes(f.sizeBytes)}. Trạng thái bảo mật ClamAV: ${f.scanStatus || 'Clean'}. Khóa lưu trữ: ${f.storageKey}`,
         };
       });
 
-      const apiFolders: DriveItem[] = (res.folders || []).map((f: any) => ({
-        id: f.id,
-        name: f.name,
-        type: 'folder',
-        size: 0,
-        sizeFormatted: '0 mục',
-        updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-        createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-        owner: {
-          name: department.adminName || 'Phòng ban',
-          email: department.adminEmail || '',
-        },
-        parentId: f.parentFolderId || null,
-        starred: false,
-        trashed: false,
-        sharedWith: [],
-        tags: ['Thư mục phòng ban'],
-      }));
+      const apiFolders: DriveItem[] = (res.folders || []).map((f: any) => {
+        const isPersonal = f.isPersonal || f.driveKind === 'Personal';
+        const effectiveParentId = f.parentFolderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
 
-      setItems([...apiFolders, ...apiFiles]);
+        return {
+          id: f.id,
+          name: f.name,
+          type: 'folder',
+          size: 0,
+          sizeFormatted: '0 mục',
+          updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
+          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
+          owner: {
+            name: f.ownerName || (isPersonal ? 'Cá nhân tôi' : (department.adminName || 'Phòng ban')),
+            email: department.adminEmail || '',
+          },
+          parentId: effectiveParentId,
+          starred: false,
+          trashed: false,
+          sharedWith: [],
+          tags: [isPersonal ? 'Thư mục cá nhân' : 'Thư mục chung phòng ban'],
+        };
+      });
+
+      // Nếu đang ở thư mục con cụ thể trong DB (actualFolderId), ta chỉ cần render apiFolders + apiFiles
+      // Nếu đang ở Root (currentFolderId === null) hoặc ở 2 root ảo, ta cần cả 2 root folders
+      setItems([rootSharedFolder, rootPersonalFolder, ...apiFolders, ...apiFiles]);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách tệp của phòng ban:', err);
+      const msg = err?.response?.data?.detail 
+        || err?.response?.data?.error 
+        || err?.response?.data?.message 
+        || err?.message 
+        || 'Lỗi khi tải danh sách tệp của phòng ban.';
+      setErrorMessage(msg);
+      if (onAddToast) onAddToast('error', msg);
       setItems([]);
     } finally {
       setIsLoading(false);
@@ -286,8 +352,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
-  // Current folder hierarchy
+  // Current folder hierarchy & breadcrumbs
   const currentFolder = items.find((i) => i.id === currentFolderId && i.type === 'folder');
+
+  const getBreadcrumbs = () => {
+    const crumbs: DriveItem[] = [];
+    let curr = currentFolder;
+    while (curr) {
+      crumbs.unshift(curr);
+      if (!curr.parentId) break;
+      curr = items.find((i) => i.id === curr?.parentId && i.type === 'folder');
+    }
+    return crumbs;
+  };
+  const breadcrumbs = getBreadcrumbs();
 
   // Filtered items
   const filteredItems = items.filter((item) => {
@@ -437,10 +515,14 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       setUploadProgress(75);
       setUploadStepMsg('Tính mã băm toàn vẹn SHA-256...');
 
+      const uploadFolderId = currentFolderId && !currentFolderId.startsWith('drive-')
+        ? currentFolderId
+        : undefined;
+
       const result = await uploadTenantFilesApi(
         fileList,
         undefined,
-        currentFolderId || undefined
+        uploadFolderId
       );
 
       setUploadProgress(100);
@@ -479,10 +561,14 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       setUploadProgress(40);
       setUploadStepMsg('Tải trực tiếp lên Cloud Storage (Google Drive / OneDrive / S3)...');
 
+      const uploadFolderId = currentFolderId && !currentFolderId.startsWith('drive-')
+        ? currentFolderId
+        : undefined;
+
       const result = await uploadDirectTenantFilesApi(
         fileList,
         undefined,
-        currentFolderId || undefined,
+        uploadFolderId,
         undefined,
         undefined,
         (fileName: string, progress: any) => {
@@ -516,35 +602,50 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
-  // Create folder handler
-  const handleCreateFolder = () => {
-    if (!newFolderName.trim()) return;
+  // Create folder handler (Gọi API thực tế lưu DB)
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || isCreatingFolder) return;
 
-    const newFolder: DriveItem = {
-      id: `folder-${Date.now()}`,
-      name: newFolderName.trim(),
-      type: 'folder',
-      size: 0,
-      sizeFormatted: '0 mục',
-      updatedAt: new Date().toLocaleDateString('vi-VN'),
-      createdAt: new Date().toLocaleDateString('vi-VN'),
-      owner: {
-        name: department.adminName || 'Trưởng phòng',
-        email: department.adminEmail || 'deptadmin@company.com',
-      },
-      parentId: currentFolderId,
-      starred: false,
-      trashed: false,
-      sharedWith: [],
-      tags: ['Thư mục phòng ban'],
-    };
+    try {
+      setIsCreatingFolder(true);
 
-    setItems((prev) => [newFolder, ...prev]);
-    setNewFolderName('');
-    setIsNewFolderModalOpen(false);
+      let targetDrive = newFolderType;
+      let targetParentId: string | null = null;
 
-    if (onAddToast) {
-      onAddToast('success', `Đã tạo thư mục "${newFolder.name}".`);
+      if (currentFolderId === 'drive-shared') {
+        targetDrive = 'shared';
+        targetParentId = null;
+      } else if (currentFolderId === 'drive-personal') {
+        targetDrive = 'personal';
+        targetParentId = null;
+      } else if (currentFolderId) {
+        targetParentId = currentFolderId;
+      }
+
+      await driveApi.createFolder(
+        newFolderName.trim(),
+        targetParentId,
+        targetDrive,
+        targetDrive === 'shared' ? department.id : undefined
+      );
+
+      if (onAddToast) {
+        onAddToast(
+          'success',
+          `Đã tạo ${targetDrive === 'shared' ? 'thư mục chung phòng ban' : 'thư mục cá nhân'} "${newFolderName.trim()}" thành công!`
+        );
+      }
+      setNewFolderName('');
+      setIsNewFolderModalOpen(false);
+      await fetchDepartmentFiles();
+    } catch (err: any) {
+      console.error('Lỗi khi tạo thư mục:', err);
+      const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tạo thư mục.';
+      if (onAddToast) {
+        onAddToast('error', errMsg);
+      }
+    } finally {
+      setIsCreatingFolder(false);
     }
   };
 
@@ -764,21 +865,37 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                 <div className="flex items-center gap-1.5 cursor-pointer group">
                   <button
                     onClick={() => setCurrentFolderId(null)}
-                    className="text-2xl font-bold text-slate-900 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                    className={`text-xl sm:text-2xl font-bold transition-colors flex items-center gap-1.5 ${
+                      currentFolderId === null ? 'text-slate-900' : 'text-slate-500 hover:text-blue-600'
+                    }`}
                   >
                     <span>My Drive</span>
-                    <ChevronDown className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition-transform group-hover:translate-y-0.5" />
+                    {currentFolderId === null && (
+                      <ChevronDown className="w-5 h-5 text-slate-500 group-hover:text-blue-600 transition-transform group-hover:translate-y-0.5" />
+                    )}
                   </button>
                 </div>
 
-                {currentFolder && (
-                  <>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="text-2xl font-bold text-slate-800 truncate max-w-xs">
-                      {currentFolder.name}
-                    </span>
-                  </>
-                )}
+                {breadcrumbs.map((crumb, idx) => {
+                  const isLast = idx === breadcrumbs.length - 1;
+                  return (
+                    <React.Fragment key={crumb.id}>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      {isLast ? (
+                        <span className="text-xl sm:text-2xl font-bold text-slate-900 truncate max-w-xs">
+                          {crumb.name}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setCurrentFolderId(crumb.id)}
+                          className="text-xl sm:text-2xl font-semibold text-slate-500 hover:text-blue-600 transition-colors truncate max-w-xs"
+                        >
+                          {crumb.name}
+                        </button>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </>
             )}
           </div>
@@ -1026,10 +1143,31 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           <span className="text-[11px] text-slate-400">
             {activeTab === 'trash'
               ? `${sortedTrashItems.length} tệp tin trong thùng rác`
-              : `${folders.length} thư mục, ${files.length} tệp tin`}
+              : `${folders.length} thư mục (${folders.filter(f => !f.tags?.includes('Thư mục cá nhân')).length} chung, ${folders.filter(f => f.tags?.includes('Thư mục cá nhân')).length} riêng), ${files.length} tệp tin`}
           </span>
         </div>
       </div>
+
+      {/* Error Message Banner */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200/90 shadow-xs flex items-start justify-between gap-4 animate-in fade-in duration-200 my-2">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-red-900">Không thể tải kho tài liệu phòng ban</p>
+              <p className="text-xs text-red-700 mt-1 leading-relaxed">{errorMessage}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => fetchDepartmentFiles()}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold shrink-0 cursor-pointer transition-colors"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
 
       {/* Uploading Status Banner */}
       {isUploading && (
@@ -1260,69 +1398,104 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           {folders.length > 0 && (
             <div className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-                {folders.map((folder) => (
-                  <div
-                    key={folder.id}
-                    onDoubleClick={() => setCurrentFolderId(folder.id)}
-                    onClick={() => setCurrentFolderId(folder.id)}
-                    className="group relative bg-[#F0F4F9] hover:bg-[#E1E9F4] border border-slate-200/70 hover:border-slate-300 rounded-2xl p-3.5 px-4 flex items-center justify-between transition-all duration-150 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-6 h-6 flex items-center justify-center text-slate-700 group-hover:text-blue-600 transition-colors shrink-0">
-                        <Folder className="w-5 h-5 fill-current" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
-                        {folder.name}
-                      </span>
-                    </div>
-
-                    <div className="relative drive-menu-trigger shrink-0 ml-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(activeMenuId === folder.id ? null : folder.id);
-                        }}
-                        className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-
-                      {/* 3-dots Context Menu */}
-                      {activeMenuId === folder.id && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
-                        >
-                          <button
-                            onClick={() => {
-                              setCurrentFolderId(folder.id);
-                              setActiveMenuId(null);
-                            }}
-                            className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Mở thư mục</span>
-                          </button>
-                          <button
-                            onClick={() => handleToggleStar(folder.id)}
-                            className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                          >
-                            <Star className="w-3.5 h-3.5 text-amber-500" />
-                            <span>{folder.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
-                          </button>
-                          <div className="h-px bg-slate-100 my-1" />
-                          <button
-                            onClick={() => handleDeleteItem(folder.id, folder.name)}
-                            className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Xóa thư mục</span>
-                          </button>
+                {folders.map((folder) => {
+                  const isPersonal = folder.tags?.includes('Thư mục cá nhân');
+                  return (
+                    <div
+                      key={folder.id}
+                      onDoubleClick={() => setCurrentFolderId(folder.id)}
+                      onClick={() => setCurrentFolderId(folder.id)}
+                      className={`group relative border rounded-2xl p-3 px-3.5 flex items-center justify-between transition-all duration-150 cursor-pointer ${
+                        isPersonal
+                          ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300'
+                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                          isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          <Folder className="w-4 h-4 fill-current" />
                         </div>
-                      )}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
+                            {folder.name}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {isPersonal ? (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />
+                                Riêng tôi
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-800 flex items-center gap-1">
+                                <Layers className="w-2.5 h-2.5" />
+                                Kho chung
+                              </span>
+                            )}
+                            {folder.owner?.name && (
+                              <span className="text-[10px] text-slate-400 truncate max-w-[80px]" title={folder.owner.name}>
+                                • {folder.owner.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="relative drive-menu-trigger shrink-0 ml-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuId(activeMenuId === folder.id ? null : folder.id);
+                          }}
+                          className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {/* 3-dots Context Menu */}
+                        {activeMenuId === folder.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
+                          >
+                            <button
+                              onClick={() => {
+                                setCurrentFolderId(folder.id);
+                                setActiveMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Mở thư mục</span>
+                            </button>
+                            <button
+                              onClick={() => handleToggleStar(folder.id)}
+                              className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                            >
+                              <Star className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{folder.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
+                            </button>
+                            <div className="h-px bg-slate-100 my-1" />
+                            {folder.id !== 'drive-shared' && folder.id !== 'drive-personal' ? (
+                              <button
+                                onClick={() => handleDeleteItem(folder.id, folder.name)}
+                                className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Xóa thư mục</span>
+                              </button>
+                            ) : (
+                              <div className="px-3 py-1.5 text-[11px] text-slate-400 italic">
+                                Thư mục gốc hệ thống
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1534,7 +1707,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           )}
 
           {/* Empty State */}
-          {!isLoading && folders.length === 0 && files.length === 0 && (
+          {!isLoading && !errorMessage && folders.length === 0 && files.length === 0 && (
             <div className="bg-white rounded-3xl border border-slate-200 p-14 text-center max-w-lg mx-auto my-8 shadow-xs">
               <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
                 <Upload className="w-8 h-8 stroke-[1.8]" />
@@ -1620,13 +1793,46 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       {isNewFolderModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
-            <h3 className="text-base font-bold text-slate-900 mb-4">Thư mục mới</h3>
+            <h3 className="text-base font-bold text-slate-900 mb-4">Tạo thư mục mới</h3>
+            
+            {/* Lựa chọn loại thư mục: Kho chung hoặc Cá nhân */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Loại thư mục</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewFolderType('shared')}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    newFolderType === 'shared'
+                      ? 'bg-blue-50 border-blue-600 text-blue-700 ring-1 ring-blue-600/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Kho chung</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewFolderType('personal')}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    newFolderType === 'personal'
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-700 ring-1 ring-emerald-600/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Riêng tôi</span>
+                </button>
+              </div>
+            </div>
+
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên thư mục</label>
             <input
               type="text"
               autoFocus
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Thư mục không có tiêu đề"
+              placeholder="Nhập tên thư mục..."
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreateFolder();
               }}
@@ -1634,20 +1840,24 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
             />
             <div className="flex items-center justify-end gap-2.5">
               <button
+                type="button"
                 onClick={() => {
                   setNewFolderName('');
                   setIsNewFolderModalOpen(false);
                 }}
+                disabled={isCreatingFolder}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleCreateFolder}
-                disabled={!newFolderName.trim()}
-                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-xs transition-colors cursor-pointer"
+                disabled={!newFolderName.trim() || isCreatingFolder}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-xs transition-colors cursor-pointer"
               >
-                Tạo
+                {isCreatingFolder && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isCreatingFolder ? 'Đang tạo...' : 'Tạo'}</span>
               </button>
             </div>
           </div>

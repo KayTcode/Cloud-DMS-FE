@@ -192,10 +192,17 @@ export const driveApi = {
   },
 
   // Create folder
-  createFolder: async (name: string, parentId?: string | null): Promise<DriveItem> => {
+  createFolder: async (
+    name: string,
+    parentId?: string | null,
+    drive?: string,
+    departmentId?: string
+  ): Promise<DriveItem> => {
     const res: any = await apiClient.post('/folders', {
       name,
       parentId: parentId || null,
+      drive: drive || (departmentId ? 'shared' : 'personal'),
+      departmentId: departmentId || null,
     });
     return res?.value ?? res?.data ?? res;
   },

@@ -50,6 +50,9 @@ export interface TenantStorageSummaryDto {
   pageNumber?: number;
   pageSize?: number;
   hasMore?: boolean;
+  sharedFolderName?: string;
+  personalFolderName?: string;
+  currentUserId?: string;
 }
 
 export interface FileUploadFailureDto {

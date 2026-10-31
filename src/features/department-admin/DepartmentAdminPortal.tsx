@@ -11,6 +11,7 @@ import {
 import {
   AddMemberModal,
   EditQuotaModal,
+  OffboardEmployeeModal,
 } from './components';
 import {
   DepartmentMember,
@@ -41,6 +42,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
 
   // Modals state
   const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
+  const [selectedMemberForOffboard, setSelectedMemberForOffboard] = useState<DepartmentMember | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
   // Toast / Status notification
@@ -140,7 +142,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
       allocatedQuotaGB: bytesToGB(u.quotaBytes),
       usedSpaceGB: bytesToGB(u.usedBytes),
       fileCount: u.fileCount || (u as any).FileCount || 0,
-
       lastActive: matchingEmp?.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
       status: u.usagePercentage >= 90 ? 'warning' : 'active',
       avatarInitials: initials,
@@ -191,13 +192,12 @@ const DepartmentAdminPortalContent: React.FC = () => {
       {/* Toast alert notice */}
       {notification && (
         <div
-          className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in zoom-in-95 ${
-            notification.type === 'success'
+          className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in zoom-in-95 ${notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : notification.type === 'error'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200'
-          }`}
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200'
+            }`}
         >
           <span>{notification.message}</span>
           <button
@@ -248,7 +248,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
             department={departmentInfo}
             onEditQuota={(m) => setSelectedMemberForQuota(m)}
             onAddMember={() => setIsAddMemberOpen(true)}
-            onToggleStatus={() => {}}
+            onToggleStatus={() => { }}
+            onOffboardMember={(m) => setSelectedMemberForOffboard(m)}
             searchFilter={searchQuery}
             onSearchChange={setSearchQuery}
             onBackToHub={() => handleNavigateTab('hub')}
@@ -302,6 +303,22 @@ const DepartmentAdminPortalContent: React.FC = () => {
         deptAvailableGB={availableDeptGB}
         onClose={() => setSelectedMemberForQuota(null)}
         onSave={handleSaveMemberQuota}
+      />
+
+      <OffboardEmployeeModal
+        isOpen={!!selectedMemberForOffboard}
+        onClose={() => setSelectedMemberForOffboard(null)}
+        employee={selectedMemberForOffboard}
+        department={departmentInfo}
+        departmentMembers={members}
+        onSuccess={async (result) => {
+          const empName = selectedMemberForOffboard?.name || 'nhân viên';
+          await refreshData();
+          showNotification(
+            'success',
+            `Đã vô hiệu hóa và bàn giao thành công tài sản số của ${empName} vào Thư mục Bàn giao (${result.handoverFolderName}) tại Kho chung phòng ban.`
+          );
+        }}
       />
     </div>
   );

@@ -47,6 +47,7 @@ export interface StorageAlert {
 export interface DepartmentInfo {
   id?: string;
   name: string;
+  code?: string;
   tenantName: string;
   adminName: string;
   adminRole: string;
