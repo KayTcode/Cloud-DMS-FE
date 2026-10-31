@@ -44,7 +44,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     isNotificationOpen,    // Trạng thái mở khay thông báo bên phải
     setIsNotificationOpen,
     notificationCount,     // Số lượng thông báo chưa đọc (hiển thị chấm đỏ)
-    clearNotifications,    // Hàm xóa tất cả thông báo
+    notifications,
+    notificationsLoading,
+    notificationsHasMore,
+    refreshNotifications,
+    loadMoreNotifications,
+    markNotificationRead,
+    markAllNotificationsRead,
     isImpersonating,       // Cờ hiệu xem SysAdmin có đang "đăng nhập ẩn danh" vào Tenant hay không
     handleExitImpersonate, // Hàm thoát chế độ đăng nhập ẩn danh
     tenant,                // Dữ liệu thông tin Tenant hiện hành
@@ -167,7 +173,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          onOpenNotifications={() => setIsNotificationOpen(true)}
+          onOpenNotifications={() => { setIsNotificationOpen(true); refreshNotifications(); }}
           notificationCount={notificationCount}
         />
 
@@ -181,7 +187,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <NotificationDrawer
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
-        onClear={clearNotifications}
+        items={notifications}
+        isLoading={notificationsLoading}
+        hasMore={notificationsHasMore}
+        onLoadMore={loadMoreNotifications}
+        onItemClick={markNotificationRead}
+        onMarkAllRead={markAllNotificationsRead}
       />
 
       {/* 4.5. Khung hiển thị các Pop-up Toast thông báo (Thành công, Lỗi, Cảnh báo) */}
