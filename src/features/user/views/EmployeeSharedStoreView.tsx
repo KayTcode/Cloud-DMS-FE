@@ -23,7 +23,7 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (folderId: string | null) => {
+  const fetchSharedStore = useCallback(async (folderId: string | null) => {
     if (!departmentId) return;
     try {
       const res = await folderApi.getDriveChildren('shared', {
@@ -32,26 +32,19 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
       });
       setFolders(res.folders);
       setBreadcrumb(res.breadcrumb);
+      // files from the same scoped endpoint — cast via any since DriveFileDto ≈ DriveItem
+      if (res.files) {
+        setDriveItems(res.files as unknown as DriveItem[]);
+      }
     } catch (error) {
       console.error('Lỗi nạp Kho chung:', error);
       onShowToast('Không thể nạp danh sách Kho chung.', 'error');
     }
   }, [departmentId, onShowToast]);
 
-  const fetchFiles = useCallback(async (folderId: string | null) => {
-    if (!departmentId) return;
-    try {
-      const items = await driveApi.getDriveItems(folderId);
-      setDriveItems(items);
-    } catch (error) {
-      console.error('Lỗi nạp tệp Kho chung:', error);
-    }
-  }, [departmentId]);
-
   useEffect(() => {
-    fetchData(currentFolderId);
-    fetchFiles(currentFolderId);
-  }, [currentFolderId, fetchData, fetchFiles]);
+    fetchSharedStore(currentFolderId);
+  }, [currentFolderId, fetchSharedStore]);
 
   if (!departmentId) {
     return null;
