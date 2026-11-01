@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Building2, HardDrive, Crown, Mail, Phone, Loader2, Users } from 'lucide-react';
 import { getDepartmentDetail } from '@/features/tenants/api/tenantQueries';
 import { DepartmentDetail } from '@/features/tenants/types/tenantUser.dto';
+import { InterimManagementPanel } from '@/features/tenants/components/InterimManagementPanel';
 
 interface TenantDepartmentDetailViewProps {
   tenantId: string;
@@ -17,6 +18,11 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
   const [detail, setDetail] = useState<DepartmentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refetch = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
@@ -31,7 +37,7 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
       .finally(() => {
         setIsLoading(false);
       });
-  }, [tenantId, departmentId]);
+  }, [tenantId, departmentId, refreshKey]);
 
   const renderStorageBar = (usedBytes: number, quotaBytes: number) => {
     if (quotaBytes <= 0) return null;
@@ -203,6 +209,11 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
           </div>
         )}
       </div>
+
+      {/* Interim management panel – only shown when department has no lead */}
+      {detail.isVacant && (
+        <InterimManagementPanel tenantId={tenantId} detail={detail} onRefresh={refetch} />
+      )}
     </div>
   );
 };
