@@ -23,7 +23,7 @@ async function submitScenario(scenario, overrides = {}) {
   const errors = [];
   const context = {
     scenario, department: { id: 'department' }, employee: { id: 'departing' },
-    custodianUserId: 'department-admin', targetUserId: 'colleague',
+    custodianUserId: 'department-admin', targetUserId: 'colleague', currentUser: { id: 'department-admin' },
     newEmployeeEmail: ' replacement@example.test ', newEmployeeFirstName: ' New ',
     newEmployeeLastName: ' Employee ', newEmployeePhoneNumber: '', handoverReason: ' Leaving ',
     setError: error => errors.push(error), setIsLoading() {}, setResult() {}, onSuccess() {},

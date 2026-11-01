@@ -138,6 +138,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
 
     const matchingEmp = employees.find((e) => e.id === u.userId || e.email.toLowerCase() === u.email.toLowerCase());
     const role = matchingEmp?.roles?.[0] || 'Employee';
+    const isUserActive = u.isActive !== undefined ? u.isActive : (matchingEmp?.isActive ?? true);
 
     return {
       id: u.userId,
@@ -148,8 +149,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       allocatedQuotaGB: bytesToGB(u.quotaBytes),
       usedSpaceGB: bytesToGB(u.usedBytes),
       fileCount: u.fileCount || (u as any).FileCount || 0,
-      lastActive: matchingEmp?.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
-      status: u.usagePercentage >= 90 ? 'warning' : 'active',
+      lastActive: isUserActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
+      status: !isUserActive ? 'paused' : (u.usagePercentage >= 90 ? 'warning' : 'active'),
       avatarInitials: initials,
       avatarColor: colors[idx % colors.length],
     };

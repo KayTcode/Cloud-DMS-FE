@@ -7,3 +7,4 @@ export * from './AllocateDepartmentQuotaModal';
 export * from './OffboardDepartmentAdminModal';
 export * from './AssignVacantDepartmentLeadModal';
 
+export * from './InterimManagementPanel';

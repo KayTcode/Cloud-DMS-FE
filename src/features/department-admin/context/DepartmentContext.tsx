@@ -26,9 +26,9 @@ interface DepartmentContextType {
 
 const DepartmentContext = createContext<DepartmentContextType | undefined>(undefined);
 
-export const DepartmentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const DepartmentProvider: React.FC<{ children: ReactNode; departmentIdOverride?: string }> = ({ children, departmentIdOverride }) => {
   const { user, updateUser } = useAuth();
-  const departmentId = user?.departmentId || null;
+  const departmentId = departmentIdOverride || user?.departmentId || null;
 
   const [summary, setSummary] = useState<DepartmentUsersQuotaSummaryDto | null>(null);
   const [employees, setEmployees] = useState<DepartmentEmployeeDto[]>([]);
@@ -57,6 +57,7 @@ export const DepartmentProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Tự động đồng bộ departmentId nếu tài khoản DepartmentAdmin chưa có departmentId trong session
   useEffect(() => {
+    if (departmentIdOverride) return;
     let isCancelled = false;
     if (!departmentId && user?.role === 'DepartmentAdmin') {
       departmentApi

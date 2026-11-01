@@ -39,6 +39,28 @@ export interface Department {
   storageUsedBytes?: number;
   vacantLeadQuotaBytes?: number;
   interimHandoverFolderId?: string;
+  isVacant?: boolean;
+}
+
+export interface DepartmentMember {
+  id: string;
+  fullName: string;
+  email: string;
+  phoneNumber?: string | null;
+  isActive: boolean;
+}
+
+export interface DepartmentDetail {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  quotaBytes: number;
+  usedBytes: number;
+  isVacant: boolean;
+  lead?: DepartmentMember | null;
+  employees: DepartmentMember[];
+  hasHeldLeadFiles: boolean;
 }
 
 export interface AssignVacantDepartmentLeadPayload {

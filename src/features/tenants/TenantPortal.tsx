@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { TenantBanner, TenantTabs, ImpersonateModal, SubscriptionModal } from '@/features/tenants/components';
@@ -7,6 +7,7 @@ import {
   TenantUsersView,
   CreateDepartmentUserView,
   TenantDepartmentsView,
+  TenantDepartmentDetailView,
   TenantActivityView,
   TenantSettingsView,
   TenantHubView,
@@ -35,6 +36,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
   // 1. RESOLVER TENANT ID HIỆU LỰC (Tương tự Tenant Identification Middleware trong BE)
   // ---------------------------------------------------------------------------------------
   const { user } = useAuth();
+  const [openedDepartmentId, setOpenedDepartmentId] = useState<string | null>(null);
   // Ưu tiên propTenantId (nếu SysAdmin truyền vào), nếu không có thì lấy tenantId của User đang đăng nhập
   const effectiveTenantId = propTenantId || user?.tenantId;
 
@@ -68,6 +70,9 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
   // - Khi người dùng chuyển sang các tab nghiệp vụ: Tự động nạp thông tin Tenant tương ứng từ BE.
   // ---------------------------------------------------------------------------------------
   useEffect(() => {
+    if (activeTab !== 'departments') {
+      setOpenedDepartmentId(null);
+    }
     if (activeTab === 'hub') {
       return;
     }
@@ -150,10 +155,19 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
           {/* Tab 3: Quản lý cơ cấu các phòng ban (Departments) */}
           {activeTab === 'departments' && (
-            <TenantDepartmentsView
-              onBackToOverview={() => setActiveTab('overview')}
-              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
-            />
+            openedDepartmentId ? (
+              <TenantDepartmentDetailView
+                departmentId={openedDepartmentId}
+                onBack={() => setOpenedDepartmentId(null)}
+                onCreateUser={() => handleOpenCreateDepartmentUser(openedDepartmentId)}
+              />
+            ) : (
+              <TenantDepartmentsView
+                onBackToOverview={() => setActiveTab('overview')}
+                onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+                onOpenDepartment={(deptId) => setOpenedDepartmentId(deptId)}
+              />
+            )
           )}
 
           {/* Tab 3B: Form tạo mới nhân viên cho một phòng ban cụ thể */}
