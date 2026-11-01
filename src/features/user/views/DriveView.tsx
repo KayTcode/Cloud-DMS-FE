@@ -24,10 +24,13 @@ import {
   MoreHorizontal,
   Pencil,
   FolderOutput,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb';
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 
 interface DriveViewProps {
   items: DriveItem[];
@@ -55,6 +58,11 @@ interface DriveViewProps {
   // Drive identity (optional, used by consumers to tag the drive context)
   driveKind?: 'Personal' | 'DepartmentShared';
   driveOwnerId?: string;
+  // Handover & read-only props (F2)
+  isReadOnly?: boolean;
+  onConfirmHandover?: (folderId: string) => Promise<void>;
+  // File rename (F2b)
+  onRenameFile?: (fileId: string, newName: string) => Promise<void>;
 }
 
 type SortField = 'name' | 'updatedAt' | 'size';
@@ -81,6 +89,9 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onRenameFolder,
   onMoveFolder,
   onTrashFolder,
+  isReadOnly = false,
+  onConfirmHandover,
+  onRenameFile,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
@@ -91,6 +102,15 @@ export const DriveView: React.FC<DriveViewProps> = ({
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [folderMenuOpenId, setFolderMenuOpenId] = useState<string | null>(null);
+
+  // File rename state (F2b)
+  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
+  const [renameFileValue, setRenameFileValue] = useState('');
+  const [fileMenuOpenId, setFileMenuOpenId] = useState<string | null>(null);
+
+  // Handover confirm state (F2)
+  const [handoverConfirmFolderId, setHandoverConfirmFolderId] = useState<string | null>(null);
+  const [isHandoverLoading, setIsHandoverLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
@@ -266,6 +286,35 @@ export const DriveView: React.FC<DriveViewProps> = ({
         </div>
       )}
 
+      {/* Read-only banner (F2) */}
+      {isReadOnly && (
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-800">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+          <span>Thư mục bàn giao chưa được xác nhận. Bạn chỉ có thể xem và tải tệp.</span>
+        </div>
+      )}
+
+      {/* Handover confirm dialog (F2) */}
+      <ConfirmDialog
+        isOpen={handoverConfirmFolderId !== null}
+        onClose={() => setHandoverConfirmFolderId(null)}
+        onConfirm={async () => {
+          if (!handoverConfirmFolderId || !onConfirmHandover) return;
+          setIsHandoverLoading(true);
+          try {
+            await onConfirmHandover(handoverConfirmFolderId);
+          } finally {
+            setIsHandoverLoading(false);
+            setHandoverConfirmFolderId(null);
+          }
+        }}
+        title="Xác nhận tiếp nhận bàn giao"
+        message="Toàn bộ thư mục và tệp trong thư mục bàn giao sẽ được chuyển ra 'Tài liệu của tôi'. Thao tác này không thể hoàn tác."
+        confirmText="Xác nhận tiếp nhận"
+        variant="warning"
+        isLoading={isHandoverLoading}
+      />
+
       {/* Top Action Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Breadcrumb Path */}
@@ -300,7 +349,8 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
-          <>
+          {!isReadOnly && (
+            <>
               <button
                 onClick={onOpenNewFolderModal}
                 className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium shadow-xs transition-colors cursor-pointer"
@@ -336,6 +386,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                 </>
               )}
             </>
+          )}
 
           {/* View Mode Toggle */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -467,104 +518,136 @@ export const DriveView: React.FC<DriveViewProps> = ({
                 {apiFolders.map((folder) => (
                   <div
                     key={folder.id}
-                    className="bg-white rounded-xl p-4 border border-slate-200/90 hover:border-amber-400 hover:shadow-sm transition-all group flex items-center justify-between relative"
+                    className={`bg-white rounded-xl p-4 border hover:shadow-sm transition-all group flex flex-col gap-2 relative ${
+                      folder.isPendingHandover
+                        ? 'border-orange-300 bg-orange-50/30'
+                        : 'border-slate-200/90 hover:border-amber-400'
+                    }`}
                   >
-                    <div
-                      onClick={() => onNavigateFolder && onNavigateFolder(folder.id)}
-                      className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                        <Folder className="w-5 h-5 fill-current" />
-                      </div>
-                      <div className="min-w-0">
-                        {renamingFolderId === folder.id ? (
-                          <input
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={async (e) => {
-                              if (e.key === 'Enter') {
+                    <div className="flex items-center justify-between">
+                      <div
+                        onClick={() => onNavigateFolder && onNavigateFolder(folder.id)}
+                        className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                          <Folder className="w-5 h-5 fill-current" />
+                        </div>
+                        <div className="min-w-0">
+                          {renamingFolderId === folder.id ? (
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  if (renameValue.trim() && onRenameFolder) {
+                                    await onRenameFolder(folder.id, renameValue.trim());
+                                  }
+                                  setRenamingFolderId(null);
+                                } else if (e.key === 'Escape') {
+                                  setRenamingFolderId(null);
+                                }
+                              }}
+                              onBlur={async () => {
                                 if (renameValue.trim() && onRenameFolder) {
                                   await onRenameFolder(folder.id, renameValue.trim());
                                 }
                                 setRenamingFolderId(null);
-                              } else if (e.key === 'Escape') {
-                                setRenamingFolderId(null);
-                              }
-                            }}
-                            onBlur={async () => {
-                              if (renameValue.trim() && onRenameFolder) {
-                                await onRenameFolder(folder.id, renameValue.trim());
-                              }
-                              setRenamingFolderId(null);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs font-semibold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
-                          <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-amber-700 transition-colors">
-                            {folder.name}
-                          </p>
-                        )}
-                        <p className="text-[11px] text-slate-400">{new Date(folder.createdAt).toLocaleDateString('vi-VN')}</p>
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs font-semibold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-amber-700 transition-colors">
+                                {folder.name}
+                              </p>
+                              {folder.isPendingHandover && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200 shrink-0">
+                                  Chờ xác nhận
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-[11px] text-slate-400">{new Date(folder.createdAt).toLocaleDateString('vi-VN')}</p>
+                        </div>
                       </div>
-                    </div>
-                    {/* Action menu */}
-                    <div className="relative shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFolderMenuOpenId(folderMenuOpenId === folder.id ? null : folder.id);
-                        }}
-                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-                        title="Tùy chọn"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                      {folderMenuOpenId === folder.id && (
-                        <div
-                          className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]"
-                          onMouseLeave={() => setFolderMenuOpenId(null)}
-                        >
+                      {/* Action menu */}
+                      {!isReadOnly && (
+                        <div className="relative shrink-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setFolderMenuOpenId(null);
-                              setRenamingFolderId(folder.id);
-                              setRenameValue(folder.name);
+                              setFolderMenuOpenId(folderMenuOpenId === folder.id ? null : folder.id);
                             }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                            title="Tùy chọn"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
-                            Đổi tên
+                            <MoreHorizontal className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFolderMenuOpenId(null);
-                              if (onMoveFolder) onMoveFolder(folder);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                          >
-                            <FolderOutput className="w-3.5 h-3.5" />
-                            Di chuyển
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFolderMenuOpenId(null);
-                              if (window.confirm(`Chuyển thư mục "${folder.name}" vào thùng rác?`)) {
-                                if (onTrashFolder) onTrashFolder(folder.id);
-                              }
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Xoá vào thùng rác
-                          </button>
+                          {folderMenuOpenId === folder.id && (
+                            <div
+                              className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]"
+                              onMouseLeave={() => setFolderMenuOpenId(null)}
+                            >
+                              {!folder.isPendingHandover && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setFolderMenuOpenId(null);
+                                      setRenamingFolderId(folder.id);
+                                      setRenameValue(folder.name);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    Đổi tên
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setFolderMenuOpenId(null);
+                                      if (onMoveFolder) onMoveFolder(folder);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                  >
+                                    <FolderOutput className="w-3.5 h-3.5" />
+                                    Di chuyển
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setFolderMenuOpenId(null);
+                                      if (window.confirm(`Chuyển thư mục "${folder.name}" vào thùng rác?`)) {
+                                        if (onTrashFolder) onTrashFolder(folder.id);
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Xoá vào thùng rác
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+                    {/* Handover confirm button (F2) */}
+                    {folder.isPendingHandover && onConfirmHandover && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHandoverConfirmFolderId(folder.id);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Xác nhận tiếp nhận
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -617,7 +700,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => onOpenFilePreview(file)}
+                      onClick={() => { if (renamingFileId !== file.id) onOpenFilePreview(file); }}
                       className="bg-white rounded-xl border overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group border-slate-200/90 hover:border-blue-400"
                     >
                       {/* Card Content Top */}
@@ -627,20 +710,104 @@ export const DriveView: React.FC<DriveViewProps> = ({
                             <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 shrink-0">
                               {getFileIcon(file.fileType)}
                             </div>
-                            <div className="min-w-0">
-                              <p
-                                className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors"
-                                title={file.name}
-                              >
-                                {file.name}
-                              </p>
+                            <div className="min-w-0 flex-1">
+                              {renamingFileId === file.id ? (
+                                <input
+                                  autoFocus
+                                  data-rename-file={file.id}
+                                  value={renameFileValue}
+                                  onChange={(e) => setRenameFileValue(e.target.value)}
+                                  onKeyDown={async (e) => {
+                                    if (e.key === 'Enter') {
+                                      const trimmed = renameFileValue.trim();
+                                      if (!trimmed) { setRenamingFileId(null); return; }
+                                      if (onRenameFile) await onRenameFile(file.id, trimmed);
+                                      setRenamingFileId(null);
+                                    } else if (e.key === 'Escape') {
+                                      setRenamingFileId(null);
+                                    }
+                                  }}
+                                  onBlur={async () => {
+                                    const trimmed = renameFileValue.trim();
+                                    if (trimmed && onRenameFile) await onRenameFile(file.id, trimmed);
+                                    setRenamingFileId(null);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onFocus={(e) => {
+                                    const dotIdx = file.name.lastIndexOf('.');
+                                    const end = dotIdx > 0 ? dotIdx : file.name.length;
+                                    e.target.setSelectionRange(0, end);
+                                  }}
+                                  className="text-xs font-bold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              ) : (
+                                <p
+                                  className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors"
+                                  title={file.name}
+                                >
+                                  {file.name}
+                                </p>
+                              )}
                               <p className="text-[10px] text-slate-400">
                                 {file.deletedAt ? `Xóa: ${file.deletedAt}` : `Tạo: ${file.createdAt}`}
                               </p>
                             </div>
                           </div>
 
-                          <button
+                          {!isReadOnly && (
+                            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFileMenuOpenId(fileMenuOpenId === file.id ? null : file.id);
+                                }}
+                                className="text-slate-300 hover:text-slate-600 transition-colors p-1 cursor-pointer opacity-0 group-hover:opacity-100"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                              {fileMenuOpenId === file.id && (
+                                <div
+                                  className="absolute right-0 top-6 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[130px]"
+                                  onMouseLeave={() => setFileMenuOpenId(null)}
+                                >
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setFileMenuOpenId(null);
+                                      const dotIdx = file.name.lastIndexOf('.');
+                                      setRenameFileValue(file.name);
+                                      setRenamingFileId(file.id);
+                                      // selection happens in autoFocus ref via useEffect - handled by onFocus below
+                                      requestAnimationFrame(() => {
+                                        const input = document.querySelector<HTMLInputElement>(`input[data-rename-file="${file.id}"]`);
+                                        if (input) {
+                                          const end = dotIdx > 0 ? dotIdx : file.name.length;
+                                          input.setSelectionRange(0, end);
+                                        }
+                                      });
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    Đổi tên
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setFileMenuOpenId(null);
+                                      onToggleStar(file.id);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                  >
+                                    <Star className="w-3.5 h-3.5" />
+                                    {file.starred ? 'Bỏ dấu sao' : 'Gắn dấu sao'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {isReadOnly && (
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleStar(file.id);
@@ -653,6 +820,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 }`}
                               />
                             </button>
+                          )}
                         </div>
 
                         {/* Tags */}
@@ -675,36 +843,40 @@ export const DriveView: React.FC<DriveViewProps> = ({
                         <span className="font-mono">{file.sizeFormatted}</span>
 
                         <div className="flex items-center gap-1.5">
+                          {!isReadOnly && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onShareItem(file);
+                              }}
+                              className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
+                              title="Chia sẻ liên kết"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onShareItem(file);
-                                }}
-                                className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
-                                title="Chia sẻ liên kết"
-                              >
-                                <Share2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDownloadItem(file);
-                                }}
-                                className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
-                                title="Tải về máy"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteFile(file.id);
-                                }}
-                                className="p-1 hover:text-rose-600 hover:bg-white rounded transition-colors cursor-pointer"
-                                title="Chuyển vào thùng rác"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDownloadItem(file);
+                            }}
+                            className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
+                            title="Tải về máy"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          {!isReadOnly && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteFile(file.id);
+                              }}
+                              className="p-1 hover:text-rose-600 hover:bg-white rounded transition-colors cursor-pointer"
+                              title="Chuyển vào thùng rác"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -729,7 +901,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                         {files.map((file, index) => (
                           <tr
                             key={file.id}
-                            onClick={() => onOpenFilePreview(file)}
+                            onClick={() => { if (renamingFileId !== file.id) onOpenFilePreview(file); }}
                             className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                           >
                             <td className="py-3.5 px-4 text-center font-mono text-slate-500 font-medium text-xs">
@@ -738,23 +910,54 @@ export const DriveView: React.FC<DriveViewProps> = ({
                             <td className="py-3.5 px-6">
                               <div className="flex items-center gap-3">
                                 <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onToggleStar(file.id);
-                                    }}
-                                    className="text-slate-300 hover:text-amber-500 cursor-pointer"
-                                  >
-                                    <Star
-                                      className={`w-4 h-4 ${
-                                        file.starred ? 'fill-amber-400 text-amber-500' : ''
-                                      }`}
-                                    />
-                                  </button>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleStar(file.id);
+                                  }}
+                                  className="text-slate-300 hover:text-amber-500 cursor-pointer"
+                                >
+                                  <Star
+                                    className={`w-4 h-4 ${
+                                      file.starred ? 'fill-amber-400 text-amber-500' : ''
+                                    }`}
+                                  />
+                                </button>
                                 <div className="shrink-0">{getFileIcon(file.fileType)}</div>
                                 <div>
-                                  <span className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer">
-                                    {file.name}
-                                  </span>
+                                  {renamingFileId === file.id ? (
+                                    <input
+                                      autoFocus
+                                      data-rename-file={file.id}
+                                      value={renameFileValue}
+                                      onChange={(e) => setRenameFileValue(e.target.value)}
+                                      onKeyDown={async (e) => {
+                                        if (e.key === 'Enter') {
+                                          const trimmed = renameFileValue.trim();
+                                          if (!trimmed) { setRenamingFileId(null); return; }
+                                          if (onRenameFile) await onRenameFile(file.id, trimmed);
+                                          setRenamingFileId(null);
+                                        } else if (e.key === 'Escape') {
+                                          setRenamingFileId(null);
+                                        }
+                                      }}
+                                      onBlur={async () => {
+                                        const trimmed = renameFileValue.trim();
+                                        if (trimmed && onRenameFile) await onRenameFile(file.id, trimmed);
+                                        setRenamingFileId(null);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onFocus={(e) => {
+                                        const dotIdx = file.name.lastIndexOf('.');
+                                        const end = dotIdx > 0 ? dotIdx : file.name.length;
+                                        e.target.setSelectionRange(0, end);
+                                      }}
+                                      className="text-xs font-semibold text-slate-900 border border-blue-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer">
+                                      {file.name}
+                                    </span>
+                                  )}
                                   {file.tags.length > 0 && (
                                     <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
                                       {file.tags.join(' · ')}
@@ -780,27 +983,45 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 onClick={(e) => e.stopPropagation()}
                                 className="flex items-center justify-end gap-1"
                               >
+                                {!isReadOnly && (
+                                  <button
+                                    onClick={() => {
+                                      const dotIdx = file.name.lastIndexOf('.');
+                                      setRenameFileValue(file.name);
+                                      setRenamingFileId(file.id);
+                                      void dotIdx; // selection handled via onFocus
+                                    }}
+                                    className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                                    title="Đổi tên"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {!isReadOnly && (
+                                  <button
+                                    onClick={() => onShareItem(file)}
+                                    className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                                    title="Chia sẻ"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                )}
                                 <button
-                                      onClick={() => onShareItem(file)}
-                                      className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
-                                      title="Chia sẻ"
-                                    >
-                                      <Share2 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => onDownloadItem(file)}
-                                      className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
-                                      title="Tải về"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => onDeleteFile(file.id)}
-                                      className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
-                                      title="Chuyển vào thùng rác"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
+                                  onClick={() => onDownloadItem(file)}
+                                  className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                                  title="Tải về"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                {!isReadOnly && (
+                                  <button
+                                    onClick={() => onDeleteFile(file.id)}
+                                    className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                                    title="Chuyển vào thùng rác"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>

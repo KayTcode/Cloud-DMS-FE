@@ -71,6 +71,7 @@ export const UserPortal: React.FC = () => {
   const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
   const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   // Modals state
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
@@ -140,6 +141,7 @@ export const UserPortal: React.FC = () => {
         setBreadcrumb(res.breadcrumb);
       }
       setApiFolders(res.folders);
+      setIsReadOnly(res.isReadOnly ?? false);
     } catch (error) {
       console.error('Lỗi nạp thư mục:', error);
     }
@@ -189,6 +191,29 @@ export const UserPortal: React.FC = () => {
       showNotification('Đã chuyển thư mục vào thùng rác.', 'info');
     } catch (error: any) {
       const msg = error?.response?.data?.message || 'Không thể xóa thư mục.';
+      showNotification(msg, 'error');
+    }
+  };
+
+  // Xác nhận tiếp nhận bàn giao (F2)
+  const handleConfirmHandover = async (folderId: string) => {
+    await folderApi.confirmHandover(folderId);
+    await fetchFolders(currentFolderId);
+    showNotification('Đã tiếp nhận bàn giao.', 'success');
+  };
+
+  // Đổi tên tệp (F2b)
+  const handleRenameFile = async (fileId: string, name: string) => {
+    if (!name.trim()) {
+      showNotification('Tên tệp không hợp lệ.', 'error');
+      return;
+    }
+    try {
+      await driveApi.renameFile(fileId, name.trim());
+      await fetchDriveItems(currentFolderId, searchQuery);
+      showNotification('Đã đổi tên tệp thành công!', 'success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Đổi tên tệp thất bại.';
       showNotification(msg, 'error');
     }
   };
@@ -574,6 +599,9 @@ export const UserPortal: React.FC = () => {
             onRenameFolder={handleRenameFolder}
             onMoveFolder={handleMoveFolder}
             onTrashFolder={handleTrashFolder}
+            isReadOnly={isReadOnly}
+            onConfirmHandover={handleConfirmHandover}
+            onRenameFile={handleRenameFile}
           />
         )}
 

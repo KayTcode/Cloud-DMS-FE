@@ -139,6 +139,21 @@ export const SharedStoreView: React.FC = () => {
     }
   };
 
+  const handleRenameFile = async (fileId: string, name: string) => {
+    if (!name.trim()) {
+      showNotification('Tên tệp không hợp lệ.', 'error');
+      return;
+    }
+    try {
+      await driveApi.renameFile(fileId, name.trim());
+      await fetchDriveItems(currentFolderId);
+      showNotification('Đã đổi tên tệp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Đổi tên tệp thất bại.';
+      showNotification(msg, 'error');
+    }
+  };
+
   const handleUploadFiles = async (fileList: FileList) => {
     try {
       await driveApi.uploadFiles(fileList, currentFolderId);
@@ -292,6 +307,7 @@ export const SharedStoreView: React.FC = () => {
           onRenameFolder={handleRenameFolder}
           onMoveFolder={handleMoveFolder}
           onTrashFolder={handleTrashFolder}
+          onRenameFile={handleRenameFile}
           driveKind="DepartmentShared"
           driveOwnerId={deptId}
         />
