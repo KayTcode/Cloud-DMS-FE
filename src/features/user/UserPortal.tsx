@@ -14,6 +14,7 @@ import {
   NewFolderModal,
   ShareModal,
 } from './components';
+import { SelectSharedFolderModal } from './components/SelectSharedFolderModal';
 import { FolderDto, BreadcrumbItem } from './types/folder.types';
 import { folderApi } from './api/folderApi';
 import {
@@ -77,6 +78,7 @@ export const UserPortal: React.FC = () => {
   // Modals state
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [shareItem, setShareItem] = useState<DriveItem | null>(null);
+  const [shareTarget, setShareTarget] = useState<DriveItem | null>(null);
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [isAdjustQuotaOpen, setIsAdjustQuotaOpen] = useState(false);
   const [selectedDeptForQuota, setSelectedDeptForQuota] = useState<DepartmentQuota | null>(null);
@@ -438,6 +440,36 @@ export const UserPortal: React.FC = () => {
     }
   };
 
+  // Share to department shared store
+  const handleShareToDepartment = (item: DriveItem) => {
+    setShareTarget(item);
+  };
+
+  const handleUnshareFromDepartment = async (item: DriveItem) => {
+    try {
+      await driveApi.unshareFromDepartment(item.id);
+      showNotification('Đã gỡ khỏi Kho chung.', 'success');
+      await fetchDriveItems(currentFolderId, searchQuery);
+    } catch (error: any) {
+      const errMsg = error?.response?.data?.message || error?.message || 'Không thể gỡ khỏi Kho chung.';
+      showNotification(errMsg, 'error');
+    }
+  };
+
+  const handleSelectSharedFolder = async (folderId: string | null) => {
+    if (!shareTarget) return;
+    try {
+      await driveApi.shareToDepartment(shareTarget.id, folderId);
+      showNotification('Đã chia sẻ vào Kho chung.', 'success');
+      await fetchDriveItems(currentFolderId, searchQuery);
+    } catch (error: any) {
+      const errMsg = error?.response?.data?.message || error?.message || 'Không thể chia sẻ vào Kho chung.';
+      showNotification(errMsg, 'error');
+    } finally {
+      setShareTarget(null);
+    }
+  };
+
   const handleSaveDepartmentQuota = (deptId: string, newQuotaGB: number) => {
     setDepartmentQuotas((prev) =>
       prev.map((q) => {
@@ -608,6 +640,8 @@ export const UserPortal: React.FC = () => {
             isReadOnly={isReadOnly}
             onConfirmHandover={handleConfirmHandover}
             onRenameFile={handleRenameFile}
+            onShareToDepartment={handleShareToDepartment}
+            onUnshareFromDepartment={handleUnshareFromDepartment}
           />
         )}
 
@@ -687,6 +721,14 @@ export const UserPortal: React.FC = () => {
         selectedDeptQuota={selectedDeptForQuota}
         onSaveQuota={handleSaveDepartmentQuota}
       />
+
+      {shareTarget && authUser?.departmentId && (
+        <SelectSharedFolderModal
+          departmentId={authUser.departmentId}
+          onSelect={handleSelectSharedFolder}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
     </div>
   );
 };

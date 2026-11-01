@@ -310,6 +310,15 @@ export const SharedStoreView: React.FC = () => {
           onRenameFile={handleRenameFile}
           driveKind="DepartmentShared"
           driveOwnerId={deptId}
+          onUnshareFromDepartment={async (item) => {
+            try {
+              await driveApi.unshareFromDepartment(item.id);
+              await fetchDriveItems(currentFolderId);
+              showNotification('Đã gỡ khỏi Kho chung.', 'success');
+            } catch (err: any) {
+              showNotification(err?.response?.data?.message || 'Không thể gỡ khỏi Kho chung.', 'error');
+            }
+          }}
         />
       )}
 

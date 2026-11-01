@@ -63,6 +63,9 @@ interface DriveViewProps {
   onConfirmHandover?: (folderId: string) => Promise<void>;
   // File rename (F2b)
   onRenameFile?: (fileId: string, newName: string) => Promise<void>;
+  // Share to department shared store (S2)
+  onShareToDepartment?: (item: DriveItem) => void;
+  onUnshareFromDepartment?: (item: DriveItem) => Promise<void>;
 }
 
 type SortField = 'name' | 'updatedAt' | 'size';
@@ -89,9 +92,12 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onRenameFolder,
   onMoveFolder,
   onTrashFolder,
+  driveKind,
   isReadOnly = false,
   onConfirmHandover,
   onRenameFile,
+  onShareToDepartment,
+  onUnshareFromDepartment,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
@@ -750,6 +756,19 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               <p className="text-[10px] text-slate-400">
                                 {file.deletedAt ? `Xóa: ${file.deletedAt}` : `Tạo: ${file.createdAt}`}
                               </p>
+                              {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && (
+                                <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] rounded font-medium mt-0.5">
+                                  Đã chia sẻ vào Kho chung
+                                </span>
+                              )}
+                              {driveKind === 'DepartmentShared' && file.isSharedLink && (
+                                <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium mt-0.5">
+                                  Liên kết
+                                </span>
+                              )}
+                              {driveKind === 'DepartmentShared' && file.authorName && (
+                                <p className="text-[10px] text-slate-500 mt-0.5">{file.authorName}</p>
+                              )}
                             </div>
                           </div>
 
@@ -766,32 +785,102 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               </button>
                               {fileMenuOpenId === file.id && (
                                 <div
-                                  className="absolute right-0 top-6 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[130px]"
+                                  className="absolute right-0 top-6 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[150px]"
                                   onMouseLeave={() => setFileMenuOpenId(null)}
                                 >
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setFileMenuOpenId(null);
-                                      setRenameFileValue(file.name);
-                                      setRenamingFileId(file.id);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                    Đổi tên
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setFileMenuOpenId(null);
-                                      onToggleStar(file.id);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                  >
-                                    <Star className="w-3.5 h-3.5" />
-                                    {file.starred ? 'Bỏ dấu sao' : 'Gắn dấu sao'}
-                                  </button>
+                                  {driveKind !== 'DepartmentShared' && !file.isSharedLink && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFileMenuOpenId(null);
+                                          setRenameFileValue(file.name);
+                                          setRenamingFileId(file.id);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                        Đổi tên
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFileMenuOpenId(null);
+                                          onToggleStar(file.id);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                      >
+                                        <Star className="w-3.5 h-3.5" />
+                                        {file.starred ? 'Bỏ dấu sao' : 'Gắn dấu sao'}
+                                      </button>
+                                    </>
+                                  )}
+                                  {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && onUnshareFromDepartment && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFileMenuOpenId(null);
+                                        onUnshareFromDepartment(file);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    >
+                                      <Share2 className="w-3.5 h-3.5" />
+                                      Gỡ khỏi Kho chung
+                                    </button>
+                                  )}
+                                  {driveKind !== 'DepartmentShared' && !file.isSharedToDepartment && onShareToDepartment && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFileMenuOpenId(null);
+                                        onShareToDepartment(file);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                    >
+                                      <Share2 className="w-3.5 h-3.5" />
+                                      Chia sẻ vào Kho chung
+                                    </button>
+                                  )}
+                                  {driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFileMenuOpenId(null);
+                                        onUnshareFromDepartment(file);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    >
+                                      <Share2 className="w-3.5 h-3.5" />
+                                      Gỡ khỏi Kho chung
+                                    </button>
+                                  )}
+                                  {driveKind === 'DepartmentShared' && !file.isSharedLink && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFileMenuOpenId(null);
+                                          setRenameFileValue(file.name);
+                                          setRenamingFileId(file.id);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                        Đổi tên
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFileMenuOpenId(null);
+                                          onToggleStar(file.id);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+                                      >
+                                        <Star className="w-3.5 h-3.5" />
+                                        {file.starred ? 'Bỏ dấu sao' : 'Gắn dấu sao'}
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -833,7 +922,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                         <span className="font-mono">{file.sizeFormatted}</span>
 
                         <div className="flex items-center gap-1.5">
-                          {!isReadOnly && (
+                          {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -841,6 +930,18 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               }}
                               className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
                               title="Chia sẻ liên kết"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUnshareFromDepartment(file);
+                              }}
+                              className="p-1 hover:text-rose-600 hover:bg-white rounded transition-colors cursor-pointer"
+                              title="Gỡ khỏi Kho chung"
                             >
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
@@ -855,7 +956,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>
-                          {!isReadOnly && (
+                          {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -952,6 +1053,19 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                       {file.tags.join(' · ')}
                                     </div>
                                   )}
+                                  {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && (
+                                    <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] rounded font-medium mt-0.5">
+                                      Đã chia sẻ vào Kho chung
+                                    </span>
+                                  )}
+                                  {driveKind === 'DepartmentShared' && file.isSharedLink && (
+                                    <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium mt-0.5">
+                                      Liên kết
+                                    </span>
+                                  )}
+                                  {driveKind === 'DepartmentShared' && file.authorName && (
+                                    <div className="text-[10px] text-slate-500 mt-0.5">{file.authorName}</div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -972,7 +1086,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 onClick={(e) => e.stopPropagation()}
                                 className="flex items-center justify-end gap-1"
                               >
-                                {!isReadOnly && (
+                                {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
                                   <button
                                     onClick={() => {
                                       setRenameFileValue(file.name);
@@ -984,11 +1098,38 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                     <Pencil className="w-4 h-4" />
                                   </button>
                                 )}
-                                {!isReadOnly && (
+                                {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
                                   <button
                                     onClick={() => onShareItem(file)}
                                     className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                                     title="Chia sẻ"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {!isReadOnly && driveKind !== 'DepartmentShared' && !file.isSharedToDepartment && onShareToDepartment && (
+                                  <button
+                                    onClick={() => onShareToDepartment(file)}
+                                    className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-green-600 transition-colors cursor-pointer"
+                                    title="Chia sẻ vào Kho chung"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {!isReadOnly && driveKind !== 'DepartmentShared' && file.isSharedToDepartment && onUnshareFromDepartment && (
+                                  <button
+                                    onClick={() => onUnshareFromDepartment(file)}
+                                    className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                                    title="Gỡ khỏi Kho chung"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
+                                  <button
+                                    onClick={() => onUnshareFromDepartment(file)}
+                                    className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                                    title="Gỡ khỏi Kho chung"
                                   >
                                     <Share2 className="w-4 h-4" />
                                   </button>
@@ -1000,7 +1141,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
-                                {!isReadOnly && (
+                                {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
                                   <button
                                     onClick={() => onDeleteFile(file.id)}
                                     className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
