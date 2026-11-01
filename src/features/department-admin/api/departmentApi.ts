@@ -115,13 +115,14 @@ export const departmentApi = {
 };
 
 // GET /department/{deptId}/quota/breakdown
-export const getQuotaBreakdown = (deptId: string): Promise<{
-  totalQuotaBytes: number;
-  usedBytes: number;
-  sharedQuotaBytes: number;
-  usersQuotaBytes: number;
-  unallocatedBytes: number;
-}> =>
+export interface DepartmentQuotaBreakdownDto {
+  totalBytes: number;
+  leadBytes: number;
+  employeesBytes: number;
+  sharedBytes: number;
+  freeBytes: number;
+}
+export const getQuotaBreakdown = (deptId: string): Promise<DepartmentQuotaBreakdownDto> =>
   apiClient.get(API_ENDPOINTS.DEPARTMENT.QUOTA_BREAKDOWN(deptId))
     .then((r: any) => r?.value ?? r?.data ?? r);
 

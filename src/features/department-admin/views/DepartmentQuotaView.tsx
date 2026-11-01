@@ -19,7 +19,7 @@ import {
   QuotaHistoryTable,
   RequestQuotaModal,
 } from '@/features/quota';
-import { getSharedStoreQuotaApi, setSharedStoreQuotaApi } from '../api/departmentApi';
+import { getSharedStoreQuotaApi, setSharedStoreQuotaApi, getQuotaBreakdown, DepartmentQuotaBreakdownDto } from '../api/departmentApi';
 import { useDepartment } from '../context/DepartmentContext';
 
 const formatBytesSimple = (bytes: number): string => {
@@ -180,7 +180,22 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [topUpBytes, setTopUpBytes] = useState<number | undefined>(undefined);
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
+  const [breakdown, setBreakdown] = useState<DepartmentQuotaBreakdownDto | null>(null);
   const { departmentId } = useDepartment();
+
+  const loadBreakdown = async () => {
+    if (!departmentId) return;
+    try {
+      const data = await getQuotaBreakdown(departmentId);
+      setBreakdown(data);
+    } catch {
+      // non-critical: leave breakdown null
+    }
+  };
+
+  useEffect(() => {
+    loadBreakdown();
+  }, [departmentId]);
 
   const percentUsed =
     department.totalAllocatedGB > 0
@@ -191,6 +206,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
     setIsRequestModalOpen(false);
     onShowToast?.('success', 'Đã gửi yêu cầu tăng hạn mức phòng ban thành công!');
     onQuotaUpdated?.();
+    loadBreakdown();
   };
 
   return (
@@ -294,12 +310,79 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Kho chung phòng row */}
-      {departmentId && (
-        <SharedQuotaRow departmentId={departmentId} onShowToast={onShowToast} />
+      {/* 3. Phân bổ quota phòng — 4 phần */}
+      {breakdown !== null && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs space-y-3">
+          <p className="text-sm font-bold text-slate-900">Phân bổ quota phòng</p>
+          {breakdown.totalBytes === 0 ? (
+            <p className="text-xs text-slate-500">Phòng chưa được cấp hạn mức.</p>
+          ) : (
+            <>
+              {/* Stacked bar */}
+              <div className="flex rounded-full overflow-hidden h-4 w-full">
+                {breakdown.leadBytes > 0 && (
+                  <div
+                    className="bg-purple-500 h-full"
+                    style={{ width: `${(breakdown.leadBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Trưởng phòng: ${formatBytesSimple(breakdown.leadBytes)}`}
+                  />
+                )}
+                {breakdown.employeesBytes > 0 && (
+                  <div
+                    className="bg-blue-500 h-full"
+                    style={{ width: `${(breakdown.employeesBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Nhân viên: ${formatBytesSimple(breakdown.employeesBytes)}`}
+                  />
+                )}
+                {breakdown.sharedBytes > 0 && (
+                  <div
+                    className="bg-indigo-400 h-full"
+                    style={{ width: `${(breakdown.sharedBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Kho chung: ${formatBytesSimple(breakdown.sharedBytes)}`}
+                  />
+                )}
+                {breakdown.freeBytes > 0 && (
+                  <div
+                    className="bg-slate-100 h-full"
+                    style={{ width: `${(breakdown.freeBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Còn trống: ${formatBytesSimple(breakdown.freeBytes)}`}
+                  />
+                )}
+              </div>
+              {/* Legend */}
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
+                  <span>Trưởng phòng</span>
+                  <span className="font-semibold text-slate-800">{formatBytesSimple(breakdown.leadBytes)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 shrink-0" />
+                  <span>Nhân viên</span>
+                  <span className="font-semibold text-slate-800">{formatBytesSimple(breakdown.employeesBytes)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-indigo-400 shrink-0" />
+                  <span>Kho chung</span>
+                  <span className="font-semibold text-slate-800">{formatBytesSimple(breakdown.sharedBytes)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300 shrink-0" />
+                  <span>Còn trống</span>
+                  <span className="font-semibold text-emerald-700">{formatBytesSimple(breakdown.freeBytes)}</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
-      {/* 4. Sub Tabs & Content */}
+      {/* 4. Kho chung phòng row */}
+      {departmentId && (
+        <SharedQuotaRow departmentId={departmentId} onShowToast={(type, msg) => { onShowToast?.(type, msg); loadBreakdown(); }} />
+      )}
+
+      {/* 5. Sub Tabs & Content */}
       <div className="space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-200">
           <button
@@ -339,6 +422,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
               onDecisionSuccess={() => {
                 onShowToast?.('success', 'Đã ghi nhận quyết định phê duyệt thành công.');
                 onQuotaUpdated?.();
+                loadBreakdown();
               }}
             />
           </div>
