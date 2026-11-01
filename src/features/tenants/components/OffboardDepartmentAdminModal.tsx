@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Department, TenantUser } from '@/features/tenants/types';
 import { offboardDepartmentAdminApi, OffboardDepartmentAdminResult } from '@/features/tenants/api/tenantCommands';
+import { formatBytes } from '@/features/department-admin/utils/quotaUtils';
 
 interface OffboardDepartmentAdminModalProps {
   isOpen: boolean;
@@ -197,9 +198,13 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                   Chi tiết kết quả bàn giao:
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-600">
-                  <div>Thư mục bàn giao: <strong className="text-slate-900">{result.handoverFolderName}</strong></div>
-                  <div>Tệp tin đã chuyển giao: <strong className="text-slate-900">{result.transferredFilesCount} files</strong></div>
-                  <div>Thư mục đã chuyển giao: <strong className="text-slate-900">{result.transferredFoldersCount} folders</strong></div>
+                  {result.handoverFolderId != null && (
+                    <div className="col-span-2">Thư mục bàn giao: <strong className="text-slate-900">{result.handoverFolderName}</strong></div>
+                  )}
+                  <div>Tệp đã chuyển giao: <strong className="text-slate-900">{result.transferredFilesCount} files, {result.transferredFoldersCount} folders ({formatBytes(result.transferredBytes)})</strong></div>
+                  <div>Tệp đã chia sẻ: <strong className="text-slate-900">{result.sharedFilesCount} files ({formatBytes(result.sharedBytes)})</strong></div>
+                  <div>Quota → Trưởng phòng mới: <strong className="text-emerald-700">{formatBytes(result.quotaToNewLeadBytes)}</strong></div>
+                  <div>Quota → Kho chung: <strong className="text-blue-700">{formatBytes(result.quotaToSharedBytes)}</strong></div>
                   <div>Phiên upload đã hủy: <strong className="text-slate-900">{result.abortedUploadSessionsCount}</strong></div>
                   <div>Bổ nhiệm Trưởng phòng mới: <strong className="text-emerald-600">{result.isNewDepartmentLeadAssigned ? 'Có (Đã bổ nhiệm)' : 'Chưa (Tạm khuyết)'}</strong></div>
                   <div>Thời gian hoàn tất: <strong className="text-slate-900">{new Date(result.offboardedAt).toLocaleTimeString()}</strong></div>
@@ -450,6 +455,31 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                   </p>
                 </div>
               )}
+
+              {/* Mô tả kịch bản bàn giao */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[11px] text-slate-600">
+                <div className="font-semibold text-slate-800 text-xs mb-1">Luồng xử lý dữ liệu:</div>
+                <div className="flex items-start gap-1.5">
+                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                  <span>
+                    {scenario === 'INTERIM_TENANT_ADMIN'
+                      ? 'Tệp cá nhân chưa chia sẻ được giữ riêng cho tới khi bổ nhiệm Trưởng phòng mới.'
+                      : 'Tệp cá nhân chưa chia sẻ sẽ vào thư mục [Bàn giao] trong \'Tài liệu của tôi\' của người tiếp nhận.'}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                  <span>Tệp đã chia sẻ sẽ vào Kho chung, giữ nguyên thư mục cha.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                  <span>Hạn mức cá nhân chuyển cho người tiếp nhận; phần của tệp đã chia sẻ chuyển sang Kho chung.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                  <span>Kho chung hiện có giữ nguyên.</span>
+                </div>
+              </div>
 
               {/* Lý do bàn giao */}
               <div>
