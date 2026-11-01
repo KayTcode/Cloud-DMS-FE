@@ -157,13 +157,17 @@ export interface OffboardDepartmentAdminPayload {
 export interface OffboardDepartmentAdminResult {
   offboardedUserId: string;
   targetUserId: string;
-  handoverFolderId: string;
-  handoverFolderName: string;
+  handoverFolderId: string | null;
+  handoverFolderName: string | null;
+  sharedFolderId: string;
+  sharedFilesCount: number;
+  sharedBytes: number;
+  quotaToNewLeadBytes: number;
+  quotaToSharedBytes: number;
   transferredFilesCount: number;
   transferredBytes: number;
   transferredFoldersCount: number;
   abortedUploadSessionsCount: number;
-  reclaimedQuotaBytes: number;
   isNewDepartmentLeadAssigned: boolean;
   offboardedAt: string;
 }

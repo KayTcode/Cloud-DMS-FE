@@ -1,3 +1,13 @@
+export interface DriveFileDto {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  contentType?: string;
+  folderId?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface FolderDto {
   id: string;
   name: string;
@@ -5,6 +15,7 @@ export interface FolderDto {
   driveKind: 'Personal' | 'DepartmentShared';
   driveOwnerId: string;
   createdAt: string;
+  isPendingHandover?: boolean;
 }
 
 export interface BreadcrumbItem {
@@ -15,6 +26,8 @@ export interface BreadcrumbItem {
 export interface FolderChildrenResponse {
   folders: FolderDto[];
   breadcrumb: BreadcrumbItem[];
+  files?: DriveFileDto[];
+  isReadOnly?: boolean;
 }
 
 export interface TrashFolderItem {

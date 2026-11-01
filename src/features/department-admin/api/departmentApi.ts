@@ -114,6 +114,17 @@ export const departmentApi = {
   },
 };
 
+// GET /department/{deptId}/quota/breakdown
+export const getQuotaBreakdown = (deptId: string): Promise<{
+  totalQuotaBytes: number;
+  usedBytes: number;
+  sharedQuotaBytes: number;
+  usersQuotaBytes: number;
+  unallocatedBytes: number;
+}> =>
+  apiClient.get(API_ENDPOINTS.DEPARTMENT.QUOTA_BREAKDOWN(deptId))
+    .then((r: any) => r?.value ?? r?.data ?? r);
+
 // GET /department/{deptId}/quota/shared
 export const getSharedStoreQuotaApi = (deptId: string): Promise<{
   quotaBytes: number;

@@ -10,12 +10,28 @@ import {
 } from '../types/folder.types';
 
 export const folderApi = {
-  getRoot: (driveKind: string, driveOwnerId: string) =>
-    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.FOLDERS.ROOT(driveKind, driveOwnerId))
-      .then((r: any) => r?.value ?? r),
+  getRoot: (driveKind: string, driveOwnerId: string) => {
+    const drive = driveKind === 'DepartmentShared' ? 'shared' : 'personal';
+    const params: Record<string, string> = { drive };
+    if (driveKind === 'DepartmentShared') params.departmentId = driveOwnerId;
+    return apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params })
+      .then((r: any) => r?.value ?? r);
+  },
 
   getChildren: (folderId: string) =>
-    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.FOLDERS.CHILDREN(folderId))
+    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params: { folderId } })
+      .then((r: any) => r?.value ?? r),
+
+  getDriveChildren: (drive: 'personal' | 'shared', opts: { departmentId?: string; folderId?: string | null }) => {
+    const params: Record<string, string> = { drive };
+    if (opts.departmentId) params.departmentId = opts.departmentId;
+    if (opts.folderId) params.folderId = opts.folderId;
+    return apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params })
+      .then((r: any) => r?.value ?? r);
+  },
+
+  confirmHandover: (folderId: string): Promise<{ movedFolders: number; movedFiles: number; totalBytes: number }> =>
+    apiClient.post(API_ENDPOINTS.FOLDERS.CONFIRM_HANDOVER(folderId))
       .then((r: any) => r?.value ?? r),
 
   createFolder: (payload: CreateFolderPayload) =>

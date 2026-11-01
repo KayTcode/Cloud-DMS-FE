@@ -416,6 +416,12 @@ export const driveApi = {
     return res?.value ?? res?.data ?? res;
   },
 
+  // Rename a file (PATCH /api/files/{fileId})
+  renameFile: async (fileId: string, name: string): Promise<any> => {
+    const res: any = await apiClient.patch(`/files/${fileId}`, { name });
+    return res?.value ?? res?.data ?? res;
+  },
+
   // Backward compatibility alias for share
   shareItem: async (itemId: string, emails: string[]): Promise<void> => {
     if (emails.length > 0) {
