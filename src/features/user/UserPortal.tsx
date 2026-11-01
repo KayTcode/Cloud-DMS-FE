@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   DriveView,
   DriveTrashView,
   StorageView,
   ProfileView,
   SharedFilesView,
+  EmployeeSharedStoreView,
 } from './views';
 import {
   AdjustQuotaModal,
@@ -607,6 +608,13 @@ export const UserPortal: React.FC = () => {
             isReadOnly={isReadOnly}
             onConfirmHandover={handleConfirmHandover}
             onRenameFile={handleRenameFile}
+          />
+        )}
+
+        {activeTab === 'shared-store' && (
+          <EmployeeSharedStoreView
+            currentUser={currentUser}
+            onShowToast={showNotification}
           />
         )}
 

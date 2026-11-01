@@ -126,14 +126,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ];
     }
     // Menu cho Nhân viên thông thường (End User / Employee)
-    return [
+    const employeeItems: { id: NavItem; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
       { id: 'dashboard', label: 'Tài liệu & My Drive', icon: FolderTree },
+    ];
+    if (user?.departmentId) {
+      employeeItems.push({ id: 'shared-store', label: 'Kho chung', icon: FolderOpen });
+    }
+    employeeItems.push(
       { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
       { id: 'trash', label: 'Thùng rác', icon: Trash2 },
       { id: 'storage-providers', label: 'Dung lượng lưu trữ', icon: HardDrive },
       { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },
       { id: 'settings', label: 'Hồ sơ & Cài đặt', icon: Settings },
-    ];
+    );
+    return employeeItems;
   };
 
   const navItems = getNavItems();
