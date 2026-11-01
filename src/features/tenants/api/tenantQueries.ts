@@ -1,6 +1,8 @@
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { TenantInfo, TenantUser, Department, TenantEvent } from '@/features/tenants/types';
+import { DepartmentDetail } from '@/features/tenants/types/tenantUser.dto';
+import { FolderChildrenResponse } from '@/features/user/types/folder.types';
 import { initialTenant, initialEvents } from '@/data/tenantMockData';
 
 export interface TenantQuotaData {
@@ -140,6 +142,26 @@ export async function getTenantDepartments(tenantId: string): Promise<Department
     console.warn('[Tenant] Không gọi được API getTenantDepartments:', error);
     return [];
   }
+}
+
+/**
+ * Query: Lấy thông tin chi tiết của một phòng ban (dành cho Tenant Admin)
+ * Khớp BE: GET /api/tenant/{tenantId}/departments/{deptId}
+ */
+export async function getDepartmentDetail(tenantId: string, deptId: string): Promise<DepartmentDetail> {
+  const res: any = await apiClient.get(API_ENDPOINTS.TENANTS.DEPARTMENT_DETAIL(tenantId, deptId));
+  return res?.value ?? res?.data ?? res;
+}
+
+/**
+ * Query: Lấy danh sách tệp/thư mục từ drive của TP cũ đang được giữ tạm
+ * Khớp BE: GET /api/tenant/{tenantId}/departments/{deptId}/held-lead-drive
+ */
+export async function getHeldLeadDriveChildren(tenantId: string, deptId: string, folderId?: string): Promise<FolderChildrenResponse> {
+  const params: Record<string, string> = {};
+  if (folderId) params.folderId = folderId;
+  const res: any = await apiClient.get(API_ENDPOINTS.TENANTS.HELD_LEAD_DRIVE(tenantId, deptId), { params });
+  return res?.value ?? res?.data ?? res;
 }
 
 export interface TenantAuditLogDto {
