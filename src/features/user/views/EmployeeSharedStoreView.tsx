@@ -3,7 +3,7 @@ import { DriveView } from './DriveView';
 import { folderApi } from '../api/folderApi';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { DriveItem, UserProfile } from '../types';
-import { driveApi } from '../api/driveApi';
+import { driveApi, mapFileEntryToDriveItem } from '../api/driveApi';
 import { useAuth } from '@/context/AuthContext';
 
 interface EmployeeSharedStoreViewProps {
@@ -32,9 +32,8 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
       });
       setFolders(res.folders);
       setBreadcrumb(res.breadcrumb);
-      // files from the same scoped endpoint — cast via any since DriveFileDto ≈ DriveItem
       if (res.files) {
-        setDriveItems(res.files as unknown as DriveItem[]);
+        setDriveItems(res.files.map((f: any) => mapFileEntryToDriveItem(f, false)));
       }
     } catch (error) {
       console.error('Lỗi nạp Kho chung:', error);

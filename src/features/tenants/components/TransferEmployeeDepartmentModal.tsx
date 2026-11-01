@@ -26,6 +26,7 @@ export const TransferEmployeeDepartmentModal: React.FC<TransferEmployeeDepartmen
 }) => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoadingDepts, setIsLoadingDepts] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedDeptId, setSelectedDeptId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export const TransferEmployeeDepartmentModal: React.FC<TransferEmployeeDepartmen
 
   useEffect(() => {
     setIsLoadingDepts(true);
+    setFetchError(null);
     getTenantDepartments(tenantId)
       .then((depts) => {
         const filtered = depts.filter(
@@ -42,6 +44,9 @@ export const TransferEmployeeDepartmentModal: React.FC<TransferEmployeeDepartmen
         if (filtered.length > 0) {
           setSelectedDeptId(filtered[0].id);
         }
+      })
+      .catch(() => {
+        setFetchError('Không tải được danh sách phòng ban.');
       })
       .finally(() => {
         setIsLoadingDepts(false);
@@ -112,6 +117,13 @@ export const TransferEmployeeDepartmentModal: React.FC<TransferEmployeeDepartmen
                 Toàn bộ tệp của nhân viên sẽ được bàn giao vào Kho chung phòng hiện tại. Nhân viên sang phòng mới với kho trống và hạn mức 0.
               </span>
             </div>
+
+            {/* Fetch error */}
+            {fetchError && (
+              <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                {fetchError}
+              </p>
+            )}
 
             {/* Department selector */}
             {isLoadingDepts ? (
