@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Building2, HardDrive, Crown, Mail, Phone, Loader2, Users } from 'lucide-react';
 import { getDepartmentDetail } from '@/features/tenants/api/tenantQueries';
-import { DepartmentDetail } from '@/features/tenants/types/tenantUser.dto';
+import { DepartmentDetail, DepartmentMember } from '@/features/tenants/types/tenantUser.dto';
 import { InterimManagementPanel } from '@/features/tenants/components/InterimManagementPanel';
+import { TransferEmployeeDepartmentModal } from '@/features/tenants/components/TransferEmployeeDepartmentModal';
+import { EmployeeDepartmentTransferResult } from '@/features/tenants/api/tenantCommands';
 
 interface TenantDepartmentDetailViewProps {
   tenantId: string;
@@ -19,6 +21,7 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [transferTarget, setTransferTarget] = useState<DepartmentMember | null>(null);
 
   const refetch = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -180,7 +183,8 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
                   <th className="text-left py-2 pr-4 font-semibold text-slate-500 w-1/4">Họ tên</th>
                   <th className="text-left py-2 pr-4 font-semibold text-slate-500 w-1/3">Email</th>
                   <th className="text-left py-2 pr-4 font-semibold text-slate-500 w-1/5">Số điện thoại</th>
-                  <th className="text-left py-2 font-semibold text-slate-500">Trạng thái</th>
+                  <th className="text-left py-2 pr-4 font-semibold text-slate-500">Trạng thái</th>
+                  <th className="py-2 font-semibold text-slate-500"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -189,7 +193,7 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
                     <td className="py-2 pr-4 font-medium text-slate-800">{m.name}</td>
                     <td className="py-2 pr-4 font-mono text-slate-500 truncate max-w-[200px]">{m.email}</td>
                     <td className="py-2 pr-4 text-slate-500">{m.phoneNumber ?? '—'}</td>
-                    <td className="py-2">
+                    <td className="py-2 pr-4">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           m.status === 'Active'
@@ -202,6 +206,14 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
                         {m.status === 'Active' ? 'Hoạt động' : m.status === 'Pending' ? 'Chờ kích hoạt' : m.status}
                       </span>
                     </td>
+                    <td className="py-2">
+                      <button
+                        onClick={() => setTransferTarget(m)}
+                        className="px-2 py-1 text-[10px] font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        Đổi phòng
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -213,6 +225,21 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
       {/* Interim management panel – only shown when department has no lead */}
       {detail.isVacant && (
         <InterimManagementPanel tenantId={tenantId} detail={detail} onRefresh={refetch} />
+      )}
+
+      {/* Transfer department modal */}
+      {transferTarget && (
+        <TransferEmployeeDepartmentModal
+          tenantId={tenantId}
+          userId={transferTarget.id}
+          userName={transferTarget.name}
+          currentDepartmentId={departmentId}
+          onClose={() => setTransferTarget(null)}
+          onSuccess={(_result: EmployeeDepartmentTransferResult) => {
+            setTransferTarget(null);
+            refetch();
+          }}
+        />
       )}
     </div>
   );
