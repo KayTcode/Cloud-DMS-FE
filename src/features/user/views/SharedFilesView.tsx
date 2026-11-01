@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Share2,
+  Folder,
   Search,
   Grid,
   List,
@@ -112,6 +113,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   const getFileIcon = (fileType?: FileType) => {
     switch (fileType) {
+      case 'folder':
+        return <Folder className="w-5 h-5 text-amber-500" />;
       case 'pdf':
         return <FileText className="w-5 h-5 text-red-500" />;
       case 'sheet':
@@ -158,7 +161,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   const toDriveItem = (item: SharedFileItem): DriveItem => {
     return {
-      id: item.id,
+      id: item.id, archiveKind: item.archiveKind, originalSizeBytes: item.originalSizeBytes,
       name: item.name,
       type: 'file',
       fileType: item.fileType,

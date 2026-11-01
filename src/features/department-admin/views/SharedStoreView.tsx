@@ -4,6 +4,7 @@ import { useDepartment } from '../context/DepartmentContext';
 import { useAuth } from '@/context/AuthContext';
 import { DriveView } from '@/features/user/views/DriveView';
 import { DriveTrashView } from '@/features/user/views/DriveTrashView';
+import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import { MoveFolderModal } from '@/features/user/components/MoveFolderModal';
 import { folderApi } from '@/features/user/api/folderApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
@@ -21,6 +22,7 @@ export const SharedStoreView: React.FC = () => {
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
   const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
+  const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
@@ -43,7 +45,7 @@ export const SharedStoreView: React.FC = () => {
         res = await folderApi.getRoot('DepartmentShared', deptId);
         setBreadcrumb([]);
       } else {
-        res = await folderApi.getChildren(folderId);
+        res = await folderApi.getChildren(folderId, 'DepartmentShared', deptId);
         setBreadcrumb(res.breadcrumb);
       }
       setApiFolders(res.folders);
@@ -69,12 +71,14 @@ export const SharedStoreView: React.FC = () => {
         else if (['ppt', 'pptx'].includes(ext)) fType = 'slide';
         return {
           id: f.id,
+          archiveKind: f.archiveKind,
+          originalSizeBytes: f.originalSizeBytes,
           name: f.name,
           type: 'file' as const,
-          fileType: fType,
+          fileType: f.archiveKind === 'folder' || f.archiveKind === 'batch' ? 'folder' : fType,
           extension: ext || 'file',
-          size: f.sizeBytes,
-          sizeFormatted: formatBytes(f.sizeBytes),
+          size: f.originalSizeBytes ?? f.sizeBytes,
+          sizeFormatted: formatBytes(f.originalSizeBytes ?? f.sizeBytes),
           updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
           createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
           owner: { name: f.ownerName || 'Phòng ban', email: '' },
@@ -253,6 +257,9 @@ export const SharedStoreView: React.FC = () => {
         </button>
       </div>
 
+      {archiveFile && <ArchiveBrowser file={archiveFile} onClose={() => setArchiveFile(null)}
+        onDownloadPackage={() => { void driveApi.downloadFile(archiveFile.id, archiveFile.name, archiveFile.archiveKind)
+          .catch(() => showNotification('Không thể tải xuống thư mục.', 'error')); }} />}
       {/* Tab Content */}
       {activeTab === 'files' && (
         // TODO: replace with shared-store scoped file listing when BE endpoint available
@@ -267,7 +274,12 @@ export const SharedStoreView: React.FC = () => {
           onUploadFile={undefined}
           onUploadDirectFile={undefined}
           onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
-          onOpenFilePreview={() => {}}
+          onOpenFilePreview={(item) => {
+            if (item.archiveKind === 'folder' || item.archiveKind === 'batch'
+              || (!item.archiveKind && item.name.toLowerCase().endsWith('.zip'))) setArchiveFile(item);
+            else void driveApi.downloadFile(item.id, item.name, item.archiveKind)
+              .catch(() => showNotification('Không thể tải xuống tệp.', 'error'));
+          }}
           onToggleStar={() => {}}
           onDeleteFile={async (id) => {
             try {
@@ -281,7 +293,7 @@ export const SharedStoreView: React.FC = () => {
           onShareItem={() => {}}
           onDownloadItem={async (item) => {
             try {
-              await driveApi.downloadFile(item.id, item.name);
+              await driveApi.downloadFile(item.id, item.name, item.archiveKind);
             } catch {
               showNotification('Không thể tải xuống tệp.', 'error');
             }

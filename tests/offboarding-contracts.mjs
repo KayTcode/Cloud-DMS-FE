@@ -64,6 +64,7 @@ vm.runInNewContext(compile(fs.readFileSync('src/features/user/api/driveApi.ts', 
   exports, require: name => {
     if (name === '@/api/axiosClient') return { default: api };
     if (name === '@/services/upload/CloudDirectUploader') return {};
+    if (name === '@/services/upload/storageZip') return {};
     throw new Error(`Unexpected runtime import: ${name}`);
   }, console,
 });

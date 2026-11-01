@@ -205,13 +205,13 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         const effectiveParentId = f.folderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
 
         return {
-          id: f.id,
+          id: f.id, archiveKind: f.archiveKind, originalSizeBytes: f.originalSizeBytes,
           name: f.name,
           type: 'file',
-          fileType: fType,
+          fileType: f.archiveKind === 'folder' || f.archiveKind === 'batch' ? 'folder' : fType,
           extension: ext || 'file',
-          size: f.sizeBytes,
-          sizeFormatted: formatBytes(f.sizeBytes),
+          size: f.originalSizeBytes ?? f.sizeBytes,
+          sizeFormatted: formatBytes(f.originalSizeBytes ?? f.sizeBytes),
           updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
           createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
           owner: {
@@ -232,7 +232,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         const effectiveParentId = f.parentFolderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
 
         return {
-          id: f.id,
+          id: f.id, archiveKind: f.archiveKind, originalSizeBytes: f.originalSizeBytes,
           name: f.name,
           type: 'folder',
           size: 0,
@@ -460,6 +460,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   // Google Drive file type icon
   const getGoogleDriveIcon = (fileType?: FileType, ext?: string) => {
     switch (fileType) {
+      case 'folder':
+        return <Folder className="w-5 h-5 text-amber-500 shrink-0" />;
       case 'pdf':
         return (
           <div className="w-5 h-5 rounded flex items-center justify-center text-red-500 shrink-0">
@@ -682,7 +684,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     try {
       setActiveMenuId(null);
       if (onAddToast) onAddToast('info', `Đang tải xuống tệp "${item.name}"...`);
-      await downloadTenantFileApi(item.id, item.name);
+      await downloadTenantFileApi(item.id, item.name, item.archiveKind);
     } catch (err: any) {
       if (onAddToast) onAddToast('error', 'Không thể tải xuống tệp tin.');
     }
@@ -978,7 +980,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   </button>
 
                   <button onClick={() => { setIsNewMenuOpen(false); void pickDirectory(() => folderInputRef.current?.click(), handleUploadFiles, (message) => onAddToast?.('error', message)); }}
-                    className="w-full px-3 py-2 text-xs text-left hover:bg-slate-100 rounded-xl">Tải thư mục ZIP</button>
+                    className="w-full px-3 py-2 text-xs text-left hover:bg-slate-100 rounded-xl">Chọn thư mục</button>
                   {/* Tùy chọn 2: Tải qua Server */}
                   <button
                     onClick={() => {
@@ -1265,7 +1267,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {sortedTrashItems.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-rose-50/40 border border-slate-200/80 hover:border-rose-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header */}
@@ -1342,7 +1344,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {sortedTrashItems.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
+                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
                           className="hover:bg-rose-50/30 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1520,7 +1522,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header (File Icon + Name + 3-dots) */}
@@ -1551,7 +1553,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                             >
                               <button
                                 onClick={() => {
-                                  (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file));
+                                  ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file));
                                   setActiveMenuId(null);
                                 }}
                                 className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
@@ -1653,7 +1655,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {files.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => (file.name.toLowerCase().endsWith('.zip') ? setPreviewFile(file) : void handleDownload(file))}
+                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
                           className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">

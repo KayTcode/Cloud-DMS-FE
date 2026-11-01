@@ -75,7 +75,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
   const handleDownloadBackup = async (file: ExpiringFileItemDto) => {
     try {
       onShowToast?.(`Đang tải về bản sao lưu: ${file.name}...`, 'info');
-      await downloadTenantFileApi(file.id, file.name);
+      await downloadTenantFileApi(file.id, file.name, file.archiveKind);
       onShowToast?.(`Đã tải về sao lưu thành công tệp ${file.name}`, 'success');
     } catch (err) {
       onShowToast?.('Không thể tải về tệp tin.', 'error');

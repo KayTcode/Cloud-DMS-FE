@@ -1,4 +1,5 @@
 import apiClient from '@/api/axiosClient';
+import { packageForStorage, extractStorageZip } from '@/services/upload/storageZip';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
 import {
   DriveItem,
@@ -38,13 +39,15 @@ export const detectFileType = (fileName: string, mimeType?: string): { type: Fil
 export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem => {
   const name = dto.name || dto.fileName || 'Tệp không tên';
   const { type: fileType, ext } = detectFileType(name, dto.contentType);
-  const sizeBytes = dto.sizeBytes ?? dto.size ?? 0;
+  const sizeBytes = dto.originalSizeBytes ?? dto.sizeBytes ?? dto.size ?? 0;
 
   return {
     id: dto.id,
+    archiveKind: dto.archiveKind,
+    originalSizeBytes: dto.originalSizeBytes,
     name,
     type: 'file',
-    fileType,
+    fileType: dto.archiveKind === 'folder' || dto.archiveKind === 'batch' ? 'folder' : fileType,
     extension: ext,
     size: sizeBytes,
     sizeFormatted: formatBytes(sizeBytes),
@@ -78,14 +81,16 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
 export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
   const name = dto.name || dto.fileName || 'Tệp không tên';
   const { type: fileType, ext } = detectFileType(name, dto.contentType);
-  const sizeBytes = dto.sizeBytes ?? dto.size ?? 0;
+  const sizeBytes = dto.originalSizeBytes ?? dto.sizeBytes ?? dto.size ?? 0;
   const sharedAt = dto.sharedAt || dto.createdAt || new Date().toISOString();
 
   return {
     id: dto.id,
+    archiveKind: dto.archiveKind,
+    originalSizeBytes: dto.originalSizeBytes,
     name,
     type: 'file',
-    fileType,
+    fileType: dto.archiveKind === 'folder' || dto.archiveKind === 'batch' ? 'folder' : fileType,
     extension: ext,
     size: sizeBytes,
     sizeFormatted: formatBytes(sizeBytes),
@@ -142,70 +147,32 @@ export const driveApi = {
   uploadFiles: async (files: FileList | File[], folderId?: string | null, directories: string[] = []): Promise<any> => {
     const formData = new FormData();
     const selection = Array.from(files);
-    const packaged = directories.length > 0 || selection.length > 1 || selection.some((f) => !!f.webkitRelativePath);
+    formData.append('transparent', 'true');
     selection.forEach((f) => {
       formData.append('files', f);
-      if (packaged) formData.append('relativePaths', f.webkitRelativePath || f.name);
+      formData.append('relativePaths', f.webkitRelativePath || f.name);
     });
-    if (packaged) {
-      formData.append('compression', 'fastest');
-      directories.forEach((directory) => formData.append('directories', directory));
-      const root = selection[0]?.webkitRelativePath?.split('/')[0] || directories[0]?.split('/')[0];
-      formData.append('name', root ? `${root}.zip` : `package-${Date.now()}.zip`);
-    }
+    formData.append('compression', 'fastest');
+    directories.forEach((directory) => formData.append('directories', directory));
+    const root = selection[0]?.webkitRelativePath?.split('/')[0] || directories[0]?.split('/')[0];
+    formData.append('name', root ? `${root}.zip` : `package-${Date.now()}.zip`);
     if (folderId) formData.append('folderId', folderId);
 
-    const res: any = await apiClient.post(packaged ? '/files/packages' : '/files/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 });
-    if (packaged) return { uploaded: [res?.value ?? res?.data ?? res], failed: [], allSucceeded: true };
-    return res?.value ?? res?.data ?? res;
+    const res: any = await apiClient.post('/files/packages', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 });
+    return { uploaded: [res?.value ?? res?.data ?? res], failed: [], allSucceeded: true };
   },
 
   // Upload files using Direct-to-Storage (Google Drive / OneDrive / S3 - New Method)
-  uploadDirectFiles: async (
-    files: FileList | File[],
-    folderId?: string | null,
-    onProgress?: (fileName: string, progress: DirectUploadProgress) => void
-  ): Promise<any> => {
-    const fileArray = Array.from(files);
-    // Batches/folders must remain one indexed package, including when initiated from the Direct button.
-    if (fileArray.length > 1 || fileArray.some((file) => !!file.webkitRelativePath))
-      return driveApi.uploadFiles(fileArray, folderId);
-    const uploaded: any[] = [];
-    const failed: any[] = [];
-
-    for (const file of fileArray) {
-      try {
-        const result = await CloudDirectUploader.upload({
-          file,
-          folderId: folderId || null,
-          onProgress: (p) => onProgress?.(file.name, p),
-        });
-        uploaded.push({
-          id: result.fileId,
-          fileName: file.name,
-          name: file.name,
-          sizeBytes: file.size,
-          size: file.size,
-          documentVersion: result.documentVersion,
-          createdAt: new Date().toISOString(),
-        });
-      } catch (err: any) {
-        failed.push({
-          fileName: file.name,
-          fileSize: file.size,
-          error: err?.message || 'Tải trực tiếp lên Cloud thất bại',
-        });
-      }
-    }
-
-    return {
-      uploaded,
-      failed,
-      allSucceeded: failed.length === 0,
-      totalFiles: fileArray.length,
-    };
+  uploadDirectFiles: async (files: FileList | File[], folderId?: string | null,
+    onProgress?: (fileName: string, progress: DirectUploadProgress) => void): Promise<any> => {
+    const selection = Array.from(files);
+    const packaged = await packageForStorage(selection);
+    const result = await CloudDirectUploader.upload({ file: packaged.file, folderId,
+      archiveKind: packaged.archiveKind, logicalName: packaged.logicalName,
+      onProgress: progress => onProgress?.(packaged.logicalName, progress) });
+    return { uploaded: [{ id: result.fileId, name: packaged.logicalName,
+      archiveKind: packaged.archiveKind, sizeBytes: packaged.originalSize }], failed: [], allSucceeded: true };
   },
-
   // Create folder
   createFolder: async (
     name: string,
@@ -359,11 +326,21 @@ export const driveApi = {
   },
 
   // Download file securely with Bearer token (GET /api/files/{id}/download)
-  downloadFile: async (fileId: string, fileName = 'download'): Promise<void> => {
+  downloadFile: async (fileId: string, fileName = 'download', archiveKind?: string | null): Promise<void> => {
+    const folderPackage = archiveKind === 'folder' || archiveKind === 'batch';
+    let destination: any = null;
+    if (folderPackage && typeof (window as any).showDirectoryPicker === 'function') {
+      try {
+        new DecompressionStream('deflate-raw' as CompressionFormat);
+        destination = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+      } catch (error: any) { if (error.name === 'AbortError') return; }
+    }
     const res: any = await apiClient.get(`/files/${fileId}/download`, {
       responseType: 'blob',
     });
     const blob = new Blob([res]);
+    if (destination) { await extractStorageZip(blob, destination); return; }
+    if (folderPackage) fileName += '.zip';
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

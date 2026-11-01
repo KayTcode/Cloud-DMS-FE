@@ -4,6 +4,8 @@ import { API_ENDPOINTS } from '@/api/endpoints';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
 
 export interface FileItemDto {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   tenantId: string;
   ownerId: string;
@@ -71,6 +73,8 @@ export interface MultipleFileUploadResultDto {
 }
 
 export interface ExpiringFileItemDto {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   name: string;
   sizeBytes: number;
@@ -128,48 +132,7 @@ export async function uploadDirectTenantFilesApi(
   _userId?: string,
   onProgress?: (fileName: string, progress: DirectUploadProgress) => void
 ): Promise<MultipleFileUploadResultDto> {
-  const fileArray = Array.from(files);
-  if (fileArray.length > 1 || fileArray.some((file) => !!file.webkitRelativePath))
-    return driveApi.uploadFiles(fileArray, folderId);
-  const uploaded: FileItemDto[] = [];
-  const failed: FileUploadFailureDto[] = [];
-
-  for (const file of fileArray) {
-    try {
-      const result = await CloudDirectUploader.upload({
-        file,
-        folderId: folderId || null,
-        onProgress: (p) => onProgress?.(file.name, p),
-      });
-
-      uploaded.push({
-        id: result.fileId,
-        tenantId: tenantId || '',
-        ownerId: '',
-        ownerName: 'Tôi',
-        folderId: folderId || null,
-        name: file.name,
-        storageKey: result.fileId,
-        contentType: file.type || 'application/octet-stream',
-        sizeBytes: file.size,
-        scanStatus: 'Pending',
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err: any) {
-      failed.push({
-        fileName: file.name,
-        fileSize: file.size,
-        error: err?.message || 'Tải trực tiếp lên Cloud thất bại',
-      });
-    }
-  }
-
-  return {
-    uploaded,
-    failed,
-    allSucceeded: failed.length === 0,
-    totalFiles: fileArray.length,
-  };
+  return driveApi.uploadDirectFiles(files, folderId, onProgress);
 }
 
 export interface GetTenantFilesParams {
@@ -255,20 +218,8 @@ export async function getDepartmentFilesApi(
   return response?.data || response;
 }
 
-export async function downloadTenantFileApi(fileId: string, fileName: string): Promise<void> {
-  const response = await apiClient.get(API_ENDPOINTS.FILES.DOWNLOAD(fileId), {
-    responseType: 'blob',
-  });
-
-  const blob = new Blob([response as any]);
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', fileName);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
+export async function downloadTenantFileApi(fileId: string, fileName: string, archiveKind?: string | null): Promise<void> {
+  return driveApi.downloadFile(fileId, fileName, archiveKind);
 }
 
 export async function deleteTenantFileApi(fileId: string): Promise<boolean> {

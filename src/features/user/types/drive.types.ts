@@ -1,6 +1,8 @@
-export type FileType = 'pdf' | 'docx' | 'sheet' | 'slide' | 'image' | 'archive' | 'code' | 'other';
+export type FileType = 'pdf' | 'docx' | 'sheet' | 'slide' | 'image' | 'archive' | 'folder' | 'code' | 'other';
 
 export interface DriveItem {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   name: string;
   type: 'folder' | 'file';
@@ -65,6 +67,8 @@ export interface TrashFileListResponse {
 }
 
 export interface SharedFileItem {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   name: string;
   type: 'file';

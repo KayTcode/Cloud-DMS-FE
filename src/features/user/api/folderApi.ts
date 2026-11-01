@@ -11,15 +11,26 @@ import {
 
 export const folderApi = {
   getRoot: (driveKind: string, driveOwnerId: string) =>
-    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.FOLDERS.ROOT(driveKind, driveOwnerId))
+    apiClient.get<FolderChildrenResponse>('/drive/children', { params: {
+      drive: driveKind.toLowerCase() === 'personal' ? 'personal' : 'shared',
+      departmentId: driveKind.toLowerCase() === 'personal' ? undefined : driveOwnerId,
+    } })
       .then((r: any) => r?.value ?? r),
 
-  getChildren: (folderId: string) =>
-    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.FOLDERS.CHILDREN(folderId))
+  getChildren: (folderId: string, driveKind = 'Personal', driveOwnerId?: string) =>
+    apiClient.get<FolderChildrenResponse>('/drive/children', { params: {
+      folderId,
+      drive: driveKind.toLowerCase() === 'personal' ? 'personal' : 'shared',
+      departmentId: driveKind.toLowerCase() === 'personal' ? undefined : driveOwnerId,
+    } })
       .then((r: any) => r?.value ?? r),
 
   createFolder: (payload: CreateFolderPayload) =>
-    apiClient.post<FolderDto>(API_ENDPOINTS.FOLDERS.CREATE, payload)
+    apiClient.post<FolderDto>(API_ENDPOINTS.FOLDERS.CREATE, {
+      name: payload.name, parentId: payload.parentFolderId,
+      drive: payload.driveKind === 'Personal' ? 'personal' : 'shared',
+      departmentId: payload.driveKind === 'Personal' ? null : payload.driveOwnerId,
+    })
       .then((r: any) => r?.value ?? r),
 
   renameFolder: (folderId: string, payload: RenameFolderPayload) =>

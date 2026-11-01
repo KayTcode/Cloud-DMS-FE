@@ -283,7 +283,6 @@ export const UserPortal: React.FC = () => {
 
   // Xử lý tải lên trực tiếp Cloud (Direct-to-Storage)
   const handleUploadDirectFiles = async (fileList: FileList) => {
-    if (fileList?.length > 1 || Array.from(fileList || []).some((file) => !!file.webkitRelativePath)) return handleUploadFiles(fileList);
     if (!fileList || fileList.length === 0) return;
 
     try {
@@ -340,27 +339,10 @@ export const UserPortal: React.FC = () => {
       await fetchFolders(currentFolderId);
       showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
     } catch (error: any) {
-      const newFolder: DriveItem = {
-        id: `folder-${Date.now()}`,
-        name,
-        type: 'folder',
-        size: 0,
-        sizeFormatted: '0 mục',
-        updatedAt: 'Vừa xong',
-        createdAt: new Date().toLocaleDateString('vi-VN'),
-        owner: {
-          name: currentUser.fullName,
-          email: currentUser.email,
-        },
-        parentId: currentFolderId,
-        starred: false,
-        trashed: false,
-        sharedWith: [],
-        tags: [department],
-        department,
-      };
-      setDriveItems((prev) => [newFolder, ...prev]);
-      showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
+      const message = error?.response?.data?.detail || error?.response?.data?.error
+        || error?.message || 'Không thể tạo thư mục.';
+      showNotification(message, 'error');
+      throw error;
     }
   };
 
@@ -401,7 +383,7 @@ export const UserPortal: React.FC = () => {
   const handleDownloadItem = async (item: DriveItem) => {
     try {
       showNotification(`Đang chuẩn bị tải xuống "${item.name}"...`, 'info');
-      await driveApi.downloadFile(item.id, item.name);
+      await driveApi.downloadFile(item.id, item.name, item.archiveKind);
       showNotification(`Tải xuống "${item.name}" thành công!`, 'success');
     } catch (error: any) {
       console.error('Lỗi tải tệp tin:', error);
@@ -565,7 +547,7 @@ export const UserPortal: React.FC = () => {
             onUploadFile={handleUploadFiles}
             onUploadDirectFile={handleUploadDirectFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
-            onOpenFilePreview={(file) => { if (file.name.toLowerCase().endsWith('.zip')) setPreviewFile(file); else void handleDownloadItem(file); }}
+            onOpenFilePreview={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setPreviewFile(file); else void handleDownloadItem(file); }}
             onToggleStar={handleToggleStar}
             onDeleteFile={handleDeleteItem}
             onShareItem={(item) => setShareItem(item)}
@@ -581,7 +563,7 @@ export const UserPortal: React.FC = () => {
 
         {activeTab === 'shared' && (
           <SharedFilesView
-            onOpenFilePreview={(file) => { if (file.name.toLowerCase().endsWith('.zip')) setPreviewFile(file); else void handleDownloadItem(file); }}
+            onOpenFilePreview={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setPreviewFile(file); else void handleDownloadItem(file); }}
             onDownloadItem={handleDownloadItem}
             onShowToast={showNotification}
           />

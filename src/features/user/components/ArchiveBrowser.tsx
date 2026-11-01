@@ -29,7 +29,7 @@ export const ArchiveBrowser: React.FC<{
   const children = new Map<string, ArchiveMember[]>();
   members.forEach((member) => children.set(member.parentPath, [...(children.get(member.parentPath) || []), member]));
   const renderChildren = (parent: string, depth: number): React.ReactNode => (
-    <ul role={depth === 0 ? 'tree' : 'group'} aria-label={depth === 0 ? 'Cấu trúc gói ZIP' : undefined}>
+    <ul role={depth === 0 ? 'tree' : 'group'} aria-label={depth === 0 ? 'Cấu trúc thư mục' : undefined}>
       {(children.get(parent) || []).map((member) => (
         <li key={member.id} role="treeitem" aria-expanded={member.isDirectory ? expanded.has(member.path) : undefined}>
           <div className="flex items-center gap-2 py-2 border-b border-slate-100" style={{ paddingLeft: depth * 18 }}>
@@ -49,11 +49,11 @@ export const ArchiveBrowser: React.FC<{
   return <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-5">
     <section role="dialog" aria-modal="true" aria-labelledby="archive-title" className="bg-white rounded-xl shadow-xl p-6 w-full max-w-3xl">
       <header className="flex items-center justify-between gap-3 mb-4"><h2 id="archive-title" className="font-semibold break-all">{file.name}</h2>
-        <button autoFocus aria-label="Đóng cấu trúc gói ZIP" onClick={onClose}><X size={20} /></button></header>
+        <button autoFocus aria-label="Đóng cấu trúc thư mục" onClick={onClose}><X size={20} /></button></header>
       <p className="text-xs text-slate-500 mb-3">Duyệt cấu trúc thư mục hoặc tải từng tệp. Không có xem trước tài liệu.</p>
       {error && <p role="alert" className="text-red-600 text-sm mb-3">{error}</p>}
       <div className="max-h-[60vh] overflow-auto">{loading ? <p role="status">Đang tải cấu trúc…</p> : renderChildren('', 0)}</div>
-      <footer className="flex justify-end mt-5"><button onClick={onDownloadPackage} className="bg-blue-600 text-white rounded px-4 py-2 text-sm">Tải toàn bộ gói ZIP</button></footer>
+      <footer className="flex justify-end mt-5"><button onClick={onDownloadPackage} className="bg-blue-600 text-white rounded px-4 py-2 text-sm">Tải thư mục về máy</button></footer>
     </section>
   </div>;
 };

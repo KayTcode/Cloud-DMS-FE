@@ -273,7 +273,7 @@ export const DepartmentStorageReportView: React.FC<DepartmentStorageReportViewPr
   const handleDownload = async (file: FileItemDto) => {
     try {
       toast('info', `Đang chuẩn bị tải về "${file.name}"...`);
-      await downloadTenantFileApi(file.id, file.name);
+      await downloadTenantFileApi(file.id, file.name, file.archiveKind);
       toast('success', `Đã tải về "${file.name}" thành công!`);
     } catch (err: any) {
       toast('error', `Tải về thất bại: ${err?.message || 'Lỗi kết nối máy chủ'}`);

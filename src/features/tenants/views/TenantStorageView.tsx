@@ -317,7 +317,7 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
   const handleDownload = async (file: FileItemDto) => {
     try {
       addToast('info', `Đang chuẩn bị tải xuống: ${file.name}...`);
-      await downloadTenantFileApi(file.id, file.name);
+      await downloadTenantFileApi(file.id, file.name, file.archiveKind);
       addToast('success', `Đã tải xuống thành công tệp tin ${file.name}`);
     } catch (err: any) {
       addToast('error', 'Không thể tải xuống tệp tin. Vui lòng kiểm tra quyền hạn.');
