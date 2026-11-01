@@ -26,6 +26,9 @@ export interface DriveItem {
   department?: string;
   previewUrl?: string;
   contentSnippet?: string;
+  authorName?: string;
+  isSharedLink?: boolean;
+  isSharedToDepartment?: boolean;
 }
 
 export type DriveViewMode = 'grid' | 'list';

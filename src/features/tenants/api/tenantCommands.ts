@@ -191,6 +191,31 @@ export async function offboardDepartmentAdminApi(
  * Command: Bổ nhiệm Trưởng phòng cho Phòng ban Khuyết Lead & Bàn giao Kho Tạm giữ
  * Khớp BE: POST /api/tenant/{tenantId}/departments/{departmentId}/assign-lead
  */
+export interface EmployeeDepartmentTransferResult {
+  userId: string;
+  fromDepartmentId: string;
+  toDepartmentId: string;
+  transferredFilesCount: number;
+  transferredBytes: number;
+  handoverFolderId?: string | null;
+}
+
+/**
+ * Command: Chuyển nhân viên sang Phòng ban khác
+ * Khớp BE: POST /api/tenant/{tenantId}/users/{userId}/transfer-department
+ */
+export async function transferEmployeeDepartment(
+  tenantId: string,
+  userId: string,
+  targetDepartmentId: string
+): Promise<EmployeeDepartmentTransferResult> {
+  const response = await apiClient.post<any, any>(
+    API_ENDPOINTS.TENANTS.TRANSFER_DEPARTMENT(tenantId, userId),
+    { targetDepartmentId }
+  );
+  return response?.value || response?.data || response;
+}
+
 export async function assignVacantDepartmentLeadApi(
   tenantId: string,
   departmentId: string,

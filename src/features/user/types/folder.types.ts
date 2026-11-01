@@ -6,6 +6,9 @@ export interface DriveFileDto {
   folderId?: string | null;
   createdAt: string;
   updatedAt?: string;
+  authorName?: string;
+  isSharedLink?: boolean;
+  isSharedToDepartment?: boolean;
 }
 
 export interface FolderDto {

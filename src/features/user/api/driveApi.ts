@@ -1,4 +1,5 @@
 import apiClient from '@/api/axiosClient';
+import { API_ENDPOINTS } from '@/api/endpoints';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
 import {
   DriveItem,
@@ -72,6 +73,9 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
     department: dto.departmentName || '',
     previewUrl: dto.previewUrl,
+    authorName: dto.authorName || undefined,
+    isSharedLink: dto.isSharedLink ?? undefined,
+    isSharedToDepartment: dto.isSharedToDepartment ?? undefined,
   };
 };
 
@@ -420,6 +424,16 @@ export const driveApi = {
   renameFile: async (fileId: string, name: string): Promise<any> => {
     const res: any = await apiClient.patch(`/files/${fileId}`, { name });
     return res?.value ?? res?.data ?? res;
+  },
+
+  // Chia sẻ tệp tin lên Kho chung Phòng ban
+  shareToDepartment: async (fileId: string, targetFolderId: string | null): Promise<void> => {
+    await apiClient.post(API_ENDPOINTS.FILES.DEPARTMENT_SHARE(fileId), { targetFolderId });
+  },
+
+  // Thu hồi chia sẻ tệp tin khỏi Kho chung Phòng ban
+  unshareFromDepartment: async (fileId: string): Promise<void> => {
+    await apiClient.delete(API_ENDPOINTS.FILES.DEPARTMENT_SHARE(fileId));
   },
 
   // Backward compatibility alias for share
