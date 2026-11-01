@@ -2,6 +2,7 @@ export * from './TenantOverviewView';
 export * from './TenantUsersView';
 export * from './CreateDepartmentUserView';
 export * from './TenantDepartmentsView';
+export * from './TenantDepartmentDetailView';
 export * from './TenantActivityView';
 export * from './TenantSettingsView';
 export * from './TenantHubView';

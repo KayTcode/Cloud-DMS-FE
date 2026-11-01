@@ -7,11 +7,13 @@ import { AllocateDepartmentQuotaModal, OffboardDepartmentAdminModal, AssignVacan
 interface TenantDepartmentsViewProps {
   onBackToOverview: () => void;
   onCreateDepartmentUser: (departmentIdOrName?: string) => void;
+  onOpenDepartment?: (deptId: string) => void;
 }
 
 export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
   onBackToOverview,
   onCreateDepartmentUser,
+  onOpenDepartment,
 }) => {
   const { tenant, departments, users, isLoadingDepartments, refreshDepartments, refreshTenantData, addToast } = useTenantContext();
   const [selectedDeptForQuota, setSelectedDeptForQuota] = useState<Department | null>(null);
@@ -136,9 +138,23 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
                       <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span>{dept.name}</span>
+                      {onOpenDepartment ? (
+                        <button
+                          onClick={() => onOpenDepartment(dept.id)}
+                          className="hover:text-blue-600 hover:underline cursor-pointer text-left"
+                        >
+                          {dept.name}
+                        </button>
+                      ) : (
+                        <span>{dept.name}</span>
+                      )}
+                      {dept.isVacant === true && (
+                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full">
+                          Khuyết Trưởng phòng
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={() => onCreateDepartmentUser(dept.id)}
@@ -201,6 +217,31 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
                       <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
                         <Mail className="w-2.5 h-2.5 text-slate-400" />
                         <span>{dept.adminEmail}</span>
+                      </div>
+                    )}
+
+                    {/* Storage bar */}
+                    {dept.storageUsedBytes != null && dept.storageQuotaBytes != null && dept.storageQuotaBytes > 0 && (
+                      <div className="mt-1.5">
+                        {(() => {
+                          const usedGB = dept.storageUsedBytes / (1024 ** 3);
+                          const quotaGB = dept.storageQuotaBytes / (1024 ** 3);
+                          const pct = Math.min(100, Math.round((dept.storageUsedBytes / dept.storageQuotaBytes) * 100));
+                          return (
+                            <>
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
+                                <span className="flex items-center gap-0.5"><HardDrive className="w-2.5 h-2.5" /> Dung lượng</span>
+                                <span className="tabular-nums">{usedGB.toFixed(1)} GB / {quotaGB.toFixed(1)} GB ({pct}%)</span>
+                              </div>
+                              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

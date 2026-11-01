@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -12,6 +12,7 @@ import {
   TenantUsersView,
   CreateDepartmentUserView,
   TenantDepartmentsView,
+  TenantDepartmentDetailView,
   TenantActivityView,
   TenantSettingsView,
   TenantHubView,
@@ -66,6 +67,18 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
     setCurrentTenantId,           // Hàm set ID Tenant hiện hành vào Context
     refreshTenantData,            // Service nạp lại toàn bộ dữ liệu Tenant từ API Backend
   } = useTenantContext();
+
+  // ---------------------------------------------------------------------------------------
+  // 2B. STATE CHO DEPARTMENT DETAIL VIEW
+  // ---------------------------------------------------------------------------------------
+  const [openDeptId, setOpenDeptId] = useState<string | null>(null);
+
+  // Reset dept detail when leaving departments tab
+  useEffect(() => {
+    if (activeTab !== 'departments') {
+      setOpenDeptId(null);
+    }
+  }, [activeTab]);
 
   // ---------------------------------------------------------------------------------------
   // 3. EFFECT ĐỒNG BỘ DỮ LIỆU TENANT (Tương tự Data Binding / Load Entity by ID)
@@ -151,10 +164,20 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
           )}
 
           {/* Tab 3: Quản lý cơ cấu các phòng ban (Departments) */}
-          {activeTab === 'departments' && (
+          {activeTab === 'departments' && !openDeptId && (
             <TenantDepartmentsView
               onBackToOverview={() => setActiveTab('overview')}
               onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+              onOpenDepartment={(deptId) => setOpenDeptId(deptId)}
+            />
+          )}
+
+          {/* Tab 3B-Detail: Xem chi tiết một phòng ban */}
+          {activeTab === 'departments' && openDeptId && effectiveTenantId && (
+            <TenantDepartmentDetailView
+              tenantId={effectiveTenantId}
+              departmentId={openDeptId}
+              onBack={() => setOpenDeptId(null)}
             />
           )}
 
