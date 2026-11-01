@@ -720,7 +720,6 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   onKeyDown={async (e) => {
                                     if (e.key === 'Enter') {
                                       const trimmed = renameFileValue.trim();
-                                      if (!trimmed) { setRenamingFileId(null); return; }
                                       if (onRenameFile) await onRenameFile(file.id, trimmed);
                                       setRenamingFileId(null);
                                     } else if (e.key === 'Escape') {
@@ -729,7 +728,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   }}
                                   onBlur={async () => {
                                     const trimmed = renameFileValue.trim();
-                                    if (trimmed && onRenameFile) await onRenameFile(file.id, trimmed);
+                                    if (onRenameFile) await onRenameFile(file.id, trimmed);
                                     setRenamingFileId(null);
                                   }}
                                   onClick={(e) => e.stopPropagation()}
@@ -924,7 +923,6 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                       onKeyDown={async (e) => {
                                         if (e.key === 'Enter') {
                                           const trimmed = renameFileValue.trim();
-                                          if (!trimmed) { setRenamingFileId(null); return; }
                                           if (onRenameFile) await onRenameFile(file.id, trimmed);
                                           setRenamingFileId(null);
                                         } else if (e.key === 'Escape') {
@@ -933,7 +931,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                       }}
                                       onBlur={async () => {
                                         const trimmed = renameFileValue.trim();
-                                        if (trimmed && onRenameFile) await onRenameFile(file.id, trimmed);
+                                        if (onRenameFile) await onRenameFile(file.id, trimmed);
                                         setRenamingFileId(null);
                                       }}
                                       onClick={(e) => e.stopPropagation()}

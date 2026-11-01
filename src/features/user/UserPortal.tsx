@@ -197,9 +197,14 @@ export const UserPortal: React.FC = () => {
 
   // Xác nhận tiếp nhận bàn giao (F2)
   const handleConfirmHandover = async (folderId: string) => {
-    await folderApi.confirmHandover(folderId);
-    await fetchFolders(currentFolderId);
-    showNotification('Đã tiếp nhận bàn giao.', 'success');
+    try {
+      await folderApi.confirmHandover(folderId);
+      await fetchFolders(currentFolderId);
+      showNotification('Đã tiếp nhận bàn giao.', 'success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
+      showNotification(msg, 'error');
+    }
   };
 
   // Đổi tên tệp (F2b)
