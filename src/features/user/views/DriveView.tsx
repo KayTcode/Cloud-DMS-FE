@@ -774,17 +774,8 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setFileMenuOpenId(null);
-                                      const dotIdx = file.name.lastIndexOf('.');
                                       setRenameFileValue(file.name);
                                       setRenamingFileId(file.id);
-                                      // selection happens in autoFocus ref via useEffect - handled by onFocus below
-                                      requestAnimationFrame(() => {
-                                        const input = document.querySelector<HTMLInputElement>(`input[data-rename-file="${file.id}"]`);
-                                        if (input) {
-                                          const end = dotIdx > 0 ? dotIdx : file.name.length;
-                                          input.setSelectionRange(0, end);
-                                        }
-                                      });
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
                                   >
@@ -986,10 +977,8 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 {!isReadOnly && (
                                   <button
                                     onClick={() => {
-                                      const dotIdx = file.name.lastIndexOf('.');
                                       setRenameFileValue(file.name);
                                       setRenamingFileId(file.id);
-                                      void dotIdx; // selection handled via onFocus
                                     }}
                                     className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                                     title="Đổi tên"
