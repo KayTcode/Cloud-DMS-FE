@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { DepartmentDetail } from '@/features/tenants/types';
 import { getDepartmentDetail } from '@/features/tenants/api/tenantQueries';
-import { InterimManagementPanel } from '../components/InterimManagementPanel';
+import { InterimManagementPanel, DepartmentExpiringFilesTable } from '../components';
 
 interface TenantDepartmentDetailViewProps {
   departmentId: string;
@@ -315,6 +315,15 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
           </div>
         )}
       </div>
+
+      {/* Danh sách tệp tin sắp hết hạn của phòng ban */}
+      <DepartmentExpiringFilesTable
+        tenantId={tenantId}
+        departmentId={detail.id}
+        departmentName={detail.name}
+        onShowToast={showToast}
+        onQuotaChanged={loadDetail}
+      />
 
       {/* Khu vực "Đang tạm quản lý" khi phòng khuyết Trưởng phòng */}
       {detail.isVacant && (

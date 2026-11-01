@@ -15,9 +15,9 @@ import { TenantInfo } from '../types';
 import { useTenantContext } from '@/context/TenantContext';
 import {
   PendingQuotaTable,
-  QuotaHistoryTable,
   RequestQuotaModal,
 } from '@/features/quota';
+import { DepartmentQuotaHistoryTable, DepartmentExpiringFilesTable } from '../components';
 
 interface TenantQuotaViewProps {
   tenant: TenantInfo;
@@ -28,10 +28,10 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
   tenant,
   onBackToOverview,
 }) => {
-  const { addToast, refreshTenantData } = useTenantContext();
+  const { addToast, refreshTenantData, departments } = useTenantContext();
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [topUpBytes, setTopUpBytes] = useState<number | undefined>(undefined);
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history' | 'expiring'>('pending');
 
   const formatBytesToGB = (bytes?: number) => {
     if (!bytes || bytes <= 0) return 0;
@@ -197,6 +197,16 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
           >
             <span>Lịch sử cấp phát Quota</span>
           </button>
+          <button
+            onClick={() => setActiveSubTab('expiring')}
+            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+              activeSubTab === 'expiring'
+                ? 'text-rose-600 border-b-2 border-rose-600'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>Tệp sắp hết hạn các phòng</span>
+          </button>
         </div>
 
         {activeSubTab === 'pending' ? (
@@ -217,8 +227,15 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
               }}
             />
           </div>
+        ) : activeSubTab === 'history' ? (
+          <DepartmentQuotaHistoryTable tenantId={tenant.id} onShowToast={(msg, type) => addToast(type === 'info' ? 'success' : type, msg)} />
         ) : (
-          <QuotaHistoryTable />
+          <DepartmentExpiringFilesTable
+            tenantId={tenant.id}
+            departments={departments}
+            onShowToast={(msg, type) => addToast(type === 'info' ? 'success' : type, msg)}
+            onQuotaChanged={() => refreshTenantData(tenant.id)}
+          />
         )}
       </div>
 

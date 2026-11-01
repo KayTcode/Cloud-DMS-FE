@@ -253,10 +253,15 @@ export async function permanentDeleteFileApi(fileId: string): Promise<boolean> {
 export async function getExpiringFilesApi(
   days: number = 7,
   pageNumber: number = 1,
-  pageSize: number = 20
+  pageSize: number = 20,
+  departmentId?: string
 ): Promise<ExpiringFilesSummaryDto> {
+  const params: any = { days, pageNumber, pageSize };
+  if (departmentId && departmentId !== 'all') {
+    params.departmentId = departmentId;
+  }
   const response = await apiClient.get<any, any>(API_ENDPOINTS.FILES.EXPIRING, {
-    params: { days, pageNumber, pageSize },
+    params,
   });
   return response?.value ?? response?.data ?? response;
 }

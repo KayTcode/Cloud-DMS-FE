@@ -398,7 +398,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       'success',
       `Đã tạo tài khoản thành công cho ${created.name} thuộc phòng ban ${created.department}!`
     );
-    setActiveTab('users');
+    setActiveTab('departments');
   };
 
   const handleCreateDepartmentAdmin = async (payload: CreateDepartmentAdminPayload): Promise<boolean> => {

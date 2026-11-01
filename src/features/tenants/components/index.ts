@@ -6,5 +6,6 @@ export * from './SubscriptionModal';
 export * from './AllocateDepartmentQuotaModal';
 export * from './OffboardDepartmentAdminModal';
 export * from './AssignVacantDepartmentLeadModal';
-
 export * from './InterimManagementPanel';
+export * from './DepartmentQuotaHistoryTable';
+export * from './DepartmentExpiringFilesTable';
