@@ -40,6 +40,10 @@ import {
   UploadCloud,
   Server,
   User,
+  Pencil,
+  Clock,
+  Tag,
+  Calendar,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
@@ -53,6 +57,9 @@ import {
   TenantStorageSummaryDto,
 } from '@/features/tenants/api/fileApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
+import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
+import { DocumentDetailsDto } from '@/features/document-submission';
+import { Edit3 } from 'lucide-react';
 
 interface DepartmentFilesViewProps {
   department: DepartmentInfo;
@@ -98,6 +105,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
   // Drag & drop, uploading states
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStepMsg, setUploadStepMsg] = useState('');
@@ -224,6 +233,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           sharedWith: [],
           tags: [f.storageProviderName || 'Google Drive', isPersonal ? 'Thư mục cá nhân' : 'Kho chung'],
           contentSnippet: `Tài liệu lưu trữ thuộc ${department.name}. Dung lượng: ${formatBytes(f.sizeBytes)}. Trạng thái bảo mật ClamAV: ${f.scanStatus || 'Clean'}. Khóa lưu trữ: ${f.storageKey}`,
+          metadata: f.metadata || null,
         };
       });
 
@@ -284,6 +294,12 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       setIsLoadingTrash(false);
     }
   };
+
+  // Quản lý tập trung toàn bộ Modals phân hệ Document Submission cho Department Admin
+  const docModals = useDocumentModals({
+    onRefresh: () => fetchDepartmentFiles(),
+    onShowToast: (msg, type) => onAddToast?.(type || 'success', msg),
+  });
 
   // Sync activeTab when initialTab prop changes
   useEffect(() => {
@@ -931,6 +947,21 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               )}
             </div>
 
+            {/* Nút Nộp tài liệu kèm siêu dữ liệu (Metadata) cho Department Admin */}
+            {activeTab === 'files' && (
+              <button
+                onClick={() => docModals.openSubmission()}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+                title="Nộp tài liệu kèm siêu dữ liệu mô tả (Tiêu đề, Tác giả, Ngày phát hành, Từ khóa...)"
+              >
+                <FileText className="w-4 h-4 stroke-[2.2]" />
+                <span>Nộp tài liệu</span>
+                <span className="text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-full tracking-wide">
+                  Metadata
+                </span>
+              </button>
+            )}
+
             {/* Google Drive "+ Mới" Button (Only in files tab) */}
             {activeTab === 'files' && (
               <div className="relative drive-menu-trigger">
@@ -960,6 +991,24 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   </button>
 
                   <div className="h-px bg-slate-100 my-1" />
+
+                  {/* Tùy chọn: Nộp tài liệu kèm siêu dữ liệu */}
+                  <button
+                    onClick={() => {
+                      setIsNewMenuOpen(false);
+                      docModals.openSubmission();
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer text-left"
+                    title="Nộp tài liệu kèm siêu dữ liệu mô tả chuẩn hóa"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-4 h-4 text-emerald-600" />
+                      <span>Nộp tài liệu (Metadata)</span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                      Mới
+                    </span>
+                  </button>
 
                   {/* Tùy chọn 1: Tải trực tiếp Cloud */}
                   <button
@@ -1534,57 +1583,112 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           </h4>
                         </div>
 
-                        <div className="relative drive-menu-trigger shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setActiveMenuId(activeMenuId === file.id ? null : file.id);
+                              docModals.openDetails(file.id);
                             }}
-                            className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                            title="Xem chi tiết siêu dữ liệu tài liệu"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <FileText className="w-4 h-4" />
                           </button>
 
-                          {/* File Context Menu */}
-                          {activeMenuId === file.id && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
+                          <div className="relative drive-menu-trigger shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuId(activeMenuId === file.id ? null : file.id);
+                              }}
+                              className="p-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
                             >
-                              <button
-                                onClick={() => {
-                                  ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file));
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+
+                            {/* File Context Menu */}
+                            {activeMenuId === file.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 drive-menu-dropdown text-xs font-medium"
                               >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                <span>Mở / Tải xuống</span>
-                              </button>
-                              <button
-                                onClick={() => handleDownload(file)}
-                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                <span>Tải xuống</span>
-                              </button>
-                              <button
-                                onClick={() => handleToggleStar(file.id)}
-                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
-                              >
-                                <Star className="w-3.5 h-3.5 text-amber-500" />
-                                <span>{file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
-                              </button>
-                              <div className="h-px bg-slate-100 my-1" />
-                              <button
-                                onClick={() => handleDeleteItem(file.id, file.name)}
-                                className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Xóa tệp</span>
-                              </button>
-                            </div>
-                          )}
+                                <button
+                                  onClick={() => {
+                                    docModals.openDetails(file.id);
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-emerald-50 flex items-center gap-2.5 text-emerald-700 font-bold"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Xem siêu dữ liệu</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    docModals.openEdit(file.id);
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                                >
+                                  <Pencil className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Sửa siêu dữ liệu</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    docModals.openReplace(file.id, file.name);
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
+                                  <span>Thay thế tệp mới</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    docModals.openExtend(file.id, file.name);
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                                >
+                                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                  <span>Gia hạn lưu trữ</span>
+                                </button>
+                                <div className="h-px bg-slate-100 my-1" />
+                                <button
+                                  onClick={() => {
+                                    ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file));
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>Mở / Tải xuống</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDownload(file)}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Tải xuống</span>
+                                </button>
+                                <button
+                                  onClick={() => handleToggleStar(file.id)}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                                >
+                                  <Star className="w-3.5 h-3.5 text-amber-500" />
+                                  <span>{file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
+                                </button>
+                                <div className="h-px bg-slate-100 my-1" />
+                                <button
+                                  onClick={() => handleDeleteItem(file.id, file.name)}
+                                  className="w-full px-3 py-2 text-left hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Xóa tệp</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1623,14 +1727,74 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                             <div className="text-slate-300">{'}'}</div>
                           </div>
                         ) : (
-                          <div className="w-full h-full text-[10px] text-slate-700 leading-relaxed font-sans overflow-hidden">
-                            <div className="text-center font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-1.5 mb-2 uppercase tracking-tight">
-                              {file.name.replace('.gdoc', '')}
+                          file.metadata ? (
+                            <div className="w-full h-full flex flex-col justify-between text-left">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-1 border-b border-emerald-100 pb-1">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-[10px] font-bold text-emerald-700">
+                                    <Tag className="w-3 h-3" />
+                                    Siêu dữ liệu
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    Năm {file.metadata.issueYear}
+                                  </span>
+                                </div>
+                                <h5 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug">
+                                  {file.metadata.title}
+                                </h5>
+                                <p className="text-[10px] text-slate-500 truncate">
+                                  Tác giả: <span className="font-semibold text-slate-700">{file.metadata.author}</span>
+                                </p>
+                                {file.metadata.abstract && (
+                                  <p className="text-[10px] text-slate-600 line-clamp-2 italic leading-relaxed">
+                                    "{file.metadata.abstract}"
+                                  </p>
+                                )}
+                                {file.metadata.keywords && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {file.metadata.keywords.split(',').slice(0, 2).map((k: string) => (
+                                      <span key={k} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[9px] rounded font-medium truncate max-w-[100px]">
+                                        #{k.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  docModals.openDetails(file.id);
+                                }}
+                                className="mt-1 w-full py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Xem siêu dữ liệu</span>
+                              </button>
                             </div>
-                            <p className="text-[10px] text-slate-600 line-clamp-6 whitespace-pre-line">
-                              {file.contentSnippet || 'Nội dung tệp tin đã được đồng bộ hóa và lưu trữ an toàn trên máy chủ CloudDMS.'}
-                            </p>
-                          </div>
+                          ) : (
+                            <div className="w-full h-full flex flex-col justify-between text-left">
+                              <div className="overflow-hidden">
+                                <div className="text-center font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-1.5 mb-2 uppercase tracking-tight">
+                                  {file.name.replace('.gdoc', '')}
+                                </div>
+                                <p className="text-[10px] text-slate-600 line-clamp-4 whitespace-pre-line leading-relaxed">
+                                  {file.contentSnippet || 'Nội dung tệp tin đã được đồng bộ hóa và lưu trữ an toàn trên máy chủ CloudDMS.'}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  docModals.openDetails(file.id);
+                                }}
+                                className="mt-1 w-full py-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-50 hover:bg-emerald-50 border border-slate-200/80 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Xem siêu dữ liệu</span>
+                              </button>
+                            </div>
+                          )
                         )}
 
                         <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" />
@@ -1677,6 +1841,17 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  docModals.openDetails(file.id);
+                                }}
+                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                title="Xem chi tiết siêu dữ liệu tài liệu"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1878,6 +2053,12 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       {/* Modal: Mở / Tải xuống tài liệu (FilePreviewModal) */}
       {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
         onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownload(previewFile)} />}
+    
+      {/* Bộ Modals quản lý tài liệu và siêu dữ liệu tập trung */}
+      <DocumentModalsContainer
+        parentFolderId={currentFolderId && !currentFolderId.startsWith('drive-') ? currentFolderId : null}
+        {...docModals.containerProps}
+      />
     </div>
   );
 };

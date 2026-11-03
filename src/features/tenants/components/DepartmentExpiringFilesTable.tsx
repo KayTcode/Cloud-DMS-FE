@@ -241,11 +241,10 @@ export const DepartmentExpiringFilesTable: React.FC<DepartmentExpiringFilesTable
                 <button
                   key={d}
                   onClick={() => setDaysThreshold(d)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                    daysThreshold === d
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${daysThreshold === d
                       ? 'bg-rose-600 text-white shadow-2xs'
                       : 'text-slate-600 hover:bg-slate-200/60'
-                  }`}
+                    }`}
                 >
                   {d} ngày
                 </button>
@@ -317,19 +316,17 @@ export const DepartmentExpiringFilesTable: React.FC<DepartmentExpiringFilesTable
                       setSelectedDeptId(dept.id);
                       setPageNumber(1);
                     }}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-3 group hover:shadow-xs ${
-                      hasExpiring
+                    className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-3 group hover:shadow-xs ${hasExpiring
                         ? 'bg-rose-50/20 border-rose-200/90 hover:border-rose-400'
                         : 'bg-white border-slate-200/90 hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              hasExpiring ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
-                            }`}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${hasExpiring ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+                              }`}
                           >
                             <Building2 className="w-4 h-4" />
                           </div>
@@ -445,11 +442,10 @@ export const DepartmentExpiringFilesTable: React.FC<DepartmentExpiringFilesTable
                   setDaysThreshold(d);
                   setPageNumber(1);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                  daysThreshold === d
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${daysThreshold === d
                     ? 'bg-rose-600 text-white shadow-2xs'
                     : 'text-slate-600 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 {d} ngày
               </button>

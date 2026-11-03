@@ -1,0 +1,75 @@
+export interface DocumentMetadataDto {
+  id: string;
+  fileEntryId: string;
+  title: string;
+  author: string;
+  releaseYear: number;
+  releaseMonth?: number | null;
+  releaseDay?: number | null;
+  keywords?: string | null;
+  abstract?: string | null;
+  description?: string | null;
+  releaseDateFormatted?: string;
+  createdAt?: string;
+  lastModifiedAt?: string | null;
+}
+
+export interface DocumentDetailsDto {
+  fileId: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  parentFolderId?: string | null;
+  driveKind: string;
+  retentionDays?: number | null;
+  expiresAt?: string | null;
+  daysRemaining?: number | null;
+  metadata?: DocumentMetadataDto | null;
+}
+
+export interface DocumentSubmissionResultDto {
+  fileId: string;
+  fileName: string;
+  sizeBytes: number;
+  storageKey: string;
+  title: string;
+  author: string;
+  retentionDays?: number | null;
+  expiresAt?: string | null;
+}
+
+export interface UploadDocumentPayload {
+  file: File;
+  parentFolderId?: string | null;
+  retentionDays?: number | null;
+  title: string;
+  releaseYear: number;
+  releaseMonth?: number | null;
+  releaseDay?: number | null;
+  keywords?: string | null;
+  abstract?: string | null;
+  description?: string | null;
+}
+
+export interface ReplaceDocumentFilePayload {
+  fileId: string;
+  newFile: File;
+}
+
+export interface UpdateDocumentMetadataPayload {
+  fileId: string;
+  title: string;
+  releaseYear: number;
+  releaseMonth?: number | null;
+  releaseDay?: number | null;
+  keywords?: string | null;
+  abstract?: string | null;
+  description?: string | null;
+}
+
+export interface ExtendRetentionPayload {
+  fileId: string;
+  additionalDays: number;
+}
+

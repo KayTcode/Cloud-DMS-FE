@@ -29,6 +29,8 @@ import {
 import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb';
+import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
+import { DocumentDetailsDto } from '@/features/document-submission';
 
 interface DriveViewProps {
   items: DriveItem[];
@@ -56,6 +58,7 @@ interface DriveViewProps {
   // Drive identity (optional, used by consumers to tag the drive context)
   driveKind?: 'Personal' | 'DepartmentShared';
   driveOwnerId?: string;
+  onRefreshItems?: () => void;
 }
 
 type SortField = 'name' | 'updatedAt' | 'size';
@@ -82,12 +85,18 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onRenameFolder,
   onMoveFolder,
   onTrashFolder,
+  onRefreshItems,
 }) => {
   const [folderError, setFolderError] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Quản lý tập trung toàn bộ Modals phân hệ Document Submission
+  const docModals = useDocumentModals({
+    onRefresh: onRefreshItems,
+  });
 
   // Folder rename state
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
@@ -691,6 +700,17 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
                         <div className="flex items-center gap-1.5">
                           <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              docModals.openDetails(file.id);
+                            }}
+                            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                            title="Xem chi tiết siêu dữ liệu tài liệu"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onShareItem(file);
@@ -796,6 +816,14 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 className="flex items-center justify-end gap-1"
                               >
                                 <button
+                                  type="button"
+                                  onClick={() => docModals.openDetails(file.id)}
+                                  className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+                                  title="Xem chi tiết siêu dữ liệu tài liệu"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </button>
+                                <button
                                       onClick={() => onShareItem(file)}
                                       className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                                       title="Chia sẻ"
@@ -830,6 +858,12 @@ export const DriveView: React.FC<DriveViewProps> = ({
         </div>
       )}
 
+    
+      {/* Bộ Modals quản lý tài liệu và siêu dữ liệu tập trung */}
+      <DocumentModalsContainer
+        parentFolderId={currentFolderId}
+        {...docModals.containerProps}
+      />
     </div>
   );
 };
