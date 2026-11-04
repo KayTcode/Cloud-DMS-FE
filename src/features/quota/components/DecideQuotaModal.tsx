@@ -70,7 +70,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
   if (!isOpen || !request) return null;
 
   const requestedGB = parseFloat((request.requestedAdditionalBytes / GB_IN_BYTES).toFixed(2));
-  const currentGB = request.currentQuotaBytes != null ? parseFloat((request.currentQuotaBytes / GB_IN_BYTES).toFixed(2)) : null;
+  const currentGB = typeof request.currentQuotaBytes === 'number' ? parseFloat((request.currentQuotaBytes / GB_IN_BYTES).toFixed(2)) : null;
 
   const handleApprove = async () => {
     setErrorMessage(null);
@@ -202,7 +202,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
             <span className="text-slate-500 flex items-center gap-1.5">
               <HardDrive className="w-3.5 h-3.5 text-slate-400" /> Dung lượng hiện tại:
             </span>
-            <span className="font-semibold text-slate-700">{currentGB != null ? currentGB : '—'} GB</span>
+            <span className="font-semibold text-slate-700">{currentGB !== null ? `${currentGB} GB` : '—'}</span>
           </div>
 
           <div className="flex items-center justify-between">

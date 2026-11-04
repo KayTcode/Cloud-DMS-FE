@@ -47,7 +47,9 @@ export interface StorageAlert {
 export interface DepartmentInfo {
   id?: string;
   name: string;
+  code?: string;
   tenantName: string;
+  adminId?: string;
   adminName: string;
   adminRole: string;
   adminEmail: string;
@@ -58,6 +60,7 @@ export interface DepartmentInfo {
   backupsStorageGB: number;
   otherStorageGB: number;
   growthDeltaSinceAprGB: number;
+  retentionDays?: number;
 }
 
 export type DepartmentNavTab = 'hub' | 'files' | 'trash' | 'staff' | 'logs' | 'storage' | 'settings' | 'report' | 'quota' | 'shared-store';

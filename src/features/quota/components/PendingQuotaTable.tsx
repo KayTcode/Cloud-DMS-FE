@@ -59,6 +59,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
 
   const handleDecideSuccess = (_updated: QuotaRequestDto, message: string) => {
     onShowToast?.(message, 'success');
+    onDecisionSuccess?.();
     fetchPending();
     onDecisionSuccess?.();
   };
@@ -121,7 +122,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {requests.map((req) => {
-                const curGB = req.currentQuotaBytes != null ? parseFloat((req.currentQuotaBytes / GB_IN_BYTES).toFixed(2)) : null;
+                const curGB = typeof req.currentQuotaBytes === 'number' ? parseFloat((req.currentQuotaBytes / GB_IN_BYTES).toFixed(2)) : null;
                 const addGB = parseFloat((req.requestedAdditionalBytes / GB_IN_BYTES).toFixed(2));
                 const formattedDate = new Date(req.createdAt).toLocaleDateString('vi-VN', {
                   day: '2-digit',
@@ -164,7 +165,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
 
                     {/* Hiện tại */}
                     <td className="py-3.5 px-4 font-medium text-slate-600">
-                      {curGB != null ? curGB : '—'} GB
+                      {curGB !== null ? `${curGB} GB` : '—'}
                     </td>
 
                     {/* Xin tăng thêm */}

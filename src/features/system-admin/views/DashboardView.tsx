@@ -1,9 +1,9 @@
 import React from 'react';
-import { Database, Users, HardDrive, Cloud } from 'lucide-react';
+import { Building2, Users, Server, Cloud } from 'lucide-react';
 import { SystemTenant, SystemActivityItem, StorageProviderItem, AuditLogEntry } from '../types';
 import { MetricCard } from '../components/MetricCard';
-import { StorageGrowthChart } from '../components/StorageGrowthChart';
-import { SystemHealthCard } from '../components/SystemHealthCard';
+import { StoragePoolDistributionCard } from '../components/StoragePoolDistributionCard';
+import { TenantCapacityAlertsCard } from '../components/TenantCapacityAlertsCard';
 import { RecentTenantsCard } from '../components/RecentTenantsCard';
 import { RecentActivitiesCard } from '../components/RecentActivitiesCard';
 import { NavItem } from '@/features/tenants/types';
@@ -19,7 +19,7 @@ interface DashboardViewProps {
   onSelectTenant: (tenant: SystemTenant) => void;
 }
 
-const formatBytes = (bytes: number): string => {
+const formatBytes = (bytes?: number): string => {
   if (!bytes || bytes <= 0) return '0 GB';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
@@ -28,34 +28,33 @@ const formatBytes = (bytes: number): string => {
 };
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
-  tenants,
-  activities,
+  tenants = [],
+  activities = [],
   providers = [],
   auditLogs = [],
   totalUsersCount = 0,
   onNavigateNav,
   onSelectTenant,
 }) => {
-  // 1. Calculate Real Storage Capacity & Used Bytes from Providers
+  // 1. Số liệu Doanh nghiệp
+  const activeTenantsCount = tenants.filter((t) => t.status === 'Active').length;
+  const suspendedTenantsCount = tenants.length - activeTenantsCount;
+
+  // 2. Tính toán Bể chứa Cloud và Quota phân bổ toàn sàn
   const totalStorageCapacityBytes = providers.reduce(
     (acc, p) => acc + (p.totalCapacityBytes || 0),
     0
   );
-  const totalStorageUsedBytes = providers.reduce(
-    (acc, p) => acc + (p.usedCapacityBytes || 0),
+  const totalAllocatedBytes = providers.reduce(
+    (acc, p) => acc + (p.allocatedToTenantsBytes || 0),
     0
   );
-  const storageUsagePercent = totalStorageCapacityBytes > 0
-    ? Math.round((totalStorageUsedBytes / totalStorageCapacityBytes) * 100)
+  const totalUnallocatedBytes = Math.max(0, totalStorageCapacityBytes - totalAllocatedBytes);
+  const allocatedPercent = totalStorageCapacityBytes > 0
+    ? Math.min(100, Math.round((totalAllocatedBytes / totalStorageCapacityBytes) * 100))
     : 0;
 
-  // 2. Active Storage Providers
-  const activeProvidersCount = providers.filter(
-    (p) => p.status === 'Connected'
-  ).length || providers.length;
-  const providerNamesList = providers.map((p) => p.name).join(', ') || 'Chưa kết nối Cloud Provider';
-
-  // 3. Real Activities derived from DB Audit Logs (if available)
+  // 3. Hoạt động kiểm toán thật trích xuất từ Audit Logs API (nếu có)
   const displayActivities: SystemActivityItem[] =
     auditLogs.length > 0
       ? auditLogs.slice(0, 5).map((log) => ({
@@ -69,59 +68,67 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 4 Metric Stat Cards - 100% Real Live Data */}
+      {/* 4 Thẻ Chỉ số KPI Cốt lõi — 100% Đồng bộ nghiệp vụ Cloud-DMS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         <MetricCard
-          title="Tổ chức / Tenants"
-          value={String(tenants.length || 1)}
-          subtitle="Doanh nghiệp hoạt động trên hệ thống"
-          icon={<Database className="w-4 h-4 text-blue-600 stroke-[2.2]" />}
+          title="Tổ chức / Doanh nghiệp"
+          value={`${tenants.length} Doanh nghiệp`}
+          subtitle={`${activeTenantsCount} Đang hoạt động • ${suspendedTenantsCount} Tạm ngưng`}
+          icon={<Building2 className="w-4 h-4 text-blue-600 stroke-[2.2]" />}
           iconBgColor="bg-blue-50"
         />
 
         <MetricCard
           title="Tổng số Người dùng"
           value={`${totalUsersCount.toLocaleString()} tài khoản`}
-          subtitle="Đồng bộ trực tiếp từ Database"
+          subtitle="Tài khoản nhân viên trên toàn hệ thống"
           icon={<Users className="w-4 h-4 text-emerald-600 stroke-[2.2]" />}
           iconBgColor="bg-emerald-50"
         />
 
         <MetricCard
-          title="Dung lượng Cloud sử dụng"
+          title="Hạn mức Quota Toàn sàn"
           value={
             totalStorageCapacityBytes > 0
-              ? `${formatBytes(totalStorageUsedBytes)} / ${formatBytes(totalStorageCapacityBytes)}`
+              ? `${formatBytes(totalAllocatedBytes)} / ${formatBytes(totalStorageCapacityBytes)}`
               : '0 GB / 0 GB'
           }
-          subtitle={`Tỷ lệ tiêu thụ: ${storageUsagePercent}%`}
-          icon={<HardDrive className="w-4 h-4 text-amber-600 stroke-[2.2]" />}
-          iconBgColor="bg-amber-50"
+          subtitle={`Đã cấp phát: ${allocatedPercent}% tổng dung lượng Cloud`}
+          icon={<Server className="w-4 h-4 text-indigo-600 stroke-[2.2]" />}
+          iconBgColor="bg-indigo-50"
         />
 
         <MetricCard
-          title="Kho lưu trữ kết nối"
-          value={`${activeProvidersCount} Nhà cung cấp`}
-          subtitle={providerNamesList}
+          title="Dung lượng Trống Cấp mới"
+          value={`${formatBytes(totalUnallocatedBytes)} khả dụng`}
+          subtitle="Sẵn sàng phân bổ cho Doanh nghiệp mới"
           icon={<Cloud className="w-4 h-4 text-sky-600 stroke-[2.2]" />}
           iconBgColor="bg-sky-50"
         />
       </div>
 
-      {/* Quota Feature Metrics */}
+      {/* Khối Chỉ số Phê duyệt Quota (Live API: /api/admin/quota-requests/metrics) */}
       <QuotaMetricsCard />
 
-      {/* Middle Row: Global Storage Growth & System Health */}
+      {/* Hàng giữa: Phân bổ Bể lưu trữ Cloud & Sức khỏe Quota Doanh nghiệp */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <div className="lg:col-span-8">
-          <StorageGrowthChart />
+          <StoragePoolDistributionCard
+            providers={providers}
+            onManageProviders={() => onNavigateNav('storage-providers')}
+          />
         </div>
         <div className="lg:col-span-4">
-          <SystemHealthCard />
+          <TenantCapacityAlertsCard
+            tenants={tenants}
+            providers={providers}
+            onSelectTenant={onSelectTenant}
+            onViewAllTenants={() => onNavigateNav('tenants')}
+          />
         </div>
       </div>
 
-      {/* Bottom Row: Recent Tenant Administrations & Real Recent Activities */}
+      {/* Hàng dưới: Bảng Doanh nghiệp chuẩn hóa & Nhật ký kiểm toán thời gian thực */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <div className="lg:col-span-8">
           <RecentTenantsCard

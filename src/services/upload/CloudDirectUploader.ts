@@ -1,5 +1,6 @@
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
+import { packageForStorage } from './storageZip';
 
 export interface MultipartUploadSessionResponse {
   sessionId: string;
@@ -19,6 +20,8 @@ export interface DirectUploadProgress {
 }
 
 export interface DirectUploadOptions {
+  archiveKind?: string;
+  logicalName?: string;
   file: File;
   folderId?: string | null;
   replaceFileId?: string | null;
@@ -39,6 +42,10 @@ export class CloudDirectUploader {
    * Khởi tạo phiên tải trực tiếp và upload file lên Cloud Storage (Google Drive, OneDrive hoặc S3)
    */
   static async upload(options: DirectUploadOptions): Promise<DirectUploadResult> {
+    if (!options.archiveKind) {
+      const packaged = await packageForStorage([options.file]);
+      return this.upload({ ...options, file: packaged.file, archiveKind: packaged.archiveKind, logicalName: packaged.logicalName });
+    }
     const { file, folderId, replaceFileId, onProgress, signal } = options;
 
     // 1. Tạo session tải lên từ Backend
@@ -46,7 +53,8 @@ export class CloudDirectUploader {
     const sessionResponse = await apiClient.post<any, any>(
       API_ENDPOINTS.FILES.UPLOAD_SESSIONS,
       {
-        fileName: file.name,
+        fileName: options.logicalName || file.name,
+        archiveKind: options.archiveKind,
         sizeBytes: file.size,
         folderId: folderId || null,
         replaceFileId: replaceFileId || null,

@@ -8,6 +8,7 @@ import {
   HardDrive,
   FolderLock,
   ShieldCheck,
+  UserX,
 } from 'lucide-react';
 import { DepartmentMember, DepartmentInfo } from '../types';
 import { useDepartment } from '../context/DepartmentContext';
@@ -19,6 +20,7 @@ interface StaffManagementViewProps {
   onEditQuota: (member: DepartmentMember) => void;
   onAddMember: () => void;
   onToggleStatus: (memberId: string) => void;
+  onOffboardMember?: (member: DepartmentMember) => void;
   searchFilter: string;
   onSearchChange: (q: string) => void;
   onBackToHub?: () => void;
@@ -30,6 +32,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   onEditQuota,
   onAddMember,
   onToggleStatus,
+  onOffboardMember,
   searchFilter,
   onSearchChange,
   onBackToHub,
@@ -75,8 +78,8 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
     usagePercent >= 90
       ? { text: 'text-rose-600', bg: 'bg-rose-600' }
       : usagePercent >= 75
-      ? { text: 'text-amber-600', bg: 'bg-amber-500' }
-      : { text: 'text-blue-600', bg: 'bg-blue-600' };
+        ? { text: 'text-amber-600', bg: 'bg-amber-500' }
+        : { text: 'text-blue-600', bg: 'bg-blue-600' };
 
   return (
     <div className="space-y-6">
@@ -204,9 +207,8 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
           </div>
           <div className="mt-1 flex items-baseline gap-2">
             <span
-              className={`text-2xl font-bold tabular-nums ${
-                warningCount > 0 ? 'text-rose-600' : 'text-slate-900'
-              }`}
+              className={`text-2xl font-bold tabular-nums ${warningCount > 0 ? 'text-rose-600' : 'text-slate-900'
+                }`}
             >
               {warningCount}
             </span>
@@ -339,26 +341,24 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
                               {member.usedSpaceGB} GB / {member.allocatedQuotaGB} GB
                             </span>
                             <span
-                              className={`font-bold tabular-nums ${
-                                isHigh
+                              className={`font-bold tabular-nums ${isHigh
                                   ? 'text-rose-600'
                                   : isMedium
-                                  ? 'text-amber-600'
-                                  : 'text-blue-600'
-                              }`}
+                                    ? 'text-amber-600'
+                                    : 'text-blue-600'
+                                }`}
                             >
                               {percent}%
                             </span>
                           </div>
                           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                isHigh
+                              className={`h-full rounded-full transition-all duration-500 ${isHigh
                                   ? 'bg-rose-500'
                                   : isMedium
-                                  ? 'bg-amber-500'
-                                  : 'bg-blue-600'
-                              }`}
+                                    ? 'bg-amber-500'
+                                    : 'bg-blue-600'
+                                }`}
                               style={{ width: `${Math.min(100, percent)}%` }}
                             />
                           </div>
@@ -394,7 +394,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
 
                       {/* Actions */}
                       <td className="py-3.5 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onEditQuota(member)}
                             className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50/60 hover:bg-blue-100/80 rounded-md transition-colors cursor-pointer"
@@ -408,6 +408,15 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
                           >
                             <Sliders className="w-3.5 h-3.5" />
                           </button>
+                          {onOffboardMember && member.role !== 'Trưởng phòng' && (
+                            <button
+                              onClick={() => onOffboardMember(member)}
+                              title="Vô hiệu hóa & Bàn giao tài sản số"
+                              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

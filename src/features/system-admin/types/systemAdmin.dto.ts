@@ -16,6 +16,10 @@ export interface SystemTenant {
   tenantCode?: string;
   phoneNumber?: string;
   departmentName?: string;
+  storageProviderName?: string;
+  storageQuotaBytes?: number;
+  actualStorageUsedBytes?: number;
+  usagePercentage?: number;
 }
 
 /**

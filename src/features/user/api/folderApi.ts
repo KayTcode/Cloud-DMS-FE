@@ -10,16 +10,19 @@ import {
 } from '../types/folder.types';
 
 export const folderApi = {
-  getRoot: (driveKind: string, driveOwnerId: string) => {
-    const drive = driveKind === 'DepartmentShared' ? 'shared' : 'personal';
-    const params: Record<string, string> = { drive };
-    if (driveKind === 'DepartmentShared') params.departmentId = driveOwnerId;
-    return apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params })
-      .then((r: any) => r?.value ?? r);
-  },
+  getRoot: (driveKind: string, driveOwnerId: string) =>
+    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params: {
+      drive: driveKind.toLowerCase() === 'personal' ? 'personal' : 'shared',
+      departmentId: driveKind.toLowerCase() === 'personal' ? undefined : driveOwnerId,
+    } })
+      .then((r: any) => r?.value ?? r),
 
-  getChildren: (folderId: string) =>
-    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params: { folderId } })
+  getChildren: (folderId: string, driveKind = 'Personal', driveOwnerId?: string) =>
+    apiClient.get<FolderChildrenResponse>(API_ENDPOINTS.DRIVE.CHILDREN, { params: {
+      folderId,
+      drive: driveKind.toLowerCase() === 'personal' ? 'personal' : 'shared',
+      departmentId: driveKind.toLowerCase() === 'personal' ? undefined : driveOwnerId,
+    } })
       .then((r: any) => r?.value ?? r),
 
   getDriveChildren: (drive: 'personal' | 'shared', opts: { departmentId?: string; folderId?: string | null }) => {
@@ -35,7 +38,11 @@ export const folderApi = {
       .then((r: any) => r?.value ?? r),
 
   createFolder: (payload: CreateFolderPayload) =>
-    apiClient.post<FolderDto>(API_ENDPOINTS.FOLDERS.CREATE, payload)
+    apiClient.post<FolderDto>(API_ENDPOINTS.FOLDERS.CREATE, {
+      name: payload.name, parentId: payload.parentFolderId,
+      drive: payload.driveKind === 'Personal' ? 'personal' : 'shared',
+      departmentId: payload.driveKind === 'Personal' ? null : payload.driveOwnerId,
+    })
       .then((r: any) => r?.value ?? r),
 
   renameFolder: (folderId: string, payload: RenameFolderPayload) =>

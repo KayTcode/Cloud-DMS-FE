@@ -1,6 +1,10 @@
-export type FileType = 'pdf' | 'docx' | 'sheet' | 'slide' | 'image' | 'archive' | 'code' | 'other';
+import { DocumentMetadataDto } from '@/features/document-submission';
+
+export type FileType = 'pdf' | 'docx' | 'sheet' | 'slide' | 'image' | 'archive' | 'folder' | 'code' | 'other';
 
 export interface DriveItem {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   name: string;
   type: 'folder' | 'file';
@@ -29,6 +33,7 @@ export interface DriveItem {
   authorName?: string;
   isSharedLink?: boolean;
   isSharedToDepartment?: boolean;
+  metadata?: DocumentMetadataDto | null;
 }
 
 export type DriveViewMode = 'grid' | 'list';
@@ -68,6 +73,8 @@ export interface TrashFileListResponse {
 }
 
 export interface SharedFileItem {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   name: string;
   type: 'file';
@@ -93,6 +100,7 @@ export interface SharedFileItem {
   department?: string;
   createdAt: string;
   scanStatus?: string;
+  metadata?: DocumentMetadataDto | null;
 }
 
 export interface SharedFileListResponse {
@@ -102,4 +110,3 @@ export interface SharedFileListResponse {
   pageSize: number;
   hasMore?: boolean;
 }
-

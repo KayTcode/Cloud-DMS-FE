@@ -36,7 +36,7 @@ export const MoveFolderModal: React.FC<MoveFolderModalProps> = ({
         res = await folderApi.getRoot(driveKind, driveOwnerId);
         setBreadcrumb([]);
       } else {
-        res = await folderApi.getChildren(folderId);
+        res = await folderApi.getChildren(folderId, driveKind, driveOwnerId);
         setBreadcrumb(res.breadcrumb);
       }
       setFolders(res.folders);

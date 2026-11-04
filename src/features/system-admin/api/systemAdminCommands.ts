@@ -3,8 +3,6 @@ import { API_ENDPOINTS } from '@/api/endpoints';
 import {
   CreateAdminUserPayload, 
   UpdateAdminUserPayload, 
-  AssignUserRolesPayload, 
-  ResetPasswordPayload, 
   ChangeUserStatusPayload, 
   AdminUserDto,
   CreateSystemTenantPayload, 
@@ -60,30 +58,6 @@ export const updateAdminUserApi = async (
   if (response?.value) return response.value;
   if (response?.data) return response.data;
   return response;
-};
-
-/**
- * 3. Assign or update user roles and organizational scope (PUT /api/admin/users/{id}/roles)
- */
-export const assignUserRolesApi = async (
-  id: string,
-  payload: AssignUserRolesPayload
-): Promise<AdminUserDto> => {
-  const response: any = await axiosClient.put(`/admin/users/${id}/roles`, payload);
-  if (response?.value) return response.value;
-  if (response?.data) return response.data;
-  return response;
-};
-
-/**
- * 4. Reset user password (POST /api/admin/users/{id}/reset-password)
- */
-export const resetUserPasswordApi = async (
-  id: string,
-  payload: ResetPasswordPayload
-): Promise<boolean> => {
-  await axiosClient.post(`/admin/users/${id}/reset-password`, payload);
-  return true;
 };
 
 /**

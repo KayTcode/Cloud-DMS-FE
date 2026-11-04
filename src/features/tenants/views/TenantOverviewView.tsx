@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserCheck, Download, UserPlus } from 'lucide-react';
-import { TenantInfo, TenantEvent } from '@/features/tenants/types';
+import { TenantInfo, TenantEvent, ActiveTab } from '@/features/tenants/types';
 import { StorageStatsCard } from '../components/StorageStatsCard';
+import { RequestQuotaModal } from '@/features/quota';
+import { useTenantContext } from '@/context/TenantContext';
 
 interface TenantOverviewViewProps {
   tenant: TenantInfo;
   events: TenantEvent[];
   onImpersonate: () => void;
   onDownloadBackup: () => void;
-  onNavigateTab: (tab: 'users' | 'departments' | 'activity') => void;
+  onNavigateTab: (tab: 'departments') => void;
   onCreateDepartmentUser: () => void;
 }
 
@@ -20,6 +22,14 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
   onNavigateTab,
   onCreateDepartmentUser,
 }) => {
+  const { addToast, refreshTenantData } = useTenantContext();
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+
+  const handleRequestCreated = () => {
+    setIsRequestModalOpen(false);
+    addToast('success', 'Đã gửi yêu cầu tăng hạn mức lưu trữ Tenant lên System Admin!');
+    refreshTenantData(tenant.id);
+  };
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-5">
       {/* Left Column (Stats & Storage) */}
@@ -28,18 +38,12 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Total User Accounts Card */}
           <div
-            onClick={() => onNavigateTab('users')}
+            onClick={() => onNavigateTab('departments')}
             className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs hover:border-slate-300 transition-all cursor-pointer group"
           >
-            <h4 className="text-xs font-semibold text-slate-800 tracking-tight">
-              Total User Accounts
-            </h4>
-            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight mt-2.5">
-              {tenant.licenseUsed.toLocaleString()}
-            </div>
-            <p className="text-xs text-slate-400 mt-2.5">
-              License Limit: {tenant.licenseLimit.toLocaleString()} seats
-            </p>
+            <h4 className="text-xs font-semibold text-slate-800 tracking-tight">Total User Accounts</h4>
+            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight mt-2.5">{tenant.licenseUsed.toLocaleString()}</div>
+            <p className="text-xs text-slate-400 mt-2.5">License Limit: {tenant.licenseLimit.toLocaleString()} seats</p>
           </div>
 
           {/* Configured Departments Card */}
@@ -47,15 +51,9 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
             onClick={() => onNavigateTab('departments')}
             className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs hover:border-slate-300 transition-all cursor-pointer group"
           >
-            <h4 className="text-xs font-semibold text-slate-800 tracking-tight">
-              Configured Departments
-            </h4>
-            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight mt-2.5">
-              {tenant.departmentsCount}
-            </div>
-            <p className="text-xs text-slate-400 mt-2.5">
-              HR, Legal, Finance, etc.
-            </p>
+            <h4 className="text-xs font-semibold text-slate-800 tracking-tight">Configured Departments</h4>
+            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight mt-2.5">{tenant.departmentsCount}</div>
+            <p className="text-xs text-slate-400 mt-2.5">HR, Legal, Finance, etc.</p>
           </div>
         </div>
 
@@ -67,9 +65,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
       <div className="lg:col-span-4 space-y-5">
         {/* Quick Admin Actions Card */}
         <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
-          <h4 className="text-xs font-semibold text-slate-800 tracking-tight mb-3.5">
-            Quick Admin Actions
-          </h4>
+          <h4 className="text-xs font-semibold text-slate-800 tracking-tight mb-3.5">Quick Admin Actions</h4>
 
           <div className="space-y-2.5">
             {/* Create Department User Button */}
@@ -84,9 +80,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
                 <span className="text-xs font-semibold text-blue-900 group-hover:text-blue-700 transition-colors block">
                   Tạo tài khoản Department
                 </span>
-                <span className="text-[10px] text-slate-500 block truncate">
-                  Cấp tài khoản & phân quyền theo phòng ban
-                </span>
+                <span className="text-[10px] text-slate-500 block truncate">Cấp tài khoản & phân quyền theo phòng ban</span>
               </div>
             </button>
 
@@ -98,9 +92,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
               <div className="w-6 h-6 flex items-center justify-center text-blue-600 shrink-0">
                 <UserCheck className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                Impersonate Tenant Owner
-              </span>
+              <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">Impersonate Tenant Owner</span>
             </button>
 
             {/* Download Backup Button */}
@@ -121,34 +113,25 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
         {/* Recent Tenant Events Card */}
         <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
           <div className="flex items-center justify-between mb-3.5">
-            <h4 className="text-xs font-semibold text-slate-800 tracking-tight">
-              Recent Tenant Events
-            </h4>
-            <button
-              onClick={() => onNavigateTab('activity')}
-              className="text-[11px] text-blue-600 hover:underline font-medium cursor-pointer"
-            >
-              View all
-            </button>
+            <h4 className="text-xs font-semibold text-slate-800 tracking-tight">Recent Tenant Events</h4>
+
           </div>
 
           <div className="space-y-3">
             {events.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between gap-3 text-xs"
-              >
+              <div key={event.id} className="flex items-center justify-between gap-3 text-xs">
                 <span className="text-slate-600 truncate flex-1" title={event.text}>
                   {event.text}
                 </span>
-                <span className="text-slate-400 tabular-nums shrink-0 text-[11px]">
-                  {event.timeAgo}
-                </span>
+                <span className="text-slate-400 tabular-nums shrink-0 text-[11px]">{event.timeAgo}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      {/* Modal gửi yêu cầu cấp thêm Quota */}
+      <RequestQuotaModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} onSuccess={handleRequestCreated} />
     </div>
   );
 };

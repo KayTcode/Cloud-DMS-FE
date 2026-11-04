@@ -1,3 +1,4 @@
+import { pickDirectory } from '../api/pickDirectory';
 import React, { useState, useRef } from 'react';
 import {
   Upload,
@@ -31,6 +32,8 @@ import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb';
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
+import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
+import { DocumentDetailsDto } from '@/features/document-submission';
 
 interface DriveViewProps {
   items: DriveItem[];
@@ -40,7 +43,7 @@ interface DriveViewProps {
   searchQuery: string;
   activeFilter: DriveFilter;
   setActiveFilter: (filter: DriveFilter) => void;
-  onUploadFile?: (files: FileList) => void;
+  onUploadFile?: (files: FileList, directories?: string[]) => void;
   onUploadDirectFile?: (files: FileList) => void;
   onOpenNewFolderModal: () => void;
   onOpenFilePreview: (file: DriveItem) => void;
@@ -66,6 +69,7 @@ interface DriveViewProps {
   // Share to department shared store (S2)
   onShareToDepartment?: (item: DriveItem) => void;
   onUnshareFromDepartment?: (item: DriveItem) => Promise<void>;
+  onRefreshItems?: () => void;
 }
 
 type SortField = 'name' | 'updatedAt' | 'size';
@@ -98,11 +102,18 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onRenameFile,
   onShareToDepartment,
   onUnshareFromDepartment,
+  onRefreshItems,
 }) => {
+  const [folderError, setFolderError] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Quản lý tập trung toàn bộ Modals phân hệ Document Submission
+  const docModals = useDocumentModals({
+    onRefresh: onRefreshItems,
+  });
 
   // Folder rename state
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
@@ -120,6 +131,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Find current folder hierarchy
   const currentFolder = items.find((i) => i.id === currentFolderId && i.type === 'folder');
@@ -242,6 +254,8 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
   const getFileIcon = (fileType?: FileType) => {
     switch (fileType) {
+      case 'folder':
+        return <Folder className="w-5 h-5 text-amber-500" />;
       case 'pdf':
         return <FileText className="w-5 h-5 text-red-500" />;
       case 'sheet':
@@ -283,6 +297,11 @@ export const DriveView: React.FC<DriveViewProps> = ({
         className="hidden"
       />
 
+      <input type="file" ref={folderInputRef} multiple className="hidden"
+        {...({ webkitdirectory: '', directory: '' } as any)}
+        onChange={(event) => { if (event.target.files?.length) onUploadFile?.(event.target.files); event.target.value = ''; }} />
+
+      {folderError && <p role="alert" className="text-red-600 text-sm">{folderError}</p>}
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
         <div className="absolute inset-0 z-40 bg-blue-50/95 border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center pointer-events-none backdrop-blur-xs">
@@ -371,7 +390,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                   <button
                     onClick={() => directFileInputRef.current?.click()}
                     className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-                    title="Tải trực tiếp lên Cloud (Google Drive / OneDrive / S3) - Tốc độ cao, không nghẽn Server"
+                    title="Đóng gói ZIP trên trình duyệt, tải trực tiếp lên Cloud và chờ kiểm tra bảo mật"
                   >
                     <UploadCloud className="w-4 h-4 stroke-[2.2]" />
                     <span>Tải lên Cloud (Direct)</span>
@@ -380,15 +399,20 @@ export const DriveView: React.FC<DriveViewProps> = ({
                     </span>
                   </button>
 
-                  {/* Nút 2: Tải qua Server (Phương pháp cũ) */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium shadow-xs transition-colors cursor-pointer"
-                    title="Tải tệp qua Backend Server (Phương pháp truyền thống)"
-                  >
-                    <Server className="w-4 h-4 text-slate-500" />
-                    <span>Tải qua Server</span>
-                  </button>
+                  <details className="relative">
+                    <summary className="list-none cursor-pointer inline-flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm">
+                      <Server className="w-4 h-4" />Tải qua Server
+                    </summary>
+                    <div className="absolute right-0 z-20 mt-2 w-48 bg-white border rounded-lg shadow-lg p-1">
+                      <button className="block w-full text-left p-2 hover:bg-slate-100" onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open'); fileInputRef.current?.click();
+                      }}>Chọn tệp</button>
+                      <button className="block w-full text-left p-2 hover:bg-slate-100" onClick={(event) => {
+                        event.currentTarget.closest('details')?.removeAttribute('open'); setFolderError('');
+                        void pickDirectory(() => folderInputRef.current?.click(), onUploadFile, setFolderError);
+                      }}>Chọn thư mục</button>
+                    </div>
+                  </details>
                 </>
               )}
             </>
@@ -947,6 +971,17 @@ export const DriveView: React.FC<DriveViewProps> = ({
                             </button>
                           )}
                           <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              docModals.openDetails(file.id);
+                            }}
+                            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                            title="Xem chi tiết siêu dữ liệu tài liệu"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               onDownloadItem(file);
@@ -1135,6 +1170,14 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   </button>
                                 )}
                                 <button
+                                  type="button"
+                                  onClick={() => docModals.openDetails(file.id)}
+                                  className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+                                  title="Xem chi tiết siêu dữ liệu tài liệu"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </button>
+                                <button
                                   onClick={() => onDownloadItem(file)}
                                   className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                                   title="Tải về"
@@ -1164,6 +1207,12 @@ export const DriveView: React.FC<DriveViewProps> = ({
         </div>
       )}
 
+    
+      {/* Bộ Modals quản lý tài liệu và siêu dữ liệu tập trung */}
+      <DocumentModalsContainer
+        parentFolderId={currentFolderId}
+        {...docModals.containerProps}
+      />
     </div>
   );
 };

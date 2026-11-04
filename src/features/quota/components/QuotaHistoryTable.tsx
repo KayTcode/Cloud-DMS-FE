@@ -188,8 +188,11 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
               {items.map((row) => {
                 const oldGB = parseFloat((row.oldQuotaBytes / GB_IN_BYTES).toFixed(2));
                 const newGB = parseFloat((row.newQuotaBytes / GB_IN_BYTES).toFixed(2));
-                const deltaGB = parseFloat((row.deltaBytes / GB_IN_BYTES).toFixed(2));
-                const isPositive = row.deltaBytes >= 0;
+                const rawDelta = row.deltaBytes !== undefined && !isNaN(row.deltaBytes)
+                  ? row.deltaBytes
+                  : ((row.newQuotaBytes || 0) - (row.oldQuotaBytes || 0));
+                const deltaGB = parseFloat((rawDelta / GB_IN_BYTES).toFixed(2));
+                const isPositive = rawDelta >= 0;
 
                 const formattedTime = new Date(row.occurredAt).toLocaleDateString('vi-VN', {
                   day: '2-digit',

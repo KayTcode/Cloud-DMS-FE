@@ -44,29 +44,23 @@ export interface Department {
 
 export interface DepartmentMember {
   id: string;
-  name: string;
+  fullName: string;
   email: string;
-  phoneNumber?: string;
-  status: UserStatus;
+  phoneNumber?: string | null;
+  isActive: boolean;
 }
 
 export interface DepartmentDetail {
   id: string;
   name: string;
-  code?: string;
-  description?: string;
-  storageUsedBytes: number;
-  storageQuotaBytes: number;
+  code: string;
+  description?: string | null;
+  quotaBytes: number;
+  usedBytes: number;
   isVacant: boolean;
+  lead?: DepartmentMember | null;
+  employees: DepartmentMember[];
   hasHeldLeadFiles: boolean;
-  lead?: {
-    id: string;
-    name: string;
-    email: string;
-    phoneNumber?: string;
-    status: UserStatus;
-  } | null;
-  members: DepartmentMember[];
 }
 
 export interface AssignVacantDepartmentLeadPayload {

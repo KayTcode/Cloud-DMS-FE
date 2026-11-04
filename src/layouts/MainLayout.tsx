@@ -120,6 +120,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         return 'Tenant & Account Management';
       case 'storage-providers':
         return 'Storage Providers';
+      case 'quota-requests':
+        return 'Duyệt yêu cầu Quota';
       case 'quota-approvals':
         return 'Duyệt yêu cầu quota';
       case 'audit-logs':

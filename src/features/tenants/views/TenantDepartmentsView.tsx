@@ -7,7 +7,7 @@ import { AllocateDepartmentQuotaModal, OffboardDepartmentAdminModal, AssignVacan
 interface TenantDepartmentsViewProps {
   onBackToOverview: () => void;
   onCreateDepartmentUser: (departmentIdOrName?: string) => void;
-  onOpenDepartment?: (deptId: string) => void;
+  onOpenDepartment?: (departmentId: string) => void;
 }
 
 export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
@@ -138,20 +138,21 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       {onOpenDepartment ? (
                         <button
                           onClick={() => onOpenDepartment(dept.id)}
-                          className="hover:text-blue-600 hover:underline cursor-pointer text-left"
+                          className="text-xs font-bold text-slate-900 hover:text-blue-600 hover:underline truncate cursor-pointer text-left"
+                          title={`Xem chi tiết phòng ban ${dept.name}`}
                         >
                           {dept.name}
                         </button>
                       ) : (
-                        <span>{dept.name}</span>
+                        <span className="text-xs font-bold text-slate-900 truncate">{dept.name}</span>
                       )}
-                      {dept.isVacant === true && (
-                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full">
+                      {dept.isVacant && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
                           Khuyết Trưởng phòng
                         </span>
                       )}
@@ -247,7 +248,32 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between text-xs pt-3 border-t border-slate-200/60">
+                {/* Storage usage bar */}
+                {(() => {
+                  const quotaBytes = dept.storageQuotaBytes || 0;
+                  const usedBytes = dept.storageUsedBytes || 0;
+                  const quotaGB = (quotaBytes / (1024 ** 3)).toFixed(1);
+                  const usedGB = (usedBytes / (1024 ** 3)).toFixed(1);
+                  const pct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0;
+                  return (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                        <span>Đã dùng: <strong className="text-slate-800">{usedGB} GB</strong> / {quotaGB} GB</span>
+                        <span className="text-[10px] font-semibold text-slate-600">{pct}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 rounded-full ${
+                            pct >= 90 ? 'bg-rose-500' : pct >= 75 ? 'bg-amber-500' : 'bg-blue-600'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="mt-3 flex items-center justify-between text-xs pt-3 border-t border-slate-200/60">
                   <span className="text-slate-500 font-medium">{dept.headCount} Members</span>
                   <div className="flex items-center gap-1.5">
                     <span className="font-semibold text-blue-600 tabular-nums">{dept.allocatedStorageGB} GB</span>

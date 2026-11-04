@@ -11,7 +11,8 @@ import {
   Sparkles,
   Server,
   Activity,
-  Layers
+  Layers,
+  ClipboardCheck
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 
@@ -47,6 +48,17 @@ export const AdminHubView: React.FC<AdminHubViewProps> = ({
       iconColor: 'text-blue-600',
       badge: 'Quản trị cốt lõi',
       actionText: 'Mở Quản lý Tổ chức',
+    },
+    {
+      id: 'quota-requests',
+      title: 'Duyệt Yêu cầu Hạn mức (Quota)',
+      subtitle: 'Tenant Quota Approvals & Audit',
+      description: 'Tiếp nhận, kiểm tra và phê duyệt các đề xuất cấp thêm dung lượng lưu trữ đám mây từ các Quản trị viên Doanh nghiệp (Tenant Admin).',
+      icon: ClipboardCheck,
+      iconBg: 'bg-amber-50 text-amber-600 border-amber-200/60',
+      iconColor: 'text-amber-600',
+      badge: 'Phê duyệt tài nguyên',
+      actionText: 'Mở Duyệt Quota',
     },
     {
       id: 'dashboard',

@@ -56,16 +56,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
       actionText: 'Quản lý Phòng ban',
     },
     {
-      id: 'users',
-      title: 'Quản lý Nhân viên & Thành viên',
-      subtitle: 'Members & Employee Accounts',
-      description: 'Xem và quản lý danh sách nhân sự của doanh nghiệp, cấp tài khoản thành viên mới, phân công vào phòng ban và theo dõi trạng thái hoạt động.',
-      icon: Users,
-      iconBg: 'bg-blue-50 text-blue-600 border-blue-200/60',
-      badge: 'Nhân sự & Phân quyền',
-      actionText: 'Quản lý Nhân viên',
-    },
-    {
       id: 'overview',
       title: 'Báo cáo & Thống kê Tổng quan',
       subtitle: 'Tenant Overview & Performance Metrics',
@@ -74,16 +64,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
       iconBg: 'bg-violet-50 text-violet-600 border-violet-200/60',
       badge: 'Báo cáo số liệu',
       actionText: 'Xem Báo cáo Tổng quan',
-    },
-    {
-      id: 'activity',
-      title: 'Nhật ký Thao tác Doanh nghiệp',
-      subtitle: 'Activity Logs & Audit Trail',
-      description: 'Truy vết toàn bộ lịch sử hoạt động nội bộ: thêm sửa nhân sự, thay đổi hạn ngạch dung lượng và các tác vụ hệ thống của doanh nghiệp.',
-      icon: FileText,
-      iconBg: 'bg-amber-50 text-amber-600 border-amber-200/60',
-      badge: 'Lịch sử hoạt động',
-      actionText: 'Xem Nhật ký Hoạt động',
     },
     {
       id: 'quota',

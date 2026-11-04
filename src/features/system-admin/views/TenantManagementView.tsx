@@ -7,12 +7,9 @@ import {
   ShieldAlert, 
   Trash2,
   ExternalLink,
-  Edit,
-  KeyRound,
   Building2,
   ShieldCheck,
   UserCheck,
-  HardDrive,
   FolderSync,
 } from 'lucide-react';
 import { AdminUserDto, PlanType, TenantStatus } from '../types';
@@ -29,8 +26,7 @@ interface TenantManagementViewProps {
   onOpenCreateModal: () => void;
   onSelectUser: (user: AdminUserDto) => void;
   onOpenEditModal: (user: AdminUserDto) => void;
-  onOpenResetPasswordModal: (user: AdminUserDto) => void;
-  onToggleStatus: (userId: string, currentStatus: boolean) => void;
+    onToggleStatus: (userId: string, currentStatus: boolean) => void;
   onDeleteUser: (userId: string, userEmail: string) => void;
   onOpenAllocateQuotaModal?: (user: AdminUserDto) => void;
 }
@@ -45,8 +41,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   onOpenCreateModal,
   onSelectUser,
   onOpenEditModal,
-  onOpenResetPasswordModal,
-  onToggleStatus,
+    onToggleStatus,
   onDeleteUser,
   onOpenAllocateQuotaModal,
 }) => {
@@ -308,35 +303,6 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                     {/* Actions: Direct action buttons instead of ... dropdown */}
                     <td className="py-3.5 px-5 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {/* Edit Profile */}
-                        <button
-                          onClick={() => onOpenEditModal(u)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="Chỉnh sửa thông tin tài khoản"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-
-                        {/* Cấp Quota Cloud */}
-                        {onOpenAllocateQuotaModal && (
-                          <button
-                            onClick={() => onOpenAllocateQuotaModal(u)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                            title="Cấp phát Quota Cloud"
-                          >
-                            <HardDrive className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {/* Reset Password */}
-                        <button
-                          onClick={() => onOpenResetPasswordModal(u)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                          title="Đặt lại mật khẩu"
-                        >
-                          <KeyRound className="w-4 h-4" />
-                        </button>
-
                         {/* Thử lại khởi tạo thư mục Cloud */}
                         <button
                           onClick={() => handleRetryProvisioning(u.id)}

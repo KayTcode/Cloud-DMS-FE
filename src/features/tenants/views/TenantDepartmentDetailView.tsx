@@ -1,214 +1,321 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Building2, HardDrive, Crown, Mail, Phone, Loader2, Users } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ArrowLeft,
+  Building2,
+  Crown,
+  HardDrive,
+  Users,
+  Mail,
+  Phone,
+  UserPlus,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { DepartmentDetail, DepartmentMember } from '@/features/tenants/types';
 import { getDepartmentDetail } from '@/features/tenants/api/tenantQueries';
-import { DepartmentDetail, DepartmentMember } from '@/features/tenants/types/tenantUser.dto';
-import { InterimManagementPanel } from '@/features/tenants/components/InterimManagementPanel';
+import { InterimManagementPanel, DepartmentExpiringFilesTable } from '../components';
 import { TransferEmployeeDepartmentModal } from '@/features/tenants/components/TransferEmployeeDepartmentModal';
-import { EmployeeDepartmentTransferResult } from '@/features/tenants/api/tenantCommands';
 
 interface TenantDepartmentDetailViewProps {
-  tenantId: string;
+  tenantId?: string;
   departmentId: string;
   onBack: () => void;
+  onCreateUser?: () => void;
 }
 
 export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProps> = ({
-  tenantId,
+  tenantId: tenantIdProp,
   departmentId,
   onBack,
+  onCreateUser,
 }) => {
+  const { user } = useAuth();
+  const tenantId = tenantIdProp || user?.tenantId || '';
+
   const [detail, setDetail] = useState<DepartmentDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [transferTarget, setTransferTarget] = useState<DepartmentMember | null>(null);
 
-  const refetch = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
+  const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
 
-  useEffect(() => {
+  const loadDetail = useCallback(async () => {
+    if (!tenantId || !departmentId) return;
     setIsLoading(true);
     setError(null);
-    getDepartmentDetail(tenantId, departmentId)
-      .then((data) => {
+    try {
+      const data = await getDepartmentDetail(tenantId, departmentId);
+      if (data) {
         setDetail(data);
-      })
-      .catch((err) => {
-        setError(err?.message ?? 'Không thể tải thông tin phòng ban.');
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [tenantId, departmentId, refreshKey]);
+      } else {
+        setError('Không tìm thấy thông tin phòng ban.');
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Lỗi khi nạp thông tin chi tiết phòng ban.';
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [tenantId, departmentId]);
 
-  const renderStorageBar = (usedBytes: number, quotaBytes: number) => {
-    if (quotaBytes <= 0) return null;
-    const usedGB = usedBytes / (1024 ** 3);
-    const quotaGB = quotaBytes / (1024 ** 3);
-    const pct = Math.min(100, Math.round((usedBytes / quotaBytes) * 100));
-    return (
-      <div>
-        <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-          <span className="flex items-center gap-1">
-            <HardDrive className="w-3.5 h-3.5" />
-            <span>Dung lượng sử dụng</span>
-          </span>
-          <span className="tabular-nums font-medium text-slate-700">
-            {usedGB.toFixed(1)} GB / {quotaGB.toFixed(1)} GB ({pct}%)
-          </span>
-        </div>
-        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full ${pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-blue-500'}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-    );
-  };
+  useEffect(() => {
+    loadDetail();
+  }, [loadDetail]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20 gap-2 text-slate-500">
-        <Loader2 className="w-5 h-5 animate-spin" />
-        <span className="text-sm">Đang tải thông tin phòng ban...</span>
+      <div className="py-20 text-center text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
+        <span className="text-sm font-semibold">Đang nạp chi tiết phòng ban...</span>
       </div>
     );
   }
 
   if (error || !detail) {
     return (
-      <div className="py-12 text-center text-sm text-rose-600">
-        <p>{error ?? 'Không tìm thấy dữ liệu phòng ban.'}</p>
+      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-md mx-auto my-10 space-y-4 shadow-2xs">
+        <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">Không thể tải thông tin phòng ban</h3>
+          <p className="text-xs text-slate-500 mt-1">{error || 'Phòng ban không tồn tại hoặc đã bị xóa.'}</p>
+        </div>
         <button
           onClick={onBack}
-          className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Quay lại
+          <ArrowLeft className="w-4 h-4" />
+          <span>Quay lại danh sách</span>
         </button>
       </div>
     );
   }
 
+  const quotaBytes = detail.quotaBytes || 0;
+  const usedBytes = detail.usedBytes || 0;
+  const quotaGB = (quotaBytes / (1024 ** 3)).toFixed(1);
+  const usedGB = (usedBytes / (1024 ** 3)).toFixed(1);
+  const usagePct = quotaBytes > 0 ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100)) : 0;
+
   return (
-    <div className="space-y-5 mt-5">
-      {/* Header + back */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-2xs cursor-pointer"
+    <div className="space-y-6 mt-4">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : toast.type === 'error'
+              ? 'bg-rose-50 text-rose-800 border-rose-200'
+              : 'bg-blue-50 text-blue-800 border-blue-200'
+          }`}
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Quay lại danh sách
-        </button>
-        <div className="flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-blue-600" />
-          <h2 className="text-base font-bold text-slate-900">{detail.name}</h2>
-          {detail.isVacant && (
-            <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full">
-              Khuyết Trưởng phòng
-            </span>
-          )}
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="text-slate-400 hover:text-slate-600 font-bold ml-4">
+            ✕
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Info card */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {detail.code && (
-            <div>
-              <div className="text-[11px] text-slate-400 uppercase font-semibold tracking-wide mb-0.5">Mã phòng ban</div>
-              <div className="text-sm font-mono font-semibold text-slate-800">{detail.code}</div>
+      {/* Header bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-600 transition-colors cursor-pointer shrink-0 shadow-2xs"
+              title="Quay lại danh sách phòng ban"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-bold text-slate-900 truncate">{detail.name}</h2>
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                  {detail.code}
+                </span>
+                {detail.isVacant && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                    Khuyết Trưởng phòng
+                  </span>
+                )}
+              </div>
+              {detail.description && (
+                <p className="text-xs text-slate-500 mt-0.5 truncate">{detail.description}</p>
+              )}
             </div>
-          )}
-          {detail.description && (
-            <div className={detail.code ? '' : 'sm:col-span-2'}>
-              <div className="text-[11px] text-slate-400 uppercase font-semibold tracking-wide mb-0.5">Mô tả</div>
-              <div className="text-sm text-slate-700">{detail.description}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Storage bar */}
-        {renderStorageBar(detail.storageUsedBytes, detail.storageQuotaBytes)}
-      </div>
-
-      {/* Lead card */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
-        <div className="flex items-center gap-2 mb-3">
-          <Crown className="w-4 h-4 text-amber-500" />
-          <h3 className="text-sm font-bold text-slate-900">Trưởng phòng</h3>
-        </div>
-        {!detail.lead ? (
-          <p className="text-sm text-amber-600 italic">Chưa có Trưởng phòng</p>
-        ) : detail.lead.status === 'Pending' ? (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-800">{detail.lead.name}</span>
-            <span className="text-[11px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-              Chờ kích hoạt
-            </span>
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            <div className="text-sm font-semibold text-slate-800">{detail.lead.name}</div>
-            <div className="flex items-center gap-1 text-xs text-slate-500">
-              <Mail className="w-3.5 h-3.5" />
-              <span className="font-mono">{detail.lead.email}</span>
+
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              onClick={loadDetail}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Làm mới</span>
+            </button>
+            {onCreateUser && (
+              <button
+                onClick={onCreateUser}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Thêm nhân viên</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3 Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5 pt-5 border-t border-slate-100">
+          {/* Card 1: Hạn mức lưu trữ */}
+          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-2.5">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+              <span className="flex items-center gap-1.5">
+                <HardDrive className="w-3.5 h-3.5 text-blue-600" />
+                <span>Dung lượng phòng ban</span>
+              </span>
+              <span className="text-[11px] font-bold text-slate-700">{usagePct}%</span>
             </div>
-            {detail.lead.phoneNumber && (
-              <div className="flex items-center gap-1 text-xs text-slate-500">
-                <Phone className="w-3.5 h-3.5" />
-                <span>{detail.lead.phoneNumber}</span>
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-slate-500">Đã phân bổ thực tế:</span>
+              <span className="text-sm font-bold text-slate-900">
+                {usedGB} GB <span className="text-slate-400 font-normal">/ {quotaGB} GB</span>
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  usagePct >= 90 ? 'bg-rose-500' : usagePct >= 75 ? 'bg-amber-500' : 'bg-blue-600'
+                }`}
+                style={{ width: `${usagePct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Card 2: Trưởng phòng */}
+          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+              <span className="flex items-center gap-1.5">
+                <Crown className={`w-3.5 h-3.5 ${detail.lead ? 'text-amber-500' : 'text-slate-400'}`} />
+                <span>Trưởng phòng (Lead)</span>
+              </span>
+              {detail.lead ? (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                    detail.lead.isActive
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}
+                >
+                  {detail.lead.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt'}
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                  Chưa có Trưởng phòng
+                </span>
+              )}
+            </div>
+            {detail.lead ? (
+              <div className="space-y-1">
+                <div className="text-xs font-bold text-slate-900 truncate">{detail.lead.fullName}</div>
+                <div className="text-[11px] text-slate-500 font-mono truncate flex items-center gap-1">
+                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span>{detail.lead.email}</span>
+                </div>
+                {detail.lead.phoneNumber && (
+                  <div className="text-[11px] text-slate-500 font-mono truncate flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{detail.lead.phoneNumber}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 italic pt-1">
+                Phòng ban đang khuyết vị trí quản trị.
               </div>
             )}
           </div>
-        )}
+
+          {/* Card 3: Tổng nhân sự */}
+          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-2 flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+              <Users className="w-3.5 h-3.5 text-blue-600" />
+              <span>Tổng nhân sự phòng ban</span>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-slate-900">
+                {detail.employees.length + (detail.lead ? 1 : 0)}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Gồm {detail.employees.length} nhân viên và {detail.lead ? 1 : 0} Trưởng phòng.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Employee table */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
-        <div className="flex items-center gap-2 mb-3">
-          <Users className="w-4 h-4 text-blue-600" />
-          <h3 className="text-sm font-bold text-slate-900">Nhân viên ({detail.members.length})</h3>
+      {/* Bảng danh sách nhân viên phòng ban (Không hiển thị dung lượng cá nhân) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">
+              Danh sách Nhân sự ({detail.employees.length})
+            </h3>
+            <p className="text-xs text-slate-500">
+              Thông tin nhân viên thuộc phòng ban. Dung lượng cá nhân được bảo vệ theo chính sách quyền riêng tư.
+            </p>
+          </div>
         </div>
-        {detail.members.length === 0 ? (
-          <p className="text-sm text-slate-400 italic text-center py-6">Phòng chưa có nhân viên.</p>
+
+        {detail.employees.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+            Phòng chưa có nhân viên.
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-2 pr-4 font-semibold text-slate-500 w-1/4">Họ tên</th>
-                  <th className="text-left py-2 pr-4 font-semibold text-slate-500 w-1/3">Email</th>
-                  <th className="text-left py-2 pr-4 font-semibold text-slate-500 w-1/5">Số điện thoại</th>
-                  <th className="text-left py-2 pr-4 font-semibold text-slate-500">Trạng thái</th>
-                  <th className="py-2 font-semibold text-slate-500"></th>
+                <tr className="border-y border-slate-100 bg-slate-50/70 text-slate-500 font-semibold">
+                  <th className="py-2.5 px-3 text-center w-12">STT</th>
+                  <th className="py-2.5 px-3">Họ và Tên</th>
+                  <th className="py-2.5 px-3">Email</th>
+                  <th className="py-2.5 px-3">Số điện thoại</th>
+                  <th className="py-2.5 px-3 text-center">Trạng thái</th>
+                  <th className="py-2.5 px-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {detail.members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/50">
-                    <td className="py-2 pr-4 font-medium text-slate-800">{m.name}</td>
-                    <td className="py-2 pr-4 font-mono text-slate-500 truncate max-w-[200px]">{m.email}</td>
-                    <td className="py-2 pr-4 text-slate-500">{m.phoneNumber ?? '—'}</td>
-                    <td className="py-2 pr-4">
+              <tbody className="divide-y divide-slate-100">
+                {detail.employees.map((emp, idx) => (
+                  <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-2.5 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                    <td className="py-2.5 px-3 font-semibold text-slate-900">{emp.fullName}</td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">{emp.email}</td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">
+                      {emp.phoneNumber || '—'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          m.status === 'Active'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : m.status === 'Pending'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-slate-100 text-slate-500'
+                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
+                          emp.isActive
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                         }`}
                       >
-                        {m.status === 'Active' ? 'Hoạt động' : m.status === 'Pending' ? 'Chờ kích hoạt' : m.status}
+                        {emp.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt'}
                       </span>
                     </td>
-                    <td className="py-2">
+                    <td className="py-2.5 px-3 text-right">
                       <button
-                        onClick={() => setTransferTarget(m)}
+                        onClick={() => setTransferTarget(emp)}
                         className="px-2 py-1 text-[10px] font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
                       >
                         Đổi phòng
@@ -222,25 +329,39 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
         )}
       </div>
 
-      {/* Interim management panel – only shown when department has no lead */}
+      {/* Danh sách tệp tin sắp hết hạn của phòng ban */}
+      <DepartmentExpiringFilesTable
+        tenantId={tenantId}
+        departmentId={detail.id}
+        departmentName={detail.name}
+        onShowToast={showToast}
+        onQuotaChanged={loadDetail}
+      />
+
+      {/* Khu vực "Đang tạm quản lý" khi phòng khuyết Trưởng phòng */}
       {detail.isVacant && (
-        <InterimManagementPanel tenantId={tenantId} detail={detail} onRefresh={refetch} />
+        <InterimManagementPanel
+          department={detail}
+          onRefresh={loadDetail}
+          onShowToast={showToast}
+        />
       )}
 
-      {/* Transfer department modal */}
+      {/* Modal đổi phòng cho nhân viên */}
       {transferTarget && (
         <TransferEmployeeDepartmentModal
           tenantId={tenantId}
           userId={transferTarget.id}
-          userName={transferTarget.name}
+          userName={transferTarget.fullName}
           currentDepartmentId={departmentId}
           onClose={() => setTransferTarget(null)}
-          onSuccess={(_result: EmployeeDepartmentTransferResult) => {
+          onSuccess={() => {
             setTransferTarget(null);
-            refetch();
+            loadDetail();
           }}
         />
       )}
     </div>
   );
 };
+

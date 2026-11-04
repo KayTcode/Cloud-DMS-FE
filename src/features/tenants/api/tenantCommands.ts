@@ -57,7 +57,7 @@ export async function createDepartmentAdminApi(
       API_ENDPOINTS.TENANTS.DEPARTMENT_ADMINS(tenantId),
       request
     );
-    
+
     // Map UserDto returned from Backend to TenantUser
     const data = response.data || response;
     return {
@@ -152,14 +152,15 @@ export interface OffboardDepartmentAdminPayload {
   newAdminLastName?: string | null;
   newAdminPhoneNumber?: string | null;
   handoverReason?: string | null;
+  scenario?: string | null;
 }
 
 export interface OffboardDepartmentAdminResult {
   offboardedUserId: string;
-  targetUserId: string;
+  targetUserId: string | null;
   handoverFolderId: string | null;
   handoverFolderName: string | null;
-  sharedFolderId: string;
+  sharedFolderId: string | null;
   sharedFilesCount: number;
   sharedBytes: number;
   quotaToNewLeadBytes: number;
@@ -228,5 +229,17 @@ export async function assignVacantDepartmentLeadApi(
   return response?.value || response?.data || response;
 }
 
-
-
+/**
+ * Command: Vô hiệu hóa Nhân viên và Chuyển giao toàn bộ dữ liệu về Kho chung phòng ban (cấp Quản trị Tổ chức - Tenant Admin)
+ * Khớp BE: OffboardEmployeeCommand -> POST /api/tenant/{tenantId}/employees/offboard
+ */
+export async function offboardEmployeeByTenantApi(
+  tenantId: string,
+  payload: import('@/features/department-admin/types').OffboardEmployeePayload
+): Promise<import('@/features/department-admin/types').OffboardEmployeeResultDto> {
+  const response = await apiClient.post<any, any>(
+    API_ENDPOINTS.TENANTS.EMPLOYEES_OFFBOARD(tenantId),
+    payload
+  );
+  return response?.value || response?.data || response;
+}

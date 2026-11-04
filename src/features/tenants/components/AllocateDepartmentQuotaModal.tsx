@@ -28,10 +28,17 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
 
   if (!isOpen || !department) return null;
 
-  // Tính dung lượng khả dụng của Tenant để cảnh báo nếu cấp vượt quá
-  const tenantQuotaGB = tenant.storageQuotaBytes
-    ? Math.round(tenant.storageQuotaBytes / (1024 ** 3))
-    : (tenant.diskAllocatedTB ? tenant.diskAllocatedTB * 1024 : 1024);
+  // Quota còn trống (chưa phân bổ cho các phòng ban) của Tenant (unallocatedQuota)
+  const unallocatedBytes = tenant.unallocatedBytes !== undefined
+    ? tenant.unallocatedBytes
+    : (tenant.availableBytes !== undefined
+      ? tenant.availableBytes
+      : Math.max(0, (tenant.storageQuotaBytes || 0) - (tenant.allocatedToDepartmentsBytes || 0)));
+
+  const unallocatedQuotaGB = Number((unallocatedBytes / (1024 ** 3)).toFixed(1));
+  const currentDeptQuotaGB = department.allocatedStorageGB || 0;
+  // Hạn mức tối đa có thể cấp cho phòng ban này = hạn mức hiện tại + quota còn trống chưa phân bổ
+  const maxPossibleQuotaGB = Number((currentDeptQuotaGB + unallocatedQuotaGB).toFixed(1));
 
   const presets = [10, 25, 50, 100, 250, 500];
 
@@ -39,6 +46,12 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
     e.preventDefault();
     if (quotaGB <= 0) {
       setErrorMsg('Hạn mức Quota phải lớn hơn 0 GB.');
+      return;
+    }
+
+    const additionalQuotaNeeded = quotaGB - currentDeptQuotaGB;
+    if (additionalQuotaNeeded > unallocatedQuotaGB) {
+      setErrorMsg(`Không đủ Quota khả dụng. Quota Tenant chưa phân bổ là ${unallocatedQuotaGB} GB (Tối đa có thể cấp cho phòng ban này: ${maxPossibleQuotaGB} GB).`);
       return;
     }
 
@@ -92,11 +105,11 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500">Hạn mức hiện tại:</span>
-              <span className="font-semibold text-slate-900">{department.allocatedStorageGB} GB</span>
+              <span className="font-semibold text-slate-900">{currentDeptQuotaGB} GB</span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500">Tổng Quota Tenant:</span>
-              <span className="font-semibold text-blue-600">{tenantQuotaGB} GB</span>
+              <span className="text-slate-500">Quota chưa phân bổ (Unallocated):</span>
+              <span className="font-semibold text-emerald-600">{unallocatedQuotaGB} GB</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500">Trưởng phòng phụ trách:</span>
@@ -124,7 +137,7 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Dung lượng này sẽ được cấp cho phòng ban để lưu trữ tài liệu chung và phân bổ cho nhân viên.
+              Dung lượng này sẽ được cấp cho phòng ban. Tối đa có thể cấp: <span className="font-semibold text-slate-700">{maxPossibleQuotaGB} GB</span> ({currentDeptQuotaGB} GB hiện tại + {unallocatedQuotaGB} GB chưa phân bổ).
             </p>
           </div>
 

@@ -13,6 +13,7 @@ import {
   Layers,
   Trash2,
   Share2,
+  ClipboardCheck,
   FolderOpen,
   Inbox,
 } from 'lucide-react';
@@ -95,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
         { id: 'tenants', label: 'Tenants', icon: Database },
+        { id: 'quota-requests', label: 'Duyệt Quota', icon: ClipboardCheck },
         { id: 'storage-providers', label: 'Storage Providers', icon: HardDrive },
         { id: 'quota-approvals', label: 'Duyệt quota', icon: Inbox },
         { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
@@ -106,7 +108,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tenant Overview', icon: LayoutGrid },
-        { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'tenants', label: 'Phòng ban & Nhân viên', icon: Building2 },
         { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },
         { id: 'settings', label: 'Cài đặt Tenant', icon: Settings },
