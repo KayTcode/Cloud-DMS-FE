@@ -123,6 +123,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   // File rename state (F2b)
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
   const [renameFileValue, setRenameFileValue] = useState('');
+  const [renameFileError, setRenameFileError] = useState('');
   const [fileMenuOpenId, setFileMenuOpenId] = useState<string | null>(null);
 
   // Handover confirm state (F2)
@@ -744,33 +745,43 @@ export const DriveView: React.FC<DriveViewProps> = ({
                             </div>
                             <div className="min-w-0 flex-1">
                               {renamingFileId === file.id ? (
-                                <input
-                                  autoFocus
-                                  data-rename-file={file.id}
-                                  value={renameFileValue}
-                                  onChange={(e) => setRenameFileValue(e.target.value)}
-                                  onKeyDown={async (e) => {
-                                    if (e.key === 'Enter') {
+                                <>
+                                  <input
+                                    autoFocus
+                                    data-rename-file={file.id}
+                                    value={renameFileValue}
+                                    onChange={(e) => { setRenameFileValue(e.target.value); setRenameFileError(''); }}
+                                    onKeyDown={async (e) => {
+                                      if (e.key === 'Enter') {
+                                        const trimmed = renameFileValue.trim();
+                                        if (!trimmed) { setRenameFileError('Tên tệp không hợp lệ.'); return; }
+                                        if (onRenameFile) await onRenameFile(file.id, trimmed);
+                                        setRenamingFileId(null);
+                                        setRenameFileError('');
+                                      } else if (e.key === 'Escape') {
+                                        setRenamingFileId(null);
+                                        setRenameFileError('');
+                                      }
+                                    }}
+                                    onBlur={async () => {
                                       const trimmed = renameFileValue.trim();
+                                      if (!trimmed) { setRenamingFileId(null); setRenameFileError(''); return; }
                                       if (onRenameFile) await onRenameFile(file.id, trimmed);
                                       setRenamingFileId(null);
-                                    } else if (e.key === 'Escape') {
-                                      setRenamingFileId(null);
-                                    }
-                                  }}
-                                  onBlur={async () => {
-                                    const trimmed = renameFileValue.trim();
-                                    if (onRenameFile) await onRenameFile(file.id, trimmed);
-                                    setRenamingFileId(null);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onFocus={(e) => {
-                                    const dotIdx = file.name.lastIndexOf('.');
-                                    const end = dotIdx > 0 ? dotIdx : file.name.length;
-                                    e.target.setSelectionRange(0, end);
-                                  }}
-                                  className="text-xs font-bold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
+                                      setRenameFileError('');
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onFocus={(e) => {
+                                      const dotIdx = file.name.lastIndexOf('.');
+                                      const end = dotIdx > 0 ? dotIdx : file.name.length;
+                                      e.target.setSelectionRange(0, end);
+                                    }}
+                                    className="text-xs font-bold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  {renameFileError && (
+                                    <p className="text-[10px] text-red-500 mt-0.5">{renameFileError}</p>
+                                  )}
+                                </>
                               ) : (
                                 <p
                                   className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors"
@@ -1053,33 +1064,43 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 <div className="shrink-0">{getFileIcon(file.fileType)}</div>
                                 <div>
                                   {renamingFileId === file.id ? (
-                                    <input
-                                      autoFocus
-                                      data-rename-file={file.id}
-                                      value={renameFileValue}
-                                      onChange={(e) => setRenameFileValue(e.target.value)}
-                                      onKeyDown={async (e) => {
-                                        if (e.key === 'Enter') {
+                                    <>
+                                      <input
+                                        autoFocus
+                                        data-rename-file={file.id}
+                                        value={renameFileValue}
+                                        onChange={(e) => { setRenameFileValue(e.target.value); setRenameFileError(''); }}
+                                        onKeyDown={async (e) => {
+                                          if (e.key === 'Enter') {
+                                            const trimmed = renameFileValue.trim();
+                                            if (!trimmed) { setRenameFileError('Tên tệp không hợp lệ.'); return; }
+                                            if (onRenameFile) await onRenameFile(file.id, trimmed);
+                                            setRenamingFileId(null);
+                                            setRenameFileError('');
+                                          } else if (e.key === 'Escape') {
+                                            setRenamingFileId(null);
+                                            setRenameFileError('');
+                                          }
+                                        }}
+                                        onBlur={async () => {
                                           const trimmed = renameFileValue.trim();
+                                          if (!trimmed) { setRenamingFileId(null); setRenameFileError(''); return; }
                                           if (onRenameFile) await onRenameFile(file.id, trimmed);
                                           setRenamingFileId(null);
-                                        } else if (e.key === 'Escape') {
-                                          setRenamingFileId(null);
-                                        }
-                                      }}
-                                      onBlur={async () => {
-                                        const trimmed = renameFileValue.trim();
-                                        if (onRenameFile) await onRenameFile(file.id, trimmed);
-                                        setRenamingFileId(null);
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onFocus={(e) => {
-                                        const dotIdx = file.name.lastIndexOf('.');
-                                        const end = dotIdx > 0 ? dotIdx : file.name.length;
-                                        e.target.setSelectionRange(0, end);
-                                      }}
-                                      className="text-xs font-semibold text-slate-900 border border-blue-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
+                                          setRenameFileError('');
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onFocus={(e) => {
+                                          const dotIdx = file.name.lastIndexOf('.');
+                                          const end = dotIdx > 0 ? dotIdx : file.name.length;
+                                          e.target.setSelectionRange(0, end);
+                                        }}
+                                        className="text-xs font-semibold text-slate-900 border border-blue-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      {renameFileError && (
+                                        <p className="text-[10px] text-red-500 mt-0.5">{renameFileError}</p>
+                                      )}
+                                    </>
                                   ) : (
                                     <span className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer">
                                       {file.name}
