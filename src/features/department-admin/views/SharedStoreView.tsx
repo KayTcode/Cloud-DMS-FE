@@ -155,7 +155,7 @@ export const SharedStoreView: React.FC = () => {
       await fetchDriveItems(currentFolderId);
       showNotification('Đã đổi tên tệp thành công!', 'success');
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Đổi tên tệp thất bại.';
+      const msg = err?.response?.data?.message || err?.message || 'Đổi tên tệp thất bại.';
       showNotification(msg, 'error');
     }
   };
@@ -166,7 +166,7 @@ export const SharedStoreView: React.FC = () => {
       await fetchFolders(currentFolderId);
       showNotification('Đã tiếp nhận bàn giao.', 'success');
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
+      const msg = err?.response?.data?.message || err?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
       showNotification(msg, 'error');
     }
   };
@@ -343,7 +343,7 @@ export const SharedStoreView: React.FC = () => {
               await fetchDriveItems(currentFolderId);
               showNotification('Đã gỡ khỏi Kho chung.', 'success');
             } catch (err: any) {
-              showNotification(err?.response?.data?.message || 'Không thể gỡ khỏi Kho chung.', 'error');
+              showNotification(err?.response?.data?.message || err?.message || 'Không thể gỡ khỏi Kho chung.', 'error');
             }
           }}
         />

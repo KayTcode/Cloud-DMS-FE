@@ -206,7 +206,7 @@ export const UserPortal: React.FC = () => {
       await fetchFolders(currentFolderId);
       showNotification('Đã tiếp nhận bàn giao.', 'success');
     } catch (error: any) {
-      const msg = error?.response?.data?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
+      const msg = error?.response?.data?.message || error?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
       showNotification(msg, 'error');
     }
   };
@@ -222,7 +222,7 @@ export const UserPortal: React.FC = () => {
       await fetchDriveItems(currentFolderId, searchQuery);
       showNotification('Đã đổi tên tệp thành công!', 'success');
     } catch (error: any) {
-      const msg = error?.response?.data?.message || 'Đổi tên tệp thất bại.';
+      const msg = error?.response?.data?.message || error?.message || 'Đổi tên tệp thất bại.';
       showNotification(msg, 'error');
     }
   };

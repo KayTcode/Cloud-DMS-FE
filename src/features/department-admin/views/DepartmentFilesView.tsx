@@ -57,6 +57,7 @@ import {
   TenantStorageSummaryDto,
 } from '@/features/tenants/api/fileApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
+import { folderApi } from '@/features/user/api/folderApi';
 import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 import { Edit3 } from 'lucide-react';
@@ -258,6 +259,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           trashed: false,
           sharedWith: [],
           tags: [isPersonal ? 'Thư mục cá nhân' : 'Thư mục chung phòng ban'],
+          isPendingHandover: f.isPendingHandover ?? false,
         };
       });
 
@@ -710,6 +712,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const handleManualRefresh = () => {
     fetchDepartmentFiles();
     if (onQuotaUpdated) onQuotaUpdated();
+  };
+
+  // Xác nhận tiếp nhận bàn giao (C1) — cho thư mục trong Personal drive
+  const [confirmingHandoverFolderId, setConfirmingHandoverFolderId] = useState<string | null>(null);
+  const handleConfirmHandover = async (folderId: string) => {
+    if (!window.confirm('Toàn bộ thư mục và tệp trong thư mục bàn giao sẽ được tiếp nhận. Thao tác này không thể hoàn tác.')) return;
+    try {
+      await folderApi.confirmHandover(folderId);
+      if (onAddToast) onAddToast('success', 'Đã tiếp nhận bàn giao thành công!');
+      await fetchDepartmentFiles();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
+      if (onAddToast) onAddToast('error', msg);
+    }
   };
 
   return (
@@ -1463,17 +1479,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   return (
                     <div
                       key={folder.id}
-                      onDoubleClick={() => setCurrentFolderId(folder.id)}
-                      onClick={() => setCurrentFolderId(folder.id)}
-                      className={`group relative border rounded-2xl p-3 px-3.5 flex items-center justify-between transition-all duration-150 cursor-pointer ${
-                        isPersonal
-                          ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300'
-                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300'
+                      onDoubleClick={() => !folder.isPendingHandover && setCurrentFolderId(folder.id)}
+                      onClick={() => !folder.isPendingHandover && setCurrentFolderId(folder.id)}
+                      className={`group relative border rounded-2xl p-3 px-3.5 flex flex-col gap-2 transition-all duration-150 ${
+                        folder.isPendingHandover
+                          ? 'bg-amber-50/60 border-amber-300 cursor-default'
+                          : isPersonal
+                          ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300 cursor-pointer'
+                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300 cursor-pointer'
                       }`}
                     >
+                      <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                          isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+                          folder.isPendingHandover ? 'bg-amber-100 text-amber-600' : isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
                         }`}>
                           <Folder className="w-4 h-4 fill-current" />
                         </div>
@@ -1481,8 +1500,12 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
                             {folder.name}
                           </span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {isPersonal ? (
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {folder.isPendingHandover ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+                                Chờ xác nhận
+                              </span>
+                            ) : isPersonal ? (
                               <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
                                 <User className="w-2.5 h-2.5" />
                                 Riêng tôi
@@ -1553,6 +1576,17 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           </div>
                         )}
                       </div>
+                      </div>{/* end row wrapper */}
+                      {/* Confirm handover button (C1) */}
+                      {folder.isPendingHandover && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleConfirmHandover(folder.id); }}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Xác nhận tiếp nhận
+                        </button>
+                      )}
                     </div>
                   );
                 })}

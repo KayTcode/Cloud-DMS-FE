@@ -63,6 +63,7 @@ interface DriveViewProps {
   driveOwnerId?: string;
   // Handover & read-only props (F2)
   isReadOnly?: boolean;
+  readOnlyBannerText?: string;
   onConfirmHandover?: (folderId: string) => Promise<void>;
   // File rename (F2b)
   onRenameFile?: (fileId: string, newName: string) => Promise<void>;
@@ -98,6 +99,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onTrashFolder,
   driveKind,
   isReadOnly = false,
+  readOnlyBannerText,
   onConfirmHandover,
   onRenameFile,
   onShareToDepartment,
@@ -318,7 +320,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
       {isReadOnly && (
         <div className="flex items-center gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-800">
           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-          <span>Thư mục bàn giao chưa được xác nhận. Bạn chỉ có thể xem và tải tệp.</span>
+          <span>{readOnlyBannerText ?? 'Thư mục bàn giao chưa được xác nhận. Bạn chỉ có thể xem và tải tệp.'}</span>
         </div>
       )}
 
@@ -983,17 +985,19 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              docModals.openDetails(file.id);
-                            }}
-                            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
-                            title="Xem chi tiết siêu dữ liệu tài liệu"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                          </button>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                docModals.openDetails(file.id);
+                              }}
+                              className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                              title="Xem chi tiết siêu dữ liệu tài liệu"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1192,14 +1196,16 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                     <Share2 className="w-4 h-4" />
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => docModals.openDetails(file.id)}
-                                  className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
-                                  title="Xem chi tiết siêu dữ liệu tài liệu"
-                                >
-                                  <FileText className="w-4 h-4" />
-                                </button>
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => docModals.openDetails(file.id)}
+                                    className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+                                    title="Xem chi tiết siêu dữ liệu tài liệu"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => onDownloadItem(file)}
                                   className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"

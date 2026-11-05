@@ -86,6 +86,7 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
       breadcrumb={breadcrumb}
       onNavigateFolder={handleNavigateFolder}
       isReadOnly={true}
+      readOnlyBannerText="Kho chung chỉ cho phép xem và tải tệp."
       driveKind="DepartmentShared"
     />
     </div>

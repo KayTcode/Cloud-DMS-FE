@@ -33,6 +33,7 @@ export interface DriveItem {
   authorName?: string;
   isSharedLink?: boolean;
   isSharedToDepartment?: boolean;
+  isPendingHandover?: boolean;
   metadata?: DocumentMetadataDto | null;
 }
 
