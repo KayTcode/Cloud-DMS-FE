@@ -217,6 +217,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   const files = sortedItems.filter((i) => i.type === 'file');
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (isReadOnly) return;
     e.preventDefault();
     setIsDraggingOver(true);
   };
@@ -227,6 +228,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    if (isReadOnly) return;
     e.preventDefault();
     setIsDraggingOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0 && onUploadFile) {
@@ -603,7 +605,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                         </div>
                       </div>
                       {/* Action menu */}
-                      {!isReadOnly && (
+                      {!isReadOnly && !folder.isPendingHandover && (
                         <div className="relative shrink-0">
                           <button
                             onClick={(e) => {
@@ -958,7 +960,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               <Share2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
+                          {!isReadOnly && driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1160,7 +1162,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                     <Share2 className="w-4 h-4" />
                                   </button>
                                 )}
-                                {driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
+                                {!isReadOnly && driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
                                   <button
                                     onClick={() => onUnshareFromDepartment(file)}
                                     className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
