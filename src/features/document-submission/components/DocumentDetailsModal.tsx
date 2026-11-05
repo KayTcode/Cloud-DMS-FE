@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { documentApi } from '../api/documentApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
-import { DocumentDetailsDto } from '../types/document.types';
+import { DocumentDetailsDto, DocumentMetadataDto } from '../types/document.types';
 
 interface DocumentDetailsModalProps {
   fileId: string | null;
@@ -67,23 +67,23 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   if (!isOpen || !fileId) return null;
 
-  const metadata = details?.metadata || ((details as any)?.title ? {
-    id: (details as any).metadataId || '',
+  const rawDetails = details as unknown as Record<string, unknown>;
+  const metadata: DocumentMetadataDto | null = details?.metadata ?? (rawDetails?.['title'] != null ? {
+    id: (rawDetails['metadataId'] as string) || '',
     fileEntryId: details?.fileId || '',
-    author: (details as any).author || (details as any).ownerName || '',
-    title: (details as any).title,
-    otherTitle: (details as any).otherTitle,
-    releaseYear: (details as any).issueYear || (details as any).releaseYear || 0,
-    releaseMonth: (details as any).issueMonth || (details as any).releaseMonth || null,
-    releaseDay: (details as any).issueDay || (details as any).releaseDay || null,
-    releaseDateFormatted: (details as any).releaseDateFormatted || ((details as any).issueYear ? `Năm ${(details as any).issueYear}` : ''),
-    keywords: (details as any).keywords || null,
-    abstract: (details as any).abstract || null,
-    description: (details as any).description || null,
+    author: (rawDetails['author'] as string) || (rawDetails['ownerName'] as string) || '',
+    title: rawDetails['title'] as string,
+    releaseYear: (rawDetails['issueYear'] as number) || (rawDetails['releaseYear'] as number) || 0,
+    releaseMonth: (rawDetails['issueMonth'] as number | null) ?? (rawDetails['releaseMonth'] as number | null) ?? null,
+    releaseDay: (rawDetails['issueDay'] as number | null) ?? (rawDetails['releaseDay'] as number | null) ?? null,
+    releaseDateFormatted: (rawDetails['releaseDateFormatted'] as string) || (rawDetails['issueYear'] ? `Năm ${rawDetails['issueYear']}` : ''),
+    keywords: (rawDetails['keywords'] as string | null) ?? null,
+    abstract: (rawDetails['abstract'] as string | null) ?? null,
+    description: (rawDetails['description'] as string | null) ?? null,
   } : null);
   const isExpiringSoon = details?.daysRemaining !== undefined && details.daysRemaining !== null && details.daysRemaining <= 7;
   const keywordsList = metadata?.keywords
-    ? (metadata.keywords as string).split(',').map((k: string) => k.trim()).filter(Boolean)
+    ? metadata.keywords.split(',').map((k: string) => k.trim()).filter(Boolean)
     : [];
 
   const handleDownload = () => {
@@ -247,7 +247,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                             Từ khóa (Keywords)
                           </span>
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {(keywordsList as string[]).map((kw: string, i: number) => (
+                            {keywordsList.map((kw: string, i: number) => (
                               <span
                                 key={i}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-100 text-xs font-medium text-blue-700"
