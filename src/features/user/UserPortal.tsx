@@ -87,12 +87,12 @@ export const UserPortal: React.FC = () => {
   // Notification Banner State
   const [notification, setNotification] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
 
-  const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const showNotification = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setNotification({ type, message });
     setTimeout(() => {
       setNotification(null);
     }, 4000);
-  };
+  }, []);
 
   // Nạp danh sách file từ backend (My Drive)
   const fetchDriveItems = useCallback(async (folderId: string | null = null, search?: string) => {
