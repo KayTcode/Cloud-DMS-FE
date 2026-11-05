@@ -21,6 +21,7 @@ export const SharedStoreView: React.FC = () => {
   const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
   const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +50,7 @@ export const SharedStoreView: React.FC = () => {
         setBreadcrumb(res.breadcrumb);
       }
       setApiFolders(res.folders);
+      setIsReadOnly(res.isReadOnly ?? false);
     } catch (err) {
       console.error('Lỗi nạp thư mục kho chung:', err);
     }
@@ -154,6 +156,17 @@ export const SharedStoreView: React.FC = () => {
       showNotification('Đã đổi tên tệp thành công!', 'success');
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Đổi tên tệp thất bại.';
+      showNotification(msg, 'error');
+    }
+  };
+
+  const handleConfirmHandover = async (folderId: string) => {
+    try {
+      await folderApi.confirmHandover(folderId);
+      await fetchFolders(currentFolderId);
+      showNotification('Đã tiếp nhận bàn giao.', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
       showNotification(msg, 'error');
     }
   };
@@ -322,6 +335,8 @@ export const SharedStoreView: React.FC = () => {
           onRenameFile={handleRenameFile}
           driveKind="DepartmentShared"
           driveOwnerId={deptId}
+          isReadOnly={isReadOnly}
+          onConfirmHandover={handleConfirmHandover}
           onUnshareFromDepartment={async (item) => {
             try {
               await driveApi.unshareFromDepartment(item.id);
