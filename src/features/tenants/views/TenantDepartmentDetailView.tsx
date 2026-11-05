@@ -334,7 +334,7 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
         tenantId={tenantId}
         departmentId={detail.id}
         departmentName={detail.name}
-        onShowToast={showToast}
+        onShowToast={(message, type) => showToast(type, message)}
         onQuotaChanged={loadDetail}
       />
 

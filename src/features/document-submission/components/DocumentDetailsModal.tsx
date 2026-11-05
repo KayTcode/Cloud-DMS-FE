@@ -69,7 +69,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   const metadata = details?.metadata || ((details as any)?.title ? {
     id: (details as any).metadataId || '',
-    fileEntryId: details.fileId || '',
+    fileEntryId: details?.fileId || '',
     author: (details as any).author || (details as any).ownerName || '',
     title: (details as any).title,
     otherTitle: (details as any).otherTitle,
@@ -83,7 +83,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
   } : null);
   const isExpiringSoon = details?.daysRemaining !== undefined && details.daysRemaining !== null && details.daysRemaining <= 7;
   const keywordsList = metadata?.keywords
-    ? metadata.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+    ? (metadata.keywords as string).split(',').map((k: string) => k.trim()).filter(Boolean)
     : [];
 
   const handleDownload = () => {
@@ -247,7 +247,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                             Từ khóa (Keywords)
                           </span>
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {keywordsList.map((kw, i) => (
+                            {(keywordsList as string[]).map((kw: string, i: number) => (
                               <span
                                 key={i}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-100 text-xs font-medium text-blue-700"

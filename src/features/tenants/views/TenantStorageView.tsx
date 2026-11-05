@@ -1123,6 +1123,8 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* 5.6. MODAL XEM CHI TIẾT TỆP TIN (File Detail Inspector Modal) */}
       {selectedFileForDetail && (

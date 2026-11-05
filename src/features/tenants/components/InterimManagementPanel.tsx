@@ -450,7 +450,7 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
             </p>
           </div>
           <PendingQuotaTable
-            onDecideSuccess={() => {
+            onDecisionSuccess={() => {
               refreshDeptData();
               onRefresh();
             }}
@@ -479,9 +479,10 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
       <OffboardEmployeeModal
         isOpen={!!selectedMemberForOffboard}
         onClose={() => setSelectedMemberForOffboard(null)}
-        employee={selectedMemberForOffboard}
-        departmentId={department.id}
-        departmentName={department.name}
+        employee={selectedMemberForOffboard as any}
+        department={{ id: department.id, name: department.name } as any}
+        departmentMembers={[]}
+        custodianUserId=""
         onSuccess={() => {
           refreshDeptData();
           onRefresh();

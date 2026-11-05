@@ -1625,7 +1625,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                                 </button>
                                 <button
                                   onClick={() => {
-                                    docModals.openEdit(file.id);
+                                    docModals.openEdit(file.id as any);
                                     setActiveMenuId(null);
                                   }}
                                   className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
@@ -1645,7 +1645,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                                 </button>
                                 <button
                                   onClick={() => {
-                                    docModals.openExtend(file.id, file.name);
+                                    docModals.openExtend(file.id as any);
                                     setActiveMenuId(null);
                                   }}
                                   className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
@@ -1736,7 +1736,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                                     Siêu dữ liệu
                                   </span>
                                   <span className="text-[10px] text-slate-400 font-medium">
-                                    Năm {file.metadata.issueYear}
+                                    Năm {(file.metadata as any).issueYear ?? file.metadata.releaseYear}
                                   </span>
                                 </div>
                                 <h5 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug">
