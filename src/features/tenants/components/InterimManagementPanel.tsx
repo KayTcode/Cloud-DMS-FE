@@ -85,7 +85,7 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
 
   // Modals for Staff & Quota
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<any | null>(null);
+  const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
   const [selectedMemberForOffboard, setSelectedMemberForOffboard] = useState<DepartmentMember | null>(null);
 
   // Catch NotVacant errors and trigger onRefresh
@@ -310,9 +310,17 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
                           onClick={() =>
                             setSelectedMemberForQuota({
                               id: emp.id,
-                              name: emp.fullName,
+                              name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
                               email: emp.email,
+                              role: emp.roles?.[0] || 'Employee',
+                              subTeam: '',
                               allocatedQuotaGB: Math.round(((emp.storageQuotaBytes || 0) / (1024 ** 3)) * 100) / 100,
+                              usedSpaceGB: 0,
+                              fileCount: 0,
+                              lastActive: emp.createdAt,
+                              status: emp.isActive ? 'active' : 'paused',
+                              avatarInitials: ((emp.firstName || '')[0] || '') + ((emp.lastName || '')[0] || ''),
+                              avatarColor: 'slate',
                             })
                           }
                           className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded cursor-pointer transition-colors"

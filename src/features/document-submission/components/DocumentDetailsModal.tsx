@@ -67,19 +67,18 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   if (!isOpen || !fileId) return null;
 
-  const rawDetails = details as unknown as Record<string, unknown>;
-  const metadata: DocumentMetadataDto | null = details?.metadata ?? (rawDetails?.['title'] != null ? {
-    id: (rawDetails['metadataId'] as string) || '',
-    fileEntryId: details?.fileId || '',
-    author: (rawDetails['author'] as string) || (rawDetails['ownerName'] as string) || '',
-    title: rawDetails['title'] as string,
-    releaseYear: (rawDetails['issueYear'] as number) || (rawDetails['releaseYear'] as number) || 0,
-    releaseMonth: (rawDetails['issueMonth'] as number | null) ?? (rawDetails['releaseMonth'] as number | null) ?? null,
-    releaseDay: (rawDetails['issueDay'] as number | null) ?? (rawDetails['releaseDay'] as number | null) ?? null,
-    releaseDateFormatted: (rawDetails['releaseDateFormatted'] as string) || (rawDetails['issueYear'] ? `Năm ${rawDetails['issueYear']}` : ''),
-    keywords: (rawDetails['keywords'] as string | null) ?? null,
-    abstract: (rawDetails['abstract'] as string | null) ?? null,
-    description: (rawDetails['description'] as string | null) ?? null,
+  const metadata: DocumentMetadataDto | null = details?.metadata ?? (details?.title != null ? {
+    id: details.metadataId || '',
+    fileEntryId: details.fileId || '',
+    author: details.author || details.ownerName || '',
+    title: details.title,
+    releaseYear: details.issueYear || details.releaseYear || 0,
+    releaseMonth: details.issueMonth ?? details.releaseMonth ?? null,
+    releaseDay: details.issueDay ?? details.releaseDay ?? null,
+    releaseDateFormatted: details.releaseDateFormatted || (details.issueYear ? `Năm ${details.issueYear}` : ''),
+    keywords: details.keywords ?? null,
+    abstract: details.abstract ?? null,
+    description: details.description ?? null,
   } : null);
   const isExpiringSoon = details?.daysRemaining !== undefined && details.daysRemaining !== null && details.daysRemaining <= 7;
   const keywordsList = metadata?.keywords

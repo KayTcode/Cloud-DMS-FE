@@ -26,6 +26,21 @@ export interface DocumentDetailsDto {
   expiresAt?: string | null;
   daysRemaining?: number | null;
   metadata?: DocumentMetadataDto | null;
+  // Flat metadata fields some API responses return directly on the DTO
+  metadataId?: string;
+  title?: string;
+  author?: string;
+  ownerName?: string;
+  issueYear?: number;
+  releaseYear?: number;
+  issueMonth?: number | null;
+  releaseMonth?: number | null;
+  issueDay?: number | null;
+  releaseDay?: number | null;
+  releaseDateFormatted?: string;
+  keywords?: string | null;
+  abstract?: string | null;
+  description?: string | null;
 }
 
 export interface DocumentSubmissionResultDto {
