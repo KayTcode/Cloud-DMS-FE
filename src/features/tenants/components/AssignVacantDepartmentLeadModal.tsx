@@ -269,7 +269,7 @@ export const AssignVacantDepartmentLeadModal: React.FC<AssignVacantDepartmentLea
 
                   <div className="bg-white p-2.5 rounded-lg border border-slate-100">
                     <span className="text-[11px] text-slate-400 block">Quota bàn giao cho Lead mới:</span>
-                    <strong className="text-blue-700 block">{formatBytes(result.quotaToNewLeadBytes)}</strong>
+                    <strong className="text-blue-700 block">{result.quotaToNewLeadBytes != null ? formatBytes(result.quotaToNewLeadBytes) : '—'}</strong>
                     <span className="text-[10px] text-slate-500">Từ kho tạm giữ</span>
                   </div>
                 </div>

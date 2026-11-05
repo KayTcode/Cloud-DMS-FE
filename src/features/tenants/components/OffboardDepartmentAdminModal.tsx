@@ -434,7 +434,7 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                   </div>
                   <div className="text-[11px] text-amber-900/90 space-y-2 pl-4 border-l-2 border-amber-300">
                     <p>
-                      • Toàn bộ tệp tin và thư mục cá nhân của Trưởng phòng cũ sẽ được tự động gom vào Thư mục Bàn giao chuyên biệt trong <strong>Kho dùng chung của Phòng ban</strong> (Department-Shared Drive).
+                      • Tệp cá nhân chưa chia sẻ của Trưởng phòng cũ được <strong>giữ riêng</strong> cho tới khi bổ nhiệm Trưởng phòng mới — không chuyển vào Kho chung ngay lúc này.
                     </p>
                     <p>
                       • Hạn mức lưu trữ (Quota) được điều chuyển bảo toàn sang Quota Kho chung phòng ban (Zero Quota Leakage).
