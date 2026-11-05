@@ -242,6 +242,8 @@ export const UserPortal: React.FC = () => {
     } else if (activeNav === 'shared') {
       setActiveTab('shared');
       setActiveFilter('all');
+    } else if (activeNav === 'shared-store') {
+      setActiveTab('shared-store');
     }
   }, [activeNav]);
 
