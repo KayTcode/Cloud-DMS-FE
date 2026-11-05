@@ -23,6 +23,7 @@ import {
 } from '@/features/quota';
 import { getSharedStoreQuotaApi, setSharedStoreQuotaApi, getQuotaBreakdown, DepartmentQuotaBreakdownDto } from '../api/departmentApi';
 import { useDepartment } from '../context/DepartmentContext';
+import { formatBytes } from '../utils/quotaUtils';
 
 const formatBytesSimple = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -365,28 +366,28 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
                   <div
                     className="bg-purple-500 h-full"
                     style={{ width: `${(breakdown.leadBytes / breakdown.totalBytes) * 100}%` }}
-                    title={`Trưởng phòng: ${formatBytesSimple(breakdown.leadBytes)}`}
+                    title={`Trưởng phòng: ${formatBytes(breakdown.leadBytes)}`}
                   />
                 )}
                 {breakdown.employeesBytes > 0 && (
                   <div
                     className="bg-blue-500 h-full"
                     style={{ width: `${(breakdown.employeesBytes / breakdown.totalBytes) * 100}%` }}
-                    title={`Nhân viên: ${formatBytesSimple(breakdown.employeesBytes)}`}
+                    title={`Nhân viên: ${formatBytes(breakdown.employeesBytes)}`}
                   />
                 )}
                 {breakdown.sharedBytes > 0 && (
                   <div
                     className="bg-indigo-400 h-full"
                     style={{ width: `${(breakdown.sharedBytes / breakdown.totalBytes) * 100}%` }}
-                    title={`Kho chung: ${formatBytesSimple(breakdown.sharedBytes)}`}
+                    title={`Kho chung: ${formatBytes(breakdown.sharedBytes)}`}
                   />
                 )}
                 {breakdown.freeBytes > 0 && (
                   <div
                     className="bg-slate-100 h-full"
                     style={{ width: `${(breakdown.freeBytes / breakdown.totalBytes) * 100}%` }}
-                    title={`Còn trống: ${formatBytesSimple(breakdown.freeBytes)}`}
+                    title={`Còn trống: ${formatBytes(breakdown.freeBytes)}`}
                   />
                 )}
               </div>
@@ -395,22 +396,22 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
                 <div className="flex items-center gap-1.5 text-xs text-slate-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
                   <span>Trưởng phòng</span>
-                  <span className="font-semibold text-slate-800">{formatBytesSimple(breakdown.leadBytes)}</span>
+                  <span className="font-semibold text-slate-800">{formatBytes(breakdown.leadBytes)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 shrink-0" />
                   <span>Nhân viên</span>
-                  <span className="font-semibold text-slate-800">{formatBytesSimple(breakdown.employeesBytes)}</span>
+                  <span className="font-semibold text-slate-800">{formatBytes(breakdown.employeesBytes)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-indigo-400 shrink-0" />
                   <span>Kho chung</span>
-                  <span className="font-semibold text-slate-800">{formatBytesSimple(breakdown.sharedBytes)}</span>
+                  <span className="font-semibold text-slate-800">{formatBytes(breakdown.sharedBytes)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300 shrink-0" />
                   <span>Còn trống</span>
-                  <span className="font-semibold text-emerald-700">{formatBytesSimple(breakdown.freeBytes)}</span>
+                  <span className="font-semibold text-emerald-700">{formatBytes(breakdown.freeBytes)}</span>
                 </div>
               </div>
             </>
