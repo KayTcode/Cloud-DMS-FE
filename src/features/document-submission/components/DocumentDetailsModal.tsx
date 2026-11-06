@@ -69,7 +69,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   const metadata = details?.metadata || ((details as any)?.title ? {
     id: (details as any).metadataId || '',
-    fileEntryId: details.fileId || '',
+    fileEntryId: details?.fileId || '',
     author: (details as any).author || (details as any).ownerName || '',
     title: (details as any).title,
     otherTitle: (details as any).otherTitle,
@@ -83,7 +83,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
   } : null);
   const isExpiringSoon = details?.daysRemaining !== undefined && details.daysRemaining !== null && details.daysRemaining <= 7;
   const keywordsList = metadata?.keywords
-    ? metadata.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+    ? metadata.keywords.split(',').map((k: string) => k.trim()).filter(Boolean)
     : [];
 
   const handleDownload = () => {
@@ -120,7 +120,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
           {isLoading && (
             <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
               <div className="w-8 h-8 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
-              <p className="text-sm">Đang tải siêu dữ liệu tài liệu...</p>
+              <p className="text-sm">Đang tải thông tin chi tiết tài liệu...</p>
             </div>
           )}
 
@@ -193,7 +193,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                 >
-                  Siêu Dữ Liệu Mô Tả
+                  Thông Tin Mô Tả
                 </button>
                 <button
                   type="button"
@@ -247,7 +247,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                             Từ khóa (Keywords)
                           </span>
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {keywordsList.map((kw, i) => (
+                            {keywordsList.map((kw: string, i: number) => (
                               <span
                                 key={i}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-100 text-xs font-medium text-blue-700"
@@ -284,7 +284,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                     </>
                   ) : (
                     <div className="py-8 text-center text-slate-400">
-                      <p className="text-sm">Tài liệu này chưa có bản ghi siêu dữ liệu mô tả.</p>
+                      <p className="text-sm">Tài liệu này chưa có bản ghi thông tin mô tả.</p>
                     </div>
                   )}
                 </div>
@@ -337,7 +337,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors cursor-pointer"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      <span>Sửa siêu dữ liệu</span>
+                      <span>Sửa thông tin tệp</span>
                     </button>
                   )}
 

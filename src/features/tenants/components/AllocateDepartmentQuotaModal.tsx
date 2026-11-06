@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, HardDrive, AlertCircle, Loader2, Check, Sparkles } from 'lucide-react';
+import { X, HardDrive, AlertCircle, Loader2, Check, Sparkles, Layers } from 'lucide-react';
 import { Department } from '@/features/tenants/types';
 import { useTenantContext } from '@/context/TenantContext';
 
@@ -115,6 +115,35 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
               <span className="text-slate-500">Trưởng phòng phụ trách:</span>
               <span className="font-medium text-slate-700">{department.lead}</span>
             </div>
+
+            {/* Multi-Drive Breakdown */}
+            {tenant.allocations && tenant.allocations.length > 0 && (
+              <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                  <span className="flex items-center gap-1 font-semibold text-slate-700">
+                    <Layers className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Nguồn Drive khả dụng ({tenant.allocations.length}):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Tự động trích theo FIFO</span>
+                </div>
+                <div className="space-y-1 max-h-32 overflow-y-auto pr-0.5">
+                  {tenant.allocations.map((alloc) => {
+                    const freeBytes = Math.max(0, alloc.grantedBytes - alloc.allocatedToChildrenBytes);
+                    const freeGB = Number((freeBytes / (1024 ** 3)).toFixed(1));
+                    return (
+                      <div key={alloc.allocationId} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/70 font-mono">
+                        <span className="text-slate-700 font-sans truncate mr-2" title={alloc.storageProviderName}>
+                          {alloc.storageProviderName}
+                        </span>
+                        <span className="text-emerald-700 font-semibold shrink-0">
+                          còn {freeGB} GB
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Input Quota */}
@@ -150,11 +179,10 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
                   type="button"
                   key={preset}
                   onClick={() => setQuotaGB(preset)}
-                  className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors cursor-pointer ${
-                    quotaGB === preset
+                  className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors cursor-pointer ${quotaGB === preset
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   {preset} GB
                 </button>

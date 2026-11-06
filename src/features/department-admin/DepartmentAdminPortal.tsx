@@ -27,7 +27,7 @@ import { bytesToGB, gbToBytes } from './utils/quotaUtils';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
-  const { activeNav, setActiveNav } = useTenantContext();
+  const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const {
     hasDepartment,
     summary,
@@ -39,7 +39,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
   } = useDepartment();
 
   const [activeTab, setActiveTab] = useState<DepartmentNavTab>('hub');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
@@ -245,6 +244,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
               else setActiveNav('dashboard');
             }}
             onNavigateToReport={() => handleNavigateTab('report')}
+            searchFilter={searchQuery}
+            onSearchChange={setSearchQuery}
           />
         )}
 

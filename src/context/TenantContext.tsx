@@ -208,6 +208,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           actualStorageUsedBytes: summary.actualStorageUsedBytes,
           availableBytes: summary.availableBytes,
           usagePercentage: summary.usagePercentage,
+          allocations: summary.allocations,
         });
 
         const qBytes = summary.storageQuotaBytes;
@@ -234,6 +235,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           availableBytes: availBytes,
           storageProviderName: summary.storageProviderName,
           usagePercentage: usagePct,
+          allocations: summary.allocations,
         }));
       }
 
@@ -302,6 +304,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             availableBytes: availBytes,
             storageProviderName: loadedQuota?.storageProviderName,
             usagePercentage: usagePct,
+            allocations: loadedQuota?.allocations,
           };
         });
       }

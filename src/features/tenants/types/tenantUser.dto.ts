@@ -24,6 +24,7 @@ export interface CreateDepartmentAdminPayload {
   phoneNumber?: string;
   departmentId?: string; // Optional: Có thể gán hoặc để trống
   storageQuotaBytes?: number;
+  storageProviderId?: string;
 }
 
 export interface Department {

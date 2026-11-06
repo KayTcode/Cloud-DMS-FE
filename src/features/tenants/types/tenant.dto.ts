@@ -1,3 +1,5 @@
+import type { TenantQuotaAllocationItem } from '../api/tenantQueries';
+
 export type ActiveTab =
   | 'hub'
   | 'overview'
@@ -47,6 +49,7 @@ export interface TenantInfo {
   usagePercentage?: number;
   totalFilesCount?: number;
   fileCategories?: FileCategoryBreakdown;
+  allocations?: TenantQuotaAllocationItem[];
 }
 
 export interface TenantEvent {

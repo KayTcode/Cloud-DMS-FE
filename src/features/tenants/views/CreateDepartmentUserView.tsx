@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, Building2, Shield, Check, Info, Mail, Loader2 } from 'lucide-react';
+import { ArrowLeft, UserPlus, Building2, Shield, Check, Info, Mail, Loader2, HardDrive, Layers, AlertCircle, Cloud } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
 import { TenantUser } from '@/features/tenants/types';
 
@@ -13,18 +13,44 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
   onBack,
   defaultDepartment,
 }) => {
-  const { departments, handleCreateDepartmentAdmin, handleUserCreated } = useTenantContext();
+  const { tenant, departments, handleCreateDepartmentAdmin, handleUserCreated } = useTenantContext();
 
   const [selectedDeptId, setSelectedDeptId] = useState<string>(defaultDepartment || '');
+  const [selectedStorageProviderId, setSelectedStorageProviderId] = useState<string>('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [role, setRole] = useState('Department Administrator');
-  const [quotaGB, setQuotaGB] = useState('50');
+  const [quotaGB, setQuotaGB] = useState('10');
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [requirePasswordReset, setRequirePasswordReset] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Quota còn trống (chưa phân bổ cho các phòng ban) của Tenant
+  const unallocatedBytes = tenant.unallocatedBytes !== undefined
+    ? tenant.unallocatedBytes
+    : (tenant.availableBytes !== undefined
+      ? tenant.availableBytes
+      : Math.max(0, (tenant.storageQuotaBytes || 0) - (tenant.allocatedToDepartmentsBytes || 0)));
+  const unallocatedQuotaGB = Number((unallocatedBytes / (1024 ** 3)).toFixed(1));
+
+  const selectedDept = departments.find((d) => d.id === selectedDeptId);
+  const deptAllocatedGB = selectedDept?.allocatedStorageGB || 0;
+
+  const chosenAlloc = tenant.allocations?.find((a) => a.storageProviderId === selectedStorageProviderId);
+  const chosenProviderFreeBytes = chosenAlloc
+    ? Math.max(0, chosenAlloc.grantedBytes - chosenAlloc.allocatedToChildrenBytes)
+    : 0;
+  const chosenProviderFreeGB = Number((chosenProviderFreeBytes / (1024 ** 3)).toFixed(1));
+
+  // Hạn mức khả dụng tối đa phụ thuộc vào việc chọn nguồn Provider hay chọn tự động
+  const maxAllowedGB = selectedStorageProviderId
+    ? chosenProviderFreeGB
+    : (selectedDept ? deptAllocatedGB : unallocatedQuotaGB);
+
+  const quotaNum = Number(quotaGB);
+  const isOverQuota = !isNaN(quotaNum) && maxAllowedGB > 0 && quotaNum > maxAllowedGB;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +67,18 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
       return;
     }
 
+    const quotaVal = Number(quotaGB);
+    if (!isNaN(quotaVal) && quotaVal > 0) {
+      if (selectedStorageProviderId && quotaVal > chosenProviderFreeGB) {
+        setErrorMessage(`Hạn mức yêu cầu (${quotaVal} GB) vượt quá dung lượng khả dụng của Drive "${chosenAlloc?.storageProviderName}" (Khả dụng còn: ${chosenProviderFreeGB} GB).`);
+        return;
+      }
+      if (!selectedStorageProviderId && maxAllowedGB > 0 && quotaVal > maxAllowedGB) {
+        setErrorMessage(`Hạn mức yêu cầu (${quotaVal} GB) vượt quá dung lượng khả dụng tối đa (${maxAllowedGB} GB).`);
+        return;
+      }
+    }
+
     // Split First & Last Name
     const nameParts = trimmedName.split(' ');
     const firstName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : nameParts[0];
@@ -48,9 +86,8 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
 
     setIsSubmitting(true);
     try {
-      const quotaNum = Number(quotaGB);
-      const storageQuotaBytes = !isNaN(quotaNum) && quotaNum > 0
-        ? Math.round(quotaNum * 1024 * 1024 * 1024)
+      const storageQuotaBytes = !isNaN(quotaVal) && quotaVal > 0
+        ? Math.round(quotaVal * 1024 * 1024 * 1024)
         : undefined;
 
       // Auto-assign as Department Admin via Email Invitation
@@ -61,6 +98,7 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
         phoneNumber: phoneNumber.trim() || undefined,
         departmentId: selectedDeptId ? selectedDeptId : undefined,
         storageQuotaBytes: storageQuotaBytes,
+        storageProviderId: selectedStorageProviderId ? selectedStorageProviderId : undefined,
       });
 
       if (!success) {
@@ -235,23 +273,155 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
               />
             </div>
 
-            {/* Storage Quota */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Dung lượng cấp phát cá nhân (GB)
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="5"
-                  max="1000"
-                  value={quotaGB}
-                  onChange={(e) => setQuotaGB(e.target.value)}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
-                />
-                <span className="text-xs text-slate-500 font-medium">GB</span>
+            {/* Storage Quota & Provider Source */}
+            <div className="space-y-4 md:col-span-2 p-4 rounded-xl bg-slate-50/80 border border-slate-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                    <HardDrive className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800">
+                      Hạn mức Quota & Nguồn Lưu Trữ (Storage Provider)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Chỉ định dung lượng và nguồn Cloud Storage cấp cho Trưởng phòng
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-left sm:text-right bg-white sm:bg-transparent p-2 sm:p-0 rounded-lg border sm:border-0 border-slate-200/70">
+                  <span className="text-[11px] text-slate-500">Khả dụng cho phép: </span>
+                  <span className="text-xs font-bold font-mono text-emerald-600">
+                    {maxAllowedGB} GB
+                  </span>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Hạn mức lưu trữ tài liệu cá nhân trên Cloud DMS.</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2.5 border-t border-slate-200/70">
+                {/* Quota Input */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                    Dung lượng cấp phát cá nhân (GB) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={quotaGB}
+                      onChange={(e) => setQuotaGB(e.target.value)}
+                      className={`w-full text-xs border rounded-lg px-3 py-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 transition-all font-mono ${
+                        isOverQuota
+                          ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500 text-rose-700 font-bold'
+                          : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
+                      }`}
+                    />
+                    <span className="text-xs text-slate-500 font-medium">GB</span>
+                  </div>
+                  {isOverQuota ? (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Vượt quá dung lượng khả dụng ({maxAllowedGB} GB). Vui lòng điều chỉnh lại.</span>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Hạn mức lưu trữ tài liệu cá nhân của Trưởng phòng trên Cloud DMS.
+                    </p>
+                  )}
+                </div>
+
+                {/* Storage Provider Selector */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                    Chỉ định Nguồn Lưu Trữ (Drive Provider)
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedStorageProviderId}
+                      onChange={(e) => setSelectedStorageProviderId(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer font-medium"
+                    >
+                      <option value="">⚡ Tự động phân bổ (FIFO - Theo chính sách hệ thống)</option>
+                      {tenant.allocations && tenant.allocations.map((alloc) => {
+                        const freeBytes = Math.max(0, alloc.grantedBytes - alloc.allocatedToChildrenBytes);
+                        const freeGB = Number((freeBytes / (1024 ** 3)).toFixed(1));
+                        return (
+                          <option key={alloc.storageProviderId} value={alloc.storageProviderId}>
+                            ☁️ {alloc.storageProviderName} (Còn trống: {freeGB} GB)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {selectedStorageProviderId
+                      ? `Quota sẽ được trích trực tiếp từ ${chosenAlloc?.storageProviderName || 'Drive đã chọn'}.`
+                      : 'Hệ thống tự động trích quota từ các Drive khả dụng theo thời gian nạp.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Multi-Drive Breakdown Cards */}
+              {tenant.allocations && tenant.allocations.length > 0 && (
+                <div className="pt-3 border-t border-slate-200/70 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-medium text-slate-600">
+                    <span className="flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Các Drive khả dụng của Doanh nghiệp ({tenant.allocations.length}):</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">Bấm vào Drive để chọn nhanh</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {tenant.allocations.map((alloc) => {
+                      const freeBytes = Math.max(0, alloc.grantedBytes - alloc.allocatedToChildrenBytes);
+                      const freeGB = Number((freeBytes / (1024 ** 3)).toFixed(1));
+                      const grantedGB = Number((alloc.grantedBytes / (1024 ** 3)).toFixed(1));
+                      const isSelected = selectedStorageProviderId === alloc.storageProviderId;
+
+                      return (
+                        <div
+                          key={alloc.allocationId}
+                          onClick={() => setSelectedStorageProviderId(isSelected ? '' : alloc.storageProviderId)}
+                          className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                            isSelected
+                              ? 'bg-blue-50/90 border-blue-400 ring-1 ring-blue-400/40 shadow-xs'
+                              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-slate-800 truncate" title={alloc.storageProviderName}>
+                              {alloc.storageProviderName}
+                            </span>
+                            {isSelected && (
+                              <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded font-semibold shrink-0">
+                                Đã chọn
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Khả dụng:</span>
+                            <span className="font-mono font-bold text-emerald-600">{freeGB} GB</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                            <div
+                              className="bg-blue-600 h-1.5 rounded-full"
+                              style={{
+                                width: `${Math.min(100, Math.round(((alloc.grantedBytes - freeBytes) / (alloc.grantedBytes || 1)) * 100))}%`
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[9px] text-slate-400 mt-1">
+                            <span>Tổng: {grantedGB} GB</span>
+                            <span>Đã chia: {Number(((alloc.grantedBytes - freeBytes) / (1024 ** 3)).toFixed(1))} GB</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -306,8 +476,8 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={isSubmitting || isOverQuota}
+                className="px-5 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>

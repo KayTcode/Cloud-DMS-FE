@@ -29,7 +29,7 @@ import {
 import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb';
-import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
+import { DocumentModalsContainer, useDocumentModals, DocumentContextMenu } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 
 interface DriveViewProps {
@@ -119,9 +119,25 @@ export const DriveView: React.FC<DriveViewProps> = ({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchName = item.name.toLowerCase().includes(q);
-      const matchTags = item.tags.some((t) => t.toLowerCase().includes(q));
-      const matchDept = item.department?.toLowerCase().includes(q);
-      return matchName || matchTags || matchDept;
+      const matchTags = item.tags ? item.tags.some((t) => t.toLowerCase().includes(q)) : false;
+      const matchDept = item.department ? item.department.toLowerCase().includes(q) : false;
+      const matchTitle = item.metadata?.title ? item.metadata.title.toLowerCase().includes(q) : false;
+      const matchOtherTitle = item.metadata?.otherTitle ? item.metadata.otherTitle.toLowerCase().includes(q) : false;
+      const matchAuthor = item.metadata?.author ? item.metadata.author.toLowerCase().includes(q) : false;
+      const matchKeywords = item.metadata?.keywords ? item.metadata.keywords.toLowerCase().includes(q) : false;
+      const matchAbstract = item.metadata?.abstract ? item.metadata.abstract.toLowerCase().includes(q) : false;
+      const matchDescription = item.metadata?.description ? item.metadata.description.toLowerCase().includes(q) : false;
+      return (
+        matchName ||
+        matchTags ||
+        matchDept ||
+        matchTitle ||
+        matchOtherTitle ||
+        matchAuthor ||
+        matchKeywords ||
+        matchAbstract ||
+        matchDescription
+      );
     }
 
     // In trash view, all items are already filtered by server
@@ -642,7 +658,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                     <div
                       key={file.id}
                       onClick={() => onOpenFilePreview(file)}
-                      className="bg-white rounded-xl border overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group border-slate-200/90 hover:border-blue-400"
+                      className="bg-white rounded-xl border hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group border-slate-200/90 hover:border-blue-400"
                     >
                       {/* Card Content Top */}
                       <div className="p-4 space-y-3">
@@ -664,12 +680,14 @@ export const DriveView: React.FC<DriveViewProps> = ({
                             </div>
                           </div>
 
-                          <button
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleStar(file.id);
                               }}
-                              className="text-slate-300 hover:text-amber-500 transition-colors shrink-0 p-1 cursor-pointer"
+                              className="text-slate-300 hover:text-amber-500 transition-colors p-1 cursor-pointer"
+                              title={file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}
                             >
                               <Star
                                 className={`w-4 h-4 ${
@@ -677,6 +695,17 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 }`}
                               />
                             </button>
+
+                            <DocumentContextMenu
+                              file={file}
+                              docModals={docModals}
+                              onOpenPreview={() => onOpenFilePreview(file)}
+                              onDownload={() => onDownloadItem(file)}
+                              onShare={() => onShareItem(file)}
+                              onToggleStar={() => onToggleStar(file.id)}
+                              onDelete={() => onDeleteFile(file.id)}
+                            />
+                          </div>
                         </div>
 
                         {/* Tags */}
@@ -706,7 +735,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               docModals.openDetails(file.id);
                             }}
                             className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
-                            title="Xem chi tiết siêu dữ liệu tài liệu"
+                            title="Xem chi tiết tệp"
                           >
                             <FileText className="w-3.5 h-3.5" />
                           </button>
@@ -819,31 +848,33 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   type="button"
                                   onClick={() => docModals.openDetails(file.id)}
                                   className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
-                                  title="Xem chi tiết siêu dữ liệu tài liệu"
+                                  title="Xem chi tiết tệp"
                                 >
                                   <FileText className="w-4 h-4" />
                                 </button>
                                 <button
-                                      onClick={() => onShareItem(file)}
-                                      className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
-                                      title="Chia sẻ"
-                                    >
-                                      <Share2 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => onDownloadItem(file)}
-                                      className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
-                                      title="Tải về"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => onDeleteFile(file.id)}
-                                      className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
-                                      title="Chuyển vào thùng rác"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
+                                  onClick={() => onShareItem(file)}
+                                  className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                                  title="Chia sẻ"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => onDownloadItem(file)}
+                                  className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                                  title="Tải về"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <DocumentContextMenu
+                                  file={file}
+                                  docModals={docModals}
+                                  onOpenPreview={() => onOpenFilePreview(file)}
+                                  onDownload={() => onDownloadItem(file)}
+                                  onShare={() => onShareItem(file)}
+                                  onToggleStar={() => onToggleStar(file.id)}
+                                  onDelete={() => onDeleteFile(file.id)}
+                                />
                               </div>
                             </td>
                           </tr>
@@ -859,7 +890,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
       )}
 
     
-      {/* Bộ Modals quản lý tài liệu và siêu dữ liệu tập trung */}
+      {/* Bộ Modals quản lý tài liệu và thông tin tệp tập trung */}
       <DocumentModalsContainer
         parentFolderId={currentFolderId}
         {...docModals.containerProps}

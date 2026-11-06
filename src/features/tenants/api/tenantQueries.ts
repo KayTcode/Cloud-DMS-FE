@@ -3,6 +3,17 @@ import { API_ENDPOINTS } from '@/api/endpoints';
 import { TenantInfo, TenantUser, Department, TenantEvent, DepartmentDetail } from '@/features/tenants/types';
 import { initialTenant, initialEvents } from '@/data/tenantMockData';
 
+export interface TenantQuotaAllocationItem {
+  allocationId: string;
+  storageProviderId: string;
+  storageProviderName: string;
+  storageProviderType: number;
+  grantedBytes: number;
+  allocatedToChildrenBytes: number;
+  usedBytes: number;
+  createdAt?: string;
+}
+
 export interface TenantQuotaData {
   tenantId: string;
   tenantName: string;
@@ -17,6 +28,7 @@ export interface TenantQuotaData {
   actualStorageUsedBytes?: number; // Dung lượng dữ liệu file thực tế
   availableBytes: number;
   usagePercentage: number;
+  allocations?: TenantQuotaAllocationItem[];
 }
 
 /**
@@ -49,6 +61,18 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
         actualStorageUsedBytes: actualUsed,
         availableBytes: availBytes,
         usagePercentage: usagePct,
+        allocations: Array.isArray(data.allocations)
+          ? data.allocations.map((a: any) => ({
+              allocationId: a.allocationId || a.id,
+              storageProviderId: a.storageProviderId,
+              storageProviderName: a.storageProviderName || 'Cloud Storage',
+              storageProviderType: a.storageProviderType ?? 0,
+              grantedBytes: Number(a.grantedBytes || 0),
+              allocatedToChildrenBytes: Number(a.allocatedToChildrenBytes || 0),
+              usedBytes: Number(a.usedBytes || 0),
+              createdAt: a.createdAt,
+            }))
+          : [],
       };
     }
     return null;
@@ -84,6 +108,7 @@ export interface TenantOverviewSummary {
     othersBytes: number;
     othersCount: number;
   };
+  allocations?: TenantQuotaAllocationItem[];
 }
 
 /**
@@ -121,6 +146,18 @@ export async function getTenantOverviewSummary(tenantId: string): Promise<Tenant
           othersBytes: 0,
           othersCount: 0,
         },
+        allocations: Array.isArray(data.allocations)
+          ? data.allocations.map((a: any) => ({
+              allocationId: a.allocationId || a.id,
+              storageProviderId: a.storageProviderId,
+              storageProviderName: a.storageProviderName || 'Cloud Storage',
+              storageProviderType: a.storageProviderType ?? 0,
+              grantedBytes: Number(a.grantedBytes || 0),
+              allocatedToChildrenBytes: Number(a.allocatedToChildrenBytes || 0),
+              usedBytes: Number(a.usedBytes || 0),
+              createdAt: a.createdAt,
+            }))
+          : [],
       };
     }
     return null;

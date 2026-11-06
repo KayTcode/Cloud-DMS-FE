@@ -25,17 +25,21 @@ export function useDocumentModals(options: UseDocumentModalsOptions = {}) {
   const [editState, setEditState] = useState<{
     isOpen: boolean;
     details: DocumentDetailsDto | null;
+    fileId: string | null;
   }>({
     isOpen: false,
     details: null,
+    fileId: null,
   });
 
   const [extendState, setExtendState] = useState<{
     isOpen: boolean;
     details: DocumentDetailsDto | null;
+    fileId: string | null;
   }>({
     isOpen: false,
     details: null,
+    fileId: null,
   });
 
   const openSubmission = useCallback(() => setIsSubmissionOpen(true), []);
@@ -52,20 +56,28 @@ export function useDocumentModals(options: UseDocumentModalsOptions = {}) {
     setReplaceState({ isOpen: false, fileId: null, fileName: '' });
   }, []);
 
-  const openEdit = useCallback((details: DocumentDetailsDto) => {
+  const openEdit = useCallback((target: string | DocumentDetailsDto) => {
     setDetailsFileId(null);
-    setEditState({ isOpen: true, details });
+    if (typeof target === 'string') {
+      setEditState({ isOpen: true, details: null, fileId: target });
+    } else {
+      setEditState({ isOpen: true, details: target, fileId: target.fileId });
+    }
   }, []);
   const closeEdit = useCallback(() => {
-    setEditState({ isOpen: false, details: null });
+    setEditState({ isOpen: false, details: null, fileId: null });
   }, []);
 
-  const openExtend = useCallback((details: DocumentDetailsDto) => {
+  const openExtend = useCallback((target: string | DocumentDetailsDto, _fileName?: string) => {
     setDetailsFileId(null);
-    setExtendState({ isOpen: true, details });
+    if (typeof target === 'string') {
+      setExtendState({ isOpen: true, details: null, fileId: target });
+    } else {
+      setExtendState({ isOpen: true, details: target, fileId: target.fileId });
+    }
   }, []);
   const closeExtend = useCallback(() => {
-    setExtendState({ isOpen: false, details: null });
+    setExtendState({ isOpen: false, details: null, fileId: null });
   }, []);
 
   const handleSuccess = useCallback(

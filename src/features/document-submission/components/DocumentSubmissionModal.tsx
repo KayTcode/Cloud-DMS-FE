@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X,
   Upload,
@@ -61,12 +61,47 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
   const [errorMessage, setErrorMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
 
-  if (!isOpen) return null;
-
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
+
+  // Hàm xóa sạch trắng form khi nộp xong hoặc mở lại form mới
+  const resetForm = useCallback(() => {
+    setSelectedFile(null);
+    setTitle('');
+    setReleaseYear(new Date().getFullYear());
+    setReleaseMonth('');
+    setReleaseDay('');
+    setKeywords('');
+    setAbstract('');
+    setDescription('');
+    setRetentionOption(30);
+    setCustomDays(60);
+    setIsSubmitting(false);
+    setUploadPercent(0);
+    setErrorMessage('');
+    setDragActive(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  // Mỗi khi mở modal (isOpen = true), tự động làm trắng form 100%
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen, resetForm]);
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      resetForm();
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
 
   const effectiveRetentionDays = retentionOption === -1 ? customDays : retentionOption;
   const estimatedExpiryDate = new Date();
@@ -141,6 +176,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
         (percent) => setUploadPercent(percent)
       );
 
+      resetForm();
       if (onSuccess) {
         onSuccess(result);
       }
@@ -167,12 +203,12 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Nộp Tài Liệu Mới Kèm Siêu Dữ Liệu</h3>
-              <p className="text-xs text-slate-500">Tải tệp và mô tả thông tin ngữ nghĩa trong một thao tác duy nhất</p>
+              <h3 className="text-base font-bold text-slate-900">Nộp Tài Liệu Mới Kèm Thông Tin Mô Tả</h3>
+              <p className="text-xs text-slate-500">Tải tệp và khai báo thông tin tệp trong một thao tác duy nhất</p>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isSubmitting}
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
@@ -201,11 +237,10 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-                  dragActive
+                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${dragActive
                     ? 'border-blue-500 bg-blue-50/50'
                     : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/60'
-                }`}
+                  }`}
               >
                 <input
                   ref={fileInputRef}
@@ -239,7 +274,10 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                 {!isSubmitting && (
                   <button
                     type="button"
-                    onClick={() => setSelectedFile(null)}
+                    onClick={() => {
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                     title="Hủy chọn tệp"
                   >
@@ -410,11 +448,10 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                   type="button"
                   key={opt.value}
                   onClick={() => setRetentionOption(opt.value)}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all cursor-pointer text-left ${
-                    retentionOption === opt.value
+                  className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all cursor-pointer text-left ${retentionOption === opt.value
                       ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
                       : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -465,7 +502,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >

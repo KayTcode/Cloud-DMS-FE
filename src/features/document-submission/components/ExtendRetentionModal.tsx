@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Clock,
@@ -6,12 +6,14 @@ import {
   AlertCircle,
   CheckCircle2,
   PlusCircle,
+  Loader2,
 } from 'lucide-react';
 import { documentApi } from '../api/documentApi';
 import { DocumentDetailsDto } from '../types/document.types';
 
 interface ExtendRetentionModalProps {
   details: DocumentDetailsDto | null;
+  fileId?: string | null;
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -28,21 +30,69 @@ const EXTEND_OPTIONS = [
 
 export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
   details,
+  fileId,
   isOpen,
   onClose,
   onSuccess,
 }) => {
   const [selectedOption, setSelectedOption] = useState<number>(30);
   const [customDays, setCustomDays] = useState<number>(45);
+  const [currentDetails, setCurrentDetails] = useState<DocumentDetailsDto | null>(details);
+  const [isFetching, setIsFetching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  if (!isOpen || !details) return null;
+  const targetFileId =
+    fileId ||
+    (typeof details === 'string' ? details : (details as any)?.fileId || (details as any)?.id) ||
+    currentDetails?.fileId;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentDetails(null);
+      setErrorMessage('');
+      setIsFetching(false);
+      return;
+    }
+
+    if (typeof details === 'object' && details !== null && details.fileId) {
+      setCurrentDetails(details);
+      return;
+    }
+
+    if (targetFileId) {
+      let isMounted = true;
+      setIsFetching(true);
+      setErrorMessage('');
+
+      documentApi
+        .getDocumentDetails(targetFileId)
+        .then((data) => {
+          if (isMounted) setCurrentDetails(data);
+        })
+        .catch((err) => {
+          if (isMounted) {
+            console.error('Lỗi khi nạp chi tiết để gia hạn:', err);
+            setErrorMessage('Không thể tải thông tin hạn lưu trữ hiện tại của tài liệu.');
+          }
+        })
+        .finally(() => {
+          if (isMounted) setIsFetching(false);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [isOpen, details, fileId, targetFileId]);
+
+  if (!isOpen || !targetFileId) return null;
 
   const additionalDays = selectedOption === -1 ? customDays : selectedOption;
 
   // Tính toán ngày hết hạn mới
-  const currentExpiry = details.expiresAt ? new Date(details.expiresAt) : new Date();
+  const activeDetails = currentDetails || (typeof details === 'object' ? details : null);
+  const currentExpiry = activeDetails?.expiresAt ? new Date(activeDetails.expiresAt) : new Date();
   const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
   const newExpiryDate = new Date(baseDate);
   newExpiryDate.setDate(newExpiryDate.getDate() + additionalDays);
@@ -59,7 +109,7 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
 
     try {
       await documentApi.extendRetention({
-        fileId: details.fileId,
+        fileId: targetFileId,
         additionalDays,
       });
 
@@ -90,7 +140,9 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Gia Hạn Lưu Trữ Tài Liệu</h3>
-              <p className="text-xs text-slate-500 truncate max-w-xs">{details.fileName}</p>
+              <p className="text-xs text-slate-500 truncate max-w-xs">
+                {activeDetails?.fileName || 'Cập nhật vòng đời tệp tin'}
+              </p>
             </div>
           </div>
           <button
@@ -103,94 +155,104 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMessage && (
-            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* Trạng thái hiện tại & Ngày hết hạn mới */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-            <div className="flex justify-between items-center text-slate-600">
-              <span>Hạn lưu trữ hiện tại:</span>
-              <span className="font-semibold text-slate-900">
-                {details.expiresAt ? new Date(details.expiresAt).toLocaleDateString('vi-VN') : 'Không giới hạn'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-blue-700 font-medium pt-1 border-t border-slate-200">
-              <span>Hạn lưu trữ mới sau gia hạn:</span>
-              <span className="font-bold text-blue-800 text-sm">
-                {newExpiryDate.toLocaleDateString('vi-VN')}
-              </span>
-            </div>
+        {isFetching ? (
+          <div className="py-16 flex flex-col items-center justify-center gap-3 text-slate-500">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+            <p className="text-sm font-medium">Đang kiểm tra thời hạn lưu trữ của tệp...</p>
           </div>
-
-          {/* Chọn số ngày gia hạn */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Chọn khoảng thời gian muốn cộng thêm
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {EXTEND_OPTIONS.map((opt) => (
-                <button
-                  type="button"
-                  key={opt.value}
-                  onClick={() => setSelectedOption(opt.value)}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg border text-left transition-all cursor-pointer ${
-                    selectedOption === opt.value
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-
-            {selectedOption === -1 && (
-              <div className="flex items-center gap-2 pt-2.5">
-                <span className="text-xs text-slate-600">Số ngày thêm:</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={3650}
-                  value={customDays}
-                  onChange={(e) => setCustomDays(Math.max(1, Number(e.target.value)))}
-                  className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                />
-                <span className="text-xs text-slate-500">ngày</span>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {errorMessage && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
               </div>
             )}
-          </div>
 
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            * Sau khi gia hạn thành công, mốc cảnh báo 7 ngày trước khi hết hạn sẽ tự động được thiết lập lại cho chu kỳ mới.
-          </p>
+            {/* Trạng thái hiện tại & Ngày hết hạn mới */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-600">
+                <span>Hạn lưu trữ hiện tại:</span>
+                <span className="font-semibold text-slate-900">
+                  {activeDetails?.expiresAt ? new Date(activeDetails.expiresAt).toLocaleDateString('vi-VN') : 'Không giới hạn'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-blue-700 font-medium pt-1 border-t border-slate-200">
+                <span>Hạn lưu trữ mới sau gia hạn:</span>
+                <span className="font-bold text-blue-800 text-sm">
+                  {newExpiryDate.toLocaleDateString('vi-VN')}
+                </span>
+              </div>
+            </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-xl cursor-pointer"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>{isSubmitting ? 'Đang gia hạn...' : `Gia hạn (+${additionalDays} ngày)`}</span>
-            </button>
-          </div>
-        </form>
+            {/* Chọn số ngày gia hạn */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                Chọn khoảng thời gian muốn cộng thêm
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {EXTEND_OPTIONS.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    onClick={() => setSelectedOption(opt.value)}
+                    className={`px-3 py-2 text-xs font-medium rounded-lg border text-left transition-all cursor-pointer ${
+                      selectedOption === opt.value
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {selectedOption === -1 && (
+                <div className="flex items-center gap-2 pt-2.5">
+                  <span className="text-xs text-slate-600">Số ngày thêm:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={customDays}
+                    onChange={(e) => setCustomDays(Math.max(1, Number(e.target.value)))}
+                    className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  />
+                  <span className="text-xs text-slate-500">ngày</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              * Sau khi gia hạn thành công, mốc cảnh báo 7 ngày trước khi hết hạn sẽ tự động được thiết lập lại cho chu kỳ mới.
+            </p>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-xl cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <PlusCircle className="w-4 h-4" />
+                )}
+                <span>{isSubmitting ? 'Đang gia hạn...' : `Gia hạn (+${additionalDays} ngày)`}</span>
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
 };
-
