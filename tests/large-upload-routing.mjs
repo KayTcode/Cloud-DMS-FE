@@ -28,6 +28,12 @@ assert.equal(
 const manySmall = Array.from({ length: 1001 }, (_, i) => ({ size: 10, relativePath: `f${i}.txt` }));
 assert.equal(planUpload(manySmall).mode, 'tree');
 
+// Flat files, count <= 1000 but total size exceeds threshold ⇒ must route to 'tree', not 'zip-package'.
+assert.equal(
+  planUpload([{ size: 100 * 2 ** 20, relativePath: 'a.mp4' }, { size: 100 * 2 ** 20, relativePath: 'b.mp4' }]).mode,
+  'tree'
+);
+
 // Review Focus 5
 const focus5 = planUpload(
   [

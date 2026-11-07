@@ -87,6 +87,11 @@ export function planUpload(entries: SelectedEntry[], directories: string[] = [])
     return buildTreePlan(entries, directories);
   }
 
+  const totalSize = entries.reduce((sum, entry) => sum + entry.size, 0);
+  if (entries.length > 1 && totalSize > LARGE_FILE_THRESHOLD_BYTES) {
+    return buildTreePlan(entries, directories);
+  }
+
   if (entries.length === 1) {
     const [only] = entries;
     return only.size > LARGE_FILE_THRESHOLD_BYTES ? { mode: 'large-single' } : { mode: 'zip-single' };
