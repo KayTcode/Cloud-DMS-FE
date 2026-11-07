@@ -341,20 +341,29 @@ export const driveApi = {
   // is unknown (`undefined`, e.g. callers that only have a DTO without the
   // field), we optimistically try the link path first and fall back to the
   // legacy path only if the backend tells us to (`USE_PACKAGE_DOWNLOAD`).
-  downloadFile: async (fileId: string, fileName = 'download', archiveKind?: string | null): Promise<void> => {
-    const confirmUnscanned = async () =>
-      typeof window !== 'undefined'
-        ? window.confirm('Tệp này chưa được quét virus (có thể do quá lớn để quét). Bạn vẫn muốn tải về?')
-        : false;
+  downloadFile: async (
+    fileId: string,
+    fileName = 'download',
+    archiveKind?: string | null,
+    confirmUnscanned?: () => Promise<boolean>
+  ): Promise<void> => {
+    const confirmUnscannedResolved =
+      confirmUnscanned ??
+      (async () =>
+        typeof window !== 'undefined'
+          ? window.confirm(
+              'Tệp này quá lớn để quét virus. Hệ thống đã chặn các loại tệp thực thi, nhưng không thể đảm bảo tệp an toàn. Chỉ mở nếu bạn tin người gửi.'
+            )
+          : false);
 
     if (archiveKind === null) {
-      await downloadViaLink(fileId, { confirmUnscanned });
+      await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
       return;
     }
 
     if (archiveKind === undefined) {
       try {
-        await downloadViaLink(fileId, { confirmUnscanned });
+        await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
         return;
       } catch (error: any) {
         if (error?.code !== 'USE_PACKAGE_DOWNLOAD') throw error;

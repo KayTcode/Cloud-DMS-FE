@@ -451,10 +451,10 @@ export const UserPortal: React.FC = () => {
   };
 
   // Xử lý tải xuống tệp tin an toàn (GET /api/files/{id}/download)
-  const handleDownloadItem = async (item: DriveItem) => {
+  const handleDownloadItem = async (item: DriveItem, confirmUnscanned?: () => Promise<boolean>) => {
     try {
       showNotification(`Đang chuẩn bị tải xuống "${item.name}"...`, 'info');
-      await driveApi.downloadFile(item.id, item.name, item.archiveKind);
+      await driveApi.downloadFile(item.id, item.name, item.archiveKind, confirmUnscanned);
       showNotification(`Tải xuống "${item.name}" thành công!`, 'success');
     } catch (error: any) {
       console.error('Lỗi tải tệp tin:', error);

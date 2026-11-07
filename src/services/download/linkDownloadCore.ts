@@ -22,7 +22,7 @@
  */
 
 export const UNSCANNED_DOWNLOAD_DISABLED_MESSAGE =
-  'Tổ chức của bạn đã tắt tính năng tải về tệp chưa quét virus.';
+  'Tổ chức của bạn không cho phép tải tệp chưa được quét virus.';
 
 export const TOO_MANY_DOWNLOADS_MESSAGE =
   'Bạn đang tải quá nhiều tệp cùng lúc, vui lòng thử lại sau.';

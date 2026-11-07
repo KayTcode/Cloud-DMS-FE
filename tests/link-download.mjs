@@ -139,4 +139,36 @@ await run('packageFile_fallsBackToLegacy', async () => {
   assert.deepEqual(clicks, []);
 });
 
+await run('fixedMessages_matchSpecVerbatim', async () => {
+  assert.equal(
+    UNSCANNED_DOWNLOAD_DISABLED_MESSAGE,
+    'Tổ chức của bạn không cho phép tải tệp chưa được quét virus.'
+  );
+  assert.equal(
+    TOO_MANY_DOWNLOADS_MESSAGE,
+    'Bạn đang tải quá nhiều tệp cùng lúc, vui lòng thử lại sau.'
+  );
+});
+
+await run('unscanned_usesSuppliedConfirmUnscanned_notWindowConfirm', async () => {
+  const clicks = [];
+  const calls = [];
+  const createDownloadLink = async (fileId, ack) => {
+    calls.push(ack);
+    if (!ack) throw codeError('UNSCANNED_ACK_REQUIRED');
+    return { url: 'https://cdn.example.com/file-6' };
+  };
+  let dialogWasAsked = false;
+  // Simulates a caller passing a real-dialog-backed confirmUnscanned
+  // (e.g. DriveView's UnscannedDownloadDialog) instead of window.confirm.
+  const confirmUnscanned = async () => { dialogWasAsked = true; return true; };
+  await downloadViaLinkCore('file-6', { confirmUnscanned }, {
+    createDownloadLink,
+    document: fakeDocument(clicks),
+  });
+  assert.equal(dialogWasAsked, true);
+  assert.deepEqual(calls, [false, true]);
+  assert.deepEqual(clicks, ['https://cdn.example.com/file-6']);
+});
+
 console.log('PASS: downloadViaLink handles clean/unscanned-ack/disabled/rate-limit/package-fallback flows');

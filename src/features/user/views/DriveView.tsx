@@ -33,6 +33,7 @@ import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb';
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
+import { UnscannedDownloadDialog } from '@/components/feedback/UnscannedDownloadDialog';
 import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 
@@ -51,7 +52,7 @@ interface DriveViewProps {
   onToggleStar: (id: string) => void;
   onDeleteFile: (id: string) => void;
   onShareItem: (item: DriveItem) => void;
-  onDownloadItem: (item: DriveItem) => void;
+  onDownloadItem: (item: DriveItem, confirmUnscanned?: () => Promise<boolean>) => void;
   // Folder navigation props
   folders?: FolderDto[];
   breadcrumb?: BreadcrumbItem[];
@@ -114,6 +115,22 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onUnshareFromDepartment,
   onRefreshItems,
 }) => {
+  // F7 fix round 1: real UnscannedDownloadDialog owned here (instead of a
+  // native window.confirm) and exposed to the download handler as a
+  // `confirmUnscanned` closure matching the shape driveApi.downloadFile /
+  // downloadViaLink already expect: () => Promise<boolean>.
+  const [unscannedDialogOpen, setUnscannedDialogOpen] = useState(false);
+  const unscannedResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const confirmUnscanned = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      unscannedResolveRef.current = resolve;
+      setUnscannedDialogOpen(true);
+    });
+  const resolveUnscannedDialog = (confirmed: boolean) => {
+    setUnscannedDialogOpen(false);
+    unscannedResolveRef.current?.(confirmed);
+    unscannedResolveRef.current = null;
+  };
   const [folderError, setFolderError] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
@@ -351,6 +368,13 @@ export const DriveView: React.FC<DriveViewProps> = ({
         confirmText="Xác nhận tiếp nhận"
         variant="warning"
         isLoading={isHandoverLoading}
+      />
+
+      {/* F7 fix round 1: real unscanned-download confirmation dialog */}
+      <UnscannedDownloadDialog
+        isOpen={unscannedDialogOpen}
+        onClose={() => resolveUnscannedDialog(false)}
+        onConfirm={() => resolveUnscannedDialog(true)}
       />
 
       {/* Top Action Header */}
@@ -1014,7 +1038,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!downloadsDisabled) onDownloadItem(file);
+                              if (!downloadsDisabled) onDownloadItem(file, confirmUnscanned);
                             }}
                             disabled={downloadsDisabled}
                             className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1226,7 +1250,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => { if (!downloadsDisabled) onDownloadItem(file); }}
+                                  onClick={() => { if (!downloadsDisabled) onDownloadItem(file, confirmUnscanned); }}
                                   disabled={downloadsDisabled}
                                   className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                   title={downloadsDisabled ? downloadsDisabledReason : 'Tải về'}

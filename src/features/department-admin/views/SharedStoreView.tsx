@@ -357,9 +357,9 @@ export const SharedStoreView: React.FC = () => {
           onShareItem={() => {}}
           downloadsDisabled={downloadsDisabled}
           downloadsDisabledReason={UNSCANNED_DOWNLOAD_DISABLED_MESSAGE}
-          onDownloadItem={async (item) => {
+          onDownloadItem={async (item, confirmUnscanned) => {
             try {
-              await driveApi.downloadFile(item.id, item.name, item.archiveKind);
+              await driveApi.downloadFile(item.id, item.name, item.archiveKind, confirmUnscanned);
             } catch (error: any) {
               if (error?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
               showNotification(error?.message || 'Không thể tải xuống tệp.', 'error');

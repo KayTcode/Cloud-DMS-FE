@@ -55,10 +55,10 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
     setCurrentFolderId(id);
   };
 
-  const handleDownloadItem = async (item: DriveItem) => {
+  const handleDownloadItem = async (item: DriveItem, confirmUnscanned?: () => Promise<boolean>) => {
     try {
       onShowToast(`Đang chuẩn bị tải xuống "${item.name}"...`, 'info');
-      await driveApi.downloadFile(item.id, item.name, item.archiveKind);
+      await driveApi.downloadFile(item.id, item.name, item.archiveKind, confirmUnscanned);
       onShowToast(`Tải xuống "${item.name}" thành công!`, 'success');
     } catch (error: any) {
       if (error?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
