@@ -50,6 +50,7 @@ export interface TenantInfo {
   totalFilesCount?: number;
   fileCategories?: FileCategoryBreakdown;
   allocations?: TenantQuotaAllocationItem[];
+  isInterimManaged?: boolean;
 }
 
 export interface TenantEvent {

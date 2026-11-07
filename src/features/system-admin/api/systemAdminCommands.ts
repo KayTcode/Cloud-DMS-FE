@@ -250,3 +250,15 @@ export const addTenantQuotaApi = (tenantId: string, payload: import('../types').
  */
 export const reduceTenantQuotaApi = (tenantId: string, payload: import('../types').ReduceTenantQuotaPayload) =>
   axiosClient.post(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.REDUCE(tenantId), payload);
+
+/**
+ * 12. Vô hiệu hóa Quản trị viên Doanh nghiệp (TenantAdmin) và chuyển giao quyền lực
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/offboard-admin
+ */
+export const offboardTenantAdminApi = async (
+  tenantId: string,
+  payload: import('../types').OffboardTenantAdminPayload
+): Promise<import('../types').OffboardTenantAdminResult> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/offboard-admin`, payload);
+  return response?.value || response?.data || response;
+};

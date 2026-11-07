@@ -21,8 +21,10 @@ import {
   TrendingUp,
   CheckCircle2,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  UserX
 } from 'lucide-react';
+import { OffboardTenantAdminModal } from './OffboardTenantAdminModal';
 import { SystemTenant, PlanType, StorageProviderItem } from '../types';
 import {
   getTenantStorageQuota,
@@ -78,7 +80,9 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [realQuota, setRealQuota] = useState<TenantQuotaData | null>(null);
   const [realUsersCount, setRealUsersCount] = useState<number | null>(null);
+  const [tenantUsers, setTenantUsers] = useState<any[]>([]);
   const [realDepartmentsCount, setRealDepartmentsCount] = useState<number | null>(null);
+  const [isOffboardModalOpen, setIsOffboardModalOpen] = useState(false);
 
   // Quota Adjustment States
   const [quotaValue, setQuotaValue] = useState<number>(10);
@@ -126,8 +130,10 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
 
       if (usersRes.status === 'fulfilled' && usersRes.value) {
         setRealUsersCount(usersRes.value.length);
+        setTenantUsers(usersRes.value);
       } else {
         setRealUsersCount(null);
+        setTenantUsers([]);
       }
 
       if (deptsRes.status === 'fulfilled' && deptsRes.value) {
@@ -989,6 +995,23 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
               {tenant.status === 'Active' ? 'Khóa Tenant' : 'Kích hoạt lại'}
             </button>
 
+            {/* Nút Vô hiệu hóa Quản trị viên (Offboard Tenant Admin) */}
+            {!tenant.isInterimManaged ? (
+              <button
+                type="button"
+                onClick={() => setIsOffboardModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                title="Vô hiệu hóa Quản trị viên tổ chức này và thực hiện chuyển giao quyền lực"
+              >
+                <UserX className="w-3.5 h-3.5" />
+                <span>Offboard Quản trị viên</span>
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+                Đang tiếp quản lâm thời
+              </span>
+            )}
+
             {onOpenPortal && (
               <button
                 onClick={() => {
@@ -1013,6 +1036,84 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
         </div>
 
       </div>
+
+      {/* Xác định Quản trị viên của Tenant */}
+      {(() => {
+        const detectedAdminUser = (() => {
+          if (tenantUsers && tenantUsers.length > 0) {
+            const found = tenantUsers.find(
+              (u: any) =>
+                (u.role && u.role.includes('TenantAdmin')) ||
+                (Array.isArray(u.roles) && u.roles.includes('TenantAdmin')) ||
+                (tenant?.adminEmail && u.email?.toLowerCase() === tenant.adminEmail.toLowerCase())
+            );
+            if (found) {
+              return {
+                id: found.id,
+                email: found.email,
+                fullName: found.name || tenant?.name,
+              };
+            }
+          }
+          if (tenant?.adminId) {
+            return {
+              id: tenant.adminId,
+              email: tenant.adminEmail || '',
+              fullName: tenant.adminFullName || tenant.name,
+            };
+          }
+          if (tenant?.vacantAdminUserId) {
+            return {
+              id: tenant.vacantAdminUserId,
+              email: tenant.adminEmail || '',
+              fullName: tenant.name,
+            };
+          }
+          return null;
+        })();
+
+        return isOffboardModalOpen && (
+          <OffboardTenantAdminModal
+            isOpen={isOffboardModalOpen}
+            onClose={() => setIsOffboardModalOpen(false)}
+            tenant={tenant}
+            currentAdminUser={
+              detectedAdminUser
+                ? {
+                    id: detectedAdminUser.id,
+                    email: detectedAdminUser.email,
+                    firstName: '',
+                    lastName: '',
+                    fullName: detectedAdminUser.fullName,
+                    isActive: true,
+                    roles: ['TenantAdmin'],
+                    permissions: [],
+                    createdAt: '',
+                  }
+                : (tenant.adminEmail
+                    ? {
+                        id: tenant.adminId || '',
+                        email: tenant.adminEmail,
+                        firstName: '',
+                        lastName: '',
+                        fullName: tenant.name,
+                        isActive: true,
+                        roles: ['TenantAdmin'],
+                        permissions: [],
+                        createdAt: '',
+                      }
+                    : null)
+            }
+            onSuccess={(res) => {
+              if (tenant) {
+                tenant.isInterimManaged = res.isInterimManaged;
+                tenant.vacantAdminUserId = res.offboardedAdminId;
+              }
+              setIsOffboardModalOpen(false);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 };

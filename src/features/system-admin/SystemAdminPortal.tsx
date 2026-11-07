@@ -348,6 +348,8 @@ export const SystemAdminPortal: React.FC = () => {
               createdDate: u.createdAt,
               status: u.isActive ? 'Active' : 'Suspended',
               adminEmail: u.email,
+              adminId: u.id,
+              adminFullName: u.fullName,
               region: 'Cloud Storage Pool',
               tenantCode: u.tenantCode,
               phoneNumber: u.phoneNumber,

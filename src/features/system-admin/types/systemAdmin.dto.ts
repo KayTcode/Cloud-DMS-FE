@@ -12,6 +12,8 @@ export interface SystemTenant {
   createdDate: string; // e.g. "Jan 12, 2024"
   status: TenantStatus;
   adminEmail?: string;
+  adminId?: string;
+  adminFullName?: string;
   region?: string;
   tenantCode?: string;
   phoneNumber?: string;
@@ -20,6 +22,36 @@ export interface SystemTenant {
   storageQuotaBytes?: number;
   actualStorageUsedBytes?: number;
   usagePercentage?: number;
+
+  // Tiếp quản lâm thời & Khuyết Admin
+  isInterimManaged?: boolean;
+  vacantAdminUserId?: string | null;
+  interimManagedByUserId?: string | null;
+  interimStartedAt?: string | null;
+}
+
+export type TenantAdminOffboardScenario = 'InterimTakeover' | 'InviteNewTenantAdmin';
+
+export interface OffboardTenantAdminPayload {
+  tenantAdminId: string;
+  scenario: TenantAdminOffboardScenario;
+  newAdminEmail?: string;
+  newAdminFirstName?: string;
+  newAdminLastName?: string;
+  newAdminPhoneNumber?: string;
+  reassignedUserId?: string;
+  reason?: string;
+}
+
+export interface OffboardTenantAdminResult {
+  tenantId: string;
+  offboardedAdminId: string;
+  scenario: number;
+  isInterimManaged: boolean;
+  newTenantAdminId?: string | null;
+  invitationTokenExpiresAt?: string | null;
+  completedAt: string;
+  message: string;
 }
 
 /**
