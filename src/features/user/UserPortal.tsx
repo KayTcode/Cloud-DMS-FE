@@ -43,6 +43,7 @@ import {
 import { driveApi, userApi } from './api/driveApi';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
+import { PendingUploadsSection } from '@/components/upload/PendingUploadsSection';
 
 export const UserPortal: React.FC = () => {
   const { user: authUser } = useAuth();
@@ -593,6 +594,8 @@ export const UserPortal: React.FC = () => {
 
       {/* Main Tab View */}
       <div className="tab-content-area">
+        {activeTab === 'documents' && <PendingUploadsSection />}
+
         {activeTab === 'documents' && activeFilter === 'trash' && (
           <DriveTrashView
             driveKind="Personal"
