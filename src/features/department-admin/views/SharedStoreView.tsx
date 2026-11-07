@@ -90,6 +90,7 @@ export const SharedStoreView: React.FC = () => {
           sharedWith: [],
           tags: [],
           contentSnippet: '',
+          scanStatus: (f as any).scanStatus ?? null,
         };
       });
       setDriveItems(files);

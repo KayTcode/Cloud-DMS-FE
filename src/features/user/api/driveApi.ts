@@ -80,6 +80,7 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     authorName: dto.authorName || undefined,
     isSharedLink: dto.isSharedLink ?? undefined,
     isSharedToDepartment: dto.isSharedToDepartment ?? undefined,
+    scanStatus: dto.scanStatus ?? null,
   };
 };
 

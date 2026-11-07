@@ -35,6 +35,7 @@ export interface DriveItem {
   isSharedToDepartment?: boolean;
   isPendingHandover?: boolean;
   metadata?: DocumentMetadataDto | null;
+  scanStatus?: 'Pending' | 'Clean' | 'Infected' | 'Failed' | 'TooLargeToScan' | null;
 }
 
 export type DriveViewMode = 'grid' | 'list';

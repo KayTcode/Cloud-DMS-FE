@@ -235,6 +235,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           tags: [f.storageProviderName || 'Google Drive', isPersonal ? 'Thư mục cá nhân' : 'Kho chung'],
           contentSnippet: `Tài liệu lưu trữ thuộc ${department.name}. Dung lượng: ${formatBytes(f.sizeBytes)}. Trạng thái bảo mật ClamAV: ${f.scanStatus || 'Clean'}. Khóa lưu trữ: ${f.storageKey}`,
           metadata: f.metadata || null,
+          scanStatus: f.scanStatus ?? null,
         };
       });
 
