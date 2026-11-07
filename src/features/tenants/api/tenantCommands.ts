@@ -129,6 +129,36 @@ export async function updateTenantSettings(tenantId: string, settings: TenantSet
 }
 
 /**
+ * Query: Đọc cấu hình Tenant hiện tại (bao gồm cờ cho phép tải tệp chưa quét virus)
+ * Khớp BE: GET /api/tenants/{tenantId}/settings
+ *
+ * Lưu ý: không bọc catch-và-coi-như-thành-công như các hàm phía trên trong file
+ * này (đó là mock fallback tạm cho các màn hình khác). F8 yêu cầu hiện toast lỗi
+ * thật khi API lỗi, nên lỗi được throw ra để UI xử lý.
+ */
+export interface TenantSettingsDto {
+  allowUnscannedDownload: boolean;
+  [key: string]: unknown;
+}
+
+export async function getTenantSettings(tenantId: string): Promise<TenantSettingsDto> {
+  const response = await apiClient.get<any, any>(API_ENDPOINTS.TENANTS.SETTINGS(tenantId));
+  return (response?.value || response?.data || response) as TenantSettingsDto;
+}
+
+/**
+ * Command: Bật/tắt cho phép tải tệp chưa được quét virus (quá lớn để quét) trong Tenant
+ * Khớp BE: PUT /api/tenants/{tenantId}/settings/unscanned-download { allow }
+ *
+ * Cố ý KHÔNG áp dụng mẫu "mock fallback khi offline" (catch -> trả về true) như các
+ * hàm update* khác trong file này: yêu cầu F8 là phải hiện toast lỗi thật khi thất bại,
+ * nên lỗi được throw lên để component xử lý.
+ */
+export async function setUnscannedDownloadPolicy(tenantId: string, allow: boolean): Promise<void> {
+  await apiClient.put(API_ENDPOINTS.TENANTS.TENANT_UNSCANNED_DOWNLOAD(tenantId), { allow });
+}
+
+/**
  * Command: Cấp / Điều chỉnh Quota lưu trữ cho Phòng ban
  * Khớp BE: AllocateDepartmentStorageQuotaCommand -> PUT /api/tenant/{tenantId}/departments/{departmentId}/quota
  */
