@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 function loadModule(path) {
   const exportsObj = {};
-  const context = { exports: exportsObj, module: { exports: exportsObj }, Promise, console, Error };
+  const context = { exports: exportsObj, module: { exports: exportsObj }, Promise, console, Error, URL };
   vm.runInNewContext(
     ts.transpileModule(fs.readFileSync(path, 'utf8'), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -169,6 +169,32 @@ await run('unscanned_usesSuppliedConfirmUnscanned_notWindowConfirm', async () =>
   assert.equal(dialogWasAsked, true);
   assert.deepEqual(calls, [false, true]);
   assert.deepEqual(clicks, ['https://cdn.example.com/file-6']);
+});
+
+await run('relativeUrl_resolvedAgainstApiOrigin', async () => {
+  // Fix 9: backend can return a RELATIVE "proxied" download url. The
+  // frontend's origin differs from the API's, so assigning it straight to
+  // anchor.href would download the SPA shell instead of the file.
+  const clicks = [];
+  const createDownloadLink = async () => ({ url: '/api/files/file-7/download?ticket=abc' });
+  await downloadViaLinkCore('file-7', { confirmUnscanned: async () => true }, {
+    createDownloadLink,
+    document: fakeDocument(clicks),
+    apiBaseUrl: 'https://api.example.com/api',
+  });
+  assert.deepEqual(clicks, ['https://api.example.com/api/files/file-7/download?ticket=abc']);
+});
+
+await run('absoluteUrl_passesThroughUnchanged', async () => {
+  // A "direct" S3/provider link is already absolute — must not be rewritten.
+  const clicks = [];
+  const createDownloadLink = async () => ({ url: 'https://s3.example.com/bucket/file-8?sig=xyz' });
+  await downloadViaLinkCore('file-8', { confirmUnscanned: async () => true }, {
+    createDownloadLink,
+    document: fakeDocument(clicks),
+    apiBaseUrl: 'https://api.example.com/api',
+  });
+  assert.deepEqual(clicks, ['https://s3.example.com/bucket/file-8?sig=xyz']);
 });
 
 console.log('PASS: downloadViaLink handles clean/unscanned-ack/disabled/rate-limit/package-fallback flows');

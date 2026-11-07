@@ -280,6 +280,255 @@ await run('s3_expiredUrl_refreshesWithoutConsumingRetry', async () => {
   assert.equal(presignCountByPart.get(2), 7);
 });
 
+await run('s3_expiredUrl_perPartExpiry_realSessionStillLongLived', async () => {
+  // Fix 5: the real bug only shows up when the SESSION is nowhere near its
+  // own (long-lived) expiry but the PART's own short-lived presigned URL
+  // has expired. The old code compared against session.expiresAt, which
+  // this test deliberately keeps 1 hour out, so a buggy implementation
+  // would never treat part 2's 403 as "expired link" and would burn real
+  // retry attempts (eventually pausing instead of recovering).
+  const presignCountByPart = new Map();
+  let part2Attempts = 0;
+  const transport = {
+    async begin() {
+      return baseSession();
+    },
+    async presign(partNumber) {
+      const count = (presignCountByPart.get(partNumber) || 0) + 1;
+      presignCountByPart.set(partNumber, count);
+      // Part 2's own presigned URL is already expired (short-lived, 10-min
+      // window) even though the session itself is fine for another hour.
+      const expiresAt =
+        partNumber === 2
+          ? new Date(Date.now() - 1000).toISOString()
+          : new Date(Date.now() + 3600_000).toISOString();
+      return { url: `https://upload/part-${partNumber}`, expiresAt };
+    },
+    async putPart(url, _body, _headers, _signal) {
+      const partNumber = Number(url.split('part-')[1]);
+      if (partNumber === 2) {
+        part2Attempts++;
+        if (part2Attempts <= 6) {
+          return { status: 403, etag: null, body: 'Request has expired' };
+        }
+      }
+      return { status: 200, etag: 'etag' };
+    },
+    async queryOffset() {
+      return 0;
+    },
+    async status() {
+      return { completedPartNumbers: [] };
+    },
+    async heartbeat() {},
+    async complete() {
+      return { fileId: 'file-1', documentVersion: 2 };
+    },
+    async abort() {},
+    async sha256Base64() {
+      return 'c2hhMjU2';
+    },
+    async sleep() {
+      return Promise.resolve();
+    },
+    now() {
+      return 0;
+    },
+  };
+  const events = [];
+  // Session itself expires in an hour — realistic, nowhere near expired.
+  const session = baseSession({ expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+  const uploader = new LargeFileUploader(makeFile(), session, transport, (e) => events.push(e));
+  await uploader.start();
+  const stateEvents = events.filter((e) => e.type === 'state');
+  assert.equal(stateEvents[stateEvents.length - 1].state, 'done');
+  // Re-presigned every time (free retry), not just once.
+  assert.equal(presignCountByPart.get(2), 7);
+});
+
+await run('resumable_308_treatedAsProgressNotFailure', async () => {
+  // Fix 4: Google answers every non-final chunk PUT with 308 "Resume
+  // Incomplete" — this must be treated as progress, using the rangeHeader
+  // to compute the next offset, not as a failure to retry/pause on.
+  const session = baseSession({ protocol: 'ResumableUri', directUploadUrl: 'https://upload/resumable', partSizeBytes: 40 });
+  let call = 0;
+  const transport = makeTransport({
+    queryOffset: () => 0,
+    putChunk: (contentRange) => {
+      call++;
+      if (call === 1) {
+        // First chunk (bytes 0-39/80): server confirms receipt up to byte 39.
+        return { status: 308, rangeHeader: 'bytes=0-39', retryAfter: null };
+      }
+      return { status: 200, rangeHeader: null, retryAfter: null };
+    },
+  });
+  const events = [];
+  const uploader = new LargeFileUploader(makeFile(), session, transport, (e) => events.push(e));
+  await uploader.start();
+  assert.equal(transport.calls.putChunk.length, 2);
+  assert.equal(transport.calls.putChunk[1].contentRange, 'bytes 40-79/80');
+  const stateEvents = events.filter((e) => e.type === 'state');
+  assert.equal(stateEvents[stateEvents.length - 1].state, 'done');
+  assert.ok(!stateEvents.some((e) => e.state === 'error'));
+});
+
+await run('s3_presignTransientFailure_retriesThenSucceeds', async () => {
+  // Fix 3: presign() failing (rejecting) must be retried with the same
+  // backoff as putPart, not left to reject start() with no state change.
+  let presignAttempts = 0;
+  const transport = {
+    async begin() {
+      return baseSession();
+    },
+    async presign(partNumber) {
+      if (partNumber === 4) {
+        presignAttempts++;
+        if (presignAttempts <= 2) {
+          throw new Error('network blip');
+        }
+      }
+      return `https://upload/part-${partNumber}`;
+    },
+    async putPart(url) {
+      return { status: 200, etag: 'etag' };
+    },
+    async queryOffset() {
+      return 0;
+    },
+    async status() {
+      return { completedPartNumbers: [] };
+    },
+    async heartbeat() {},
+    async complete() {
+      return { fileId: 'file-1', documentVersion: 2 };
+    },
+    async abort() {},
+    async sha256Base64() {
+      return 'c2hhMjU2';
+    },
+    async sleep() {
+      return Promise.resolve();
+    },
+    now() {
+      return 0;
+    },
+  };
+  const events = [];
+  const uploader = new LargeFileUploader(makeFile(), baseSession(), transport, (e) => events.push(e));
+  await uploader.start();
+  const stateEvents = events.filter((e) => e.type === 'state');
+  assert.equal(stateEvents[stateEvents.length - 1].state, 'done');
+  assert.equal(presignAttempts, 3);
+});
+
+await run('s3_statusCallFailsRepeatedly_pausesInsteadOfHanging', async () => {
+  // Fix 3: transport.status() failing at session start (before any part is
+  // attempted) must go through the same retry-then-pause path as a part
+  // failure — not reject start() silently with no state transition.
+  let statusAttempts = 0;
+  const transport = {
+    async begin() {
+      return baseSession();
+    },
+    async presign(partNumber) {
+      return `https://upload/part-${partNumber}`;
+    },
+    async putPart() {
+      return { status: 200, etag: 'etag' };
+    },
+    async queryOffset() {
+      return 0;
+    },
+    async status() {
+      statusAttempts++;
+      throw new Error('503 from server');
+    },
+    async heartbeat() {},
+    async complete() {
+      return { fileId: 'file-1', documentVersion: 2 };
+    },
+    async abort() {},
+    async sha256Base64() {
+      return 'c2hhMjU2';
+    },
+    async sleep() {
+      return Promise.resolve();
+    },
+    now() {
+      return 0;
+    },
+  };
+  const events = [];
+  const uploader = new LargeFileUploader(makeFile(), baseSession(), transport, (e) => events.push(e));
+  await uploader.start();
+  const stateEvents = events.filter((e) => e.type === 'state');
+  assert.equal(stateEvents[stateEvents.length - 1].state, 'paused');
+  assert.ok(statusAttempts > 1);
+});
+
+await run('pause_thenImmediateResume_doesNotSurfaceWrongTabError', async () => {
+  // Fix 6: pause() must abort in-flight requests so nothing is left
+  // "draining" by the time the caller tries to resume right after.
+  let putPartCalls = 0;
+  let abortSignalSeenAborted = false;
+  const transport = {
+    async begin() {
+      return baseSession();
+    },
+    async presign(partNumber) {
+      return `https://upload/part-${partNumber}`;
+    },
+    async putPart(url, _body, _headers, signal) {
+      putPartCalls++;
+      if (putPartCalls === 1) {
+        // Simulate an in-flight request that only rejects once aborted.
+        return new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            abortSignalSeenAborted = true;
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        });
+      }
+      return { status: 200, etag: 'etag' };
+    },
+    async queryOffset() {
+      return 0;
+    },
+    async status() {
+      return { completedPartNumbers: [] };
+    },
+    async heartbeat() {},
+    async complete() {
+      return { fileId: 'file-1', documentVersion: 2 };
+    },
+    async abort() {},
+    async sha256Base64() {
+      return 'c2hhMjU2';
+    },
+    async sleep() {
+      return Promise.resolve();
+    },
+    now() {
+      return 0;
+    },
+  };
+  const events = [];
+  const uploader = new LargeFileUploader(makeFile(), baseSession(), transport, (e) => events.push(e));
+  const startPromise = uploader.start();
+  await new Promise((r) => setTimeout(r, 5));
+  uploader.pause();
+  await new Promise((r) => setTimeout(r, 5));
+  await uploader.resume();
+  await startPromise.catch(() => {});
+  assert.ok(abortSignalSeenAborted, 'pause() should abort the in-flight request');
+  const stateEvents = events.filter((e) => e.type === 'state');
+  assert.ok(!stateEvents.some((e) => e.state === 'error'));
+  assert.equal(stateEvents[stateEvents.length - 1].state, 'done');
+});
+
 await run('s3_fiveFailures_pausesNotAborts', async () => {
   let part3Attempts = 0;
   let abortCalled = 0;

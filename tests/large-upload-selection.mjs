@@ -134,17 +134,15 @@ const LARGE = uploadRouting.LARGE_FILE_THRESHOLD_BYTES;
 
 // --- tree_rootNameTaken_usesSuffix1 ---
 {
-  const small = makeFile('x.txt', 10, 'P/x.txt');
+  const small = makeFile('big.mov', LARGE + 10, 'P/big.mov');
   let rootAttempts = 0;
   const result = await uploadSelection([small], [], TARGET, {
-    uploadZip: async () => {},
+    uploadZip: async () => { throw new Error('should not zip'); },
     enqueueLarge: async () => {},
     createFolder: async (name, parentId) => {
       if (name === 'P') {
         rootAttempts += 1;
-        const err = new Error('duplicate');
-        err.code = 'DUPLICATE_NAME';
-        throw err;
+        throw new Error('Đã có thư mục cùng tên trong vị trí này.');
       }
       return { id: `folder-${name}` };
     },
@@ -157,9 +155,73 @@ const LARGE = uploadRouting.LARGE_FILE_THRESHOLD_BYTES;
   console.log('PASS: tree_rootNameTaken_usesSuffix1');
 }
 
+// --- smallFolder_routesToZipPackage_notTree (Fix 1) ---
+{
+  const a = makeFile('a.txt', 100, 'P/a.txt');
+  const b = makeFile('b.txt', 100, 'P/b.txt');
+  const zipped = [];
+  const result = await uploadSelection([a, b], [], TARGET, {
+    uploadZip: async (files, dirs, t) => { zipped.push([files, dirs, t]); },
+    enqueueLarge: async () => { throw new Error('should not enqueue'); },
+    createFolder: async () => { throw new Error('should not create folder'); },
+    reportPendingCount: () => {},
+    readHead: headOf([0, 0, 0, 0]),
+  });
+  assert.equal(result.mode, 'zip-package');
+  assert.equal(zipped.length, 1);
+  console.log('PASS: smallFolder_routesToZipPackage_notTree');
+}
+
+// --- tree_zipFile_sentWithBareFileName (Fix 2) ---
+{
+  const small = makeFile('x.txt', 10, 'P/a/x.txt');
+  const big = makeFile('big.mov', LARGE + 10, 'P/big.mov');
+  const zipCalls = [];
+  const result = await uploadSelection([small, big], [], TARGET, {
+    uploadZip: async (files) => { zipCalls.push(files[0]); },
+    enqueueLarge: async () => {},
+    createFolder: async (name, parentId) => ({ id: `folder-${name}-${parentId}` }),
+    reportPendingCount: () => {},
+    readHead: headOf([0, 0, 0, 0]),
+  });
+  assert.equal(result.mode, 'tree');
+  assert.equal(zipCalls.length, 1);
+  const sentFile = zipCalls[0];
+  assert.equal(sentFile.name, 'x.txt');
+  assert.ok(!sentFile.name.includes('/'));
+  assert.equal(sentFile.webkitRelativePath, undefined);
+  console.log('PASS: tree_zipFile_sentWithBareFileName');
+}
+
+// --- msiSignature_onlyBlockedWithMsiExtension (Fix 11) ---
+{
+  const oleHeader = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0];
+  const docFile = makeFile('report.doc', LARGE + 1);
+  const docResult = await uploadSelection([docFile], [], TARGET, {
+    uploadZip: async () => { throw new Error('should not zip'); },
+    enqueueLarge: async () => 'id',
+    createFolder: async () => { throw new Error('should not create folder'); },
+    reportPendingCount: () => {},
+    readHead: headOf(oleHeader),
+  });
+  assert.equal(docResult.items[0].ok, true);
+
+  const msiFile = makeFile('installer.msi', LARGE + 1);
+  const msiResult = await uploadSelection([msiFile], [], TARGET, {
+    uploadZip: async () => { throw new Error('should not zip'); },
+    enqueueLarge: async () => { throw new Error('should not enqueue'); },
+    createFolder: async () => { throw new Error('should not create folder'); },
+    reportPendingCount: () => {},
+    readHead: headOf(oleHeader),
+  });
+  assert.equal(msiResult.items[0].ok, false);
+  assert.equal(msiResult.items[0].error.code, 'BLOCKED_FILE_TYPE');
+  console.log('PASS: msiSignature_onlyBlockedWithMsiExtension');
+}
+
 // --- tree_nonDuplicateError_stops ---
 {
-  const small = makeFile('x.txt', 10, 'P/x.txt');
+  const small = makeFile('x.txt', LARGE + 1, 'P/x.txt');
   let folderCalls = 0;
   const result = await uploadSelection([small], [], TARGET, {
     uploadZip: async () => { throw new Error('should not be called'); },
@@ -181,7 +243,7 @@ const LARGE = uploadRouting.LARGE_FILE_THRESHOLD_BYTES;
 
 // --- tree_maxThreeConcurrent ---
 {
-  const files = Array.from({ length: 6 }, (_, i) => makeFile(`f${i}.txt`, 10, `P/f${i}.txt`));
+  const files = Array.from({ length: 6 }, (_, i) => makeFile(`f${i}.txt`, Math.floor(LARGE / 3), `P/f${i}.txt`));
   let active = 0;
   let maxActive = 0;
   const result = await uploadSelection(files, [], TARGET, {
@@ -203,7 +265,7 @@ const LARGE = uploadRouting.LARGE_FILE_THRESHOLD_BYTES;
 
 // --- tree_reportsPendingCountDownToZero ---
 {
-  const files = Array.from({ length: 4 }, (_, i) => makeFile(`f${i}.txt`, 10, `P/f${i}.txt`));
+  const files = Array.from({ length: 4 }, (_, i) => makeFile(`f${i}.txt`, Math.floor(LARGE / 2), `P/f${i}.txt`));
   const reported = [];
   await uploadSelection(files, [], TARGET, {
     uploadZip: async () => {},

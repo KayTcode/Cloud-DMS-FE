@@ -137,7 +137,9 @@ export async function updateTenantSettings(tenantId: string, settings: TenantSet
  * thật khi API lỗi, nên lỗi được throw ra để UI xử lý.
  */
 export interface TenantSettingsDto {
-  allowUnscannedDownload: boolean;
+  // Fix 10: real backend controller field is `allowUnscannedLargeFileDownload`,
+  // not `allowUnscannedDownload`.
+  allowUnscannedLargeFileDownload: boolean;
   [key: string]: unknown;
 }
 

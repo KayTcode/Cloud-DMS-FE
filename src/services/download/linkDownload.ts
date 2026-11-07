@@ -4,6 +4,7 @@
  * `document`. See `linkDownloadCore.ts` for the full behavior description.
  */
 import { createDownloadLink } from '@/services/upload/large/largeUploadApi';
+import { BASE_URL } from '@/api/axiosClient';
 import {
   downloadViaLinkCore,
   DownloadViaLinkOptions,
@@ -17,5 +18,6 @@ export async function downloadViaLink(fileId: string, opts: DownloadViaLinkOptio
   return downloadViaLinkCore(fileId, opts, {
     createDownloadLink,
     document: document as unknown as import('./linkDownloadCore').MinimalDocument,
+    apiBaseUrl: BASE_URL,
   });
 }

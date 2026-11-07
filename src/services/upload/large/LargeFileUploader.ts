@@ -31,7 +31,7 @@ export interface MinimalUploadSessionStatus {
 
 export interface LargeUploadTransport {
   begin(): Promise<MinimalLargeSession>;
-  presign(partNumber: number, sha256: string | null): Promise<string>;
+  presign(partNumber: number, sha256: string | null): Promise<string | { url: string; expiresAt: string }>;
   putPart(
     url: string,
     body: Blob,
@@ -76,6 +76,14 @@ function hasExpiredLinkBody(body: string | undefined | null): boolean {
   return body.includes('Request has expired') || body.includes('AccessDenied');
 }
 
+/** Google resumable trả header `Range: bytes=0-N` (N = byte cuối ĐÃ nhận, 0-based). */
+function parseResumableRangeEnd(rangeHeader: string | null): number | null {
+  if (!rangeHeader) return null;
+  const match = /bytes=\d+-(\d+)/.exec(rangeHeader);
+  if (!match) return null;
+  return Number(match[1]) + 1;
+}
+
 /** Thông tin một "lỗi đặc biệt" phát hiện được từ exception/response. */
 interface SpecialError {
   providerLimited?: boolean;
@@ -113,7 +121,7 @@ export class LargeFileUploader {
   private cancelled = false;
   private abortController = new AbortController();
   private lastHeartbeatAt = 0;
-  private partUrlCache = new Map<number, string>();
+  private partUrlCache = new Map<number, { url: string; expiresAt: number | null }>();
 
   constructor(
     file: Blob & { size: number },
@@ -141,13 +149,39 @@ export class LargeFileUploader {
     this.onEvent({ type: 'state', state, error });
   }
 
-  private async maybeHeartbeat(): Promise<void> {
-    if (this.state !== 'sending') return;
+  /**
+   * Thử gọi `fn` với chính sách thử lại (1s,2s,4s,8s,16s / 5 lần) giống hệt
+   * `putPart`/`putChunk`. Dùng cho mọi lệnh gọi "hạ tầng" (presign, status,
+   * heartbeat, sha256) trước đây nằm NGOÀI mọi retry/try-catch — một lỗi
+   * tạm thời ở đó không còn làm `start()` reject âm thầm, mà thử lại rồi
+   * chuyển sang 'paused' nếu hết lượt.
+   */
+  private async callWithRetry<T>(fn: () => Promise<T>): Promise<T | 'paused-out' | 'cancelled'> {
+    let attempt = 0;
+    while (true) {
+      if (this.cancelled) return 'cancelled';
+      if (this.paused) return 'paused-out';
+      try {
+        return await fn();
+      } catch {
+        if (this.cancelled) return 'cancelled';
+        if (this.paused) return 'paused-out';
+        attempt++;
+        if (attempt > MAX_RETRIES) return 'paused-out';
+        await this.transport.sleep(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
+      }
+    }
+  }
+
+  private async maybeHeartbeat(): Promise<'ok' | 'paused-out' | 'cancelled'> {
+    if (this.state !== 'sending') return 'ok';
     const now = this.transport.now();
     if (now - this.lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
       this.lastHeartbeatAt = now;
-      await this.transport.heartbeat(this.uploaded);
+      const result = await this.callWithRetry(() => this.transport.heartbeat(this.uploaded));
+      if (result === 'paused-out' || result === 'cancelled') return result;
     }
+    return 'ok';
   }
 
   async start(): Promise<void> {
@@ -161,6 +195,11 @@ export class LargeFileUploader {
 
   pause(): void {
     this.paused = true;
+    // Hủy mọi request đang bay (putPart/putChunk/presign/...) ngay lập tức,
+    // để khi người dùng bấm "Tiếp tục" ngay sau đó, không còn request nào
+    // của tab này còn đang "rút" (drain) và giữ Web Lock — tránh báo nhầm
+    // "đang upload ở tab khác" khi resume cùng tab (Fix 6).
+    this.abortController.abort();
     this.emitState('paused');
   }
 
@@ -187,7 +226,13 @@ export class LargeFileUploader {
   // -------------------------------------------------------------------------
 
   private async runS3(): Promise<void> {
-    const status = await this.transport.status();
+    const statusResult = await this.callWithRetry(() => this.transport.status());
+    if (statusResult === 'cancelled') return;
+    if (statusResult === 'paused-out') {
+      this.emitState('paused');
+      return;
+    }
+    const status = statusResult;
     const alreadyDone = status.completedPartNumbers ?? [];
     for (const partNumber of alreadyDone) {
       if (!this.completedParts.has(partNumber)) {
@@ -240,7 +285,16 @@ export class LargeFileUploader {
           this.uploaded += this.partSize(partNumber);
           this.emitProgress();
         }
-        await this.maybeHeartbeat();
+        const hbResult = await this.maybeHeartbeat();
+        if (hbResult === 'cancelled') {
+          stop = true;
+          return;
+        }
+        if (hbResult === 'paused-out') {
+          stop = true;
+          this.emitState('paused');
+          return;
+        }
       }
     };
 
@@ -285,17 +339,28 @@ export class LargeFileUploader {
   ): Promise<'success' | 'paused-out' | 'cancelled' | 'provider-limited' | { code: string; message: string }> {
     let attempt = 0;
     const blob = this.sliceForPart(partNumber);
-    const sha256 = await this.transport.sha256Base64(blob);
+
+    const shaResult = await this.callWithRetry(() => this.transport.sha256Base64(blob));
+    if (shaResult === 'cancelled') return 'cancelled';
+    if (shaResult === 'paused-out') return 'paused-out';
+    const sha256 = shaResult;
 
     while (true) {
       if (this.cancelled) return 'cancelled';
       if (this.paused) return 'paused-out';
 
-      let url = this.partUrlCache.get(partNumber);
-      if (!url) {
-        url = await this.transport.presign(partNumber, sha256);
-        this.partUrlCache.set(partNumber, url);
+      let cached = this.partUrlCache.get(partNumber);
+      if (!cached) {
+        const presignResult = await this.callWithRetry(() => this.transport.presign(partNumber, sha256));
+        if (presignResult === 'cancelled') return 'cancelled';
+        if (presignResult === 'paused-out') return 'paused-out';
+        cached =
+          typeof presignResult === 'string'
+            ? { url: presignResult, expiresAt: null }
+            : { url: presignResult.url, expiresAt: new Date(presignResult.expiresAt).getTime() };
+        this.partUrlCache.set(partNumber, cached);
       }
+      const url = cached.url;
 
       try {
         const res = await this.transport.putPart(
@@ -305,8 +370,14 @@ export class LargeFileUploader {
           this.abortController.signal
         );
 
-        if (res.status === 403 && hasExpiredLinkBody(res.body) && Date.now() > new Date(this.session.expiresAt).getTime()) {
-          // Link quá expiresAt: xin link mới, không tính lượt thử lại.
+        // Link hết hạn: dùng expiry THỰC của chính part-URL này (ngắn hạn,
+        // ~10 phút) nếu biết được, không phải session.expiresAt (dài hạn,
+        // 24h/absolute) — một session còn lâu mới hết hạn không có nghĩa
+        // link của một part cụ thể còn hiệu lực (Fix 5). Nếu transport chỉ
+        // trả về string (không biết expiry thực), tin vào nội dung body.
+        const partExpired = cached.expiresAt === null ? true : Date.now() > cached.expiresAt;
+        if (res.status === 403 && hasExpiredLinkBody(res.body) && partExpired) {
+          // Link quá hạn: xin link mới, không tính lượt thử lại.
           this.partUrlCache.delete(partNumber);
           continue;
         }
@@ -329,6 +400,11 @@ export class LargeFileUploader {
         await this.transport.sleep(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
         continue;
       } catch (err) {
+        // Nếu lỗi là do `pause()` hủy request đang bay (AbortController),
+        // đây không phải một thất bại thật — đừng tính vào số lượt thử lại.
+        if (this.cancelled) return 'cancelled';
+        if (this.paused) return 'paused-out';
+
         const special = detectSpecialError(err);
         if (special?.providerLimited) {
           this.emitState('provider-limited');
@@ -375,22 +451,36 @@ export class LargeFileUploader {
       const chunk = this.file.slice(offset, end);
       const contentRange = `bytes ${offset}-${end - 1}/${this.total}`;
 
-      const result = await this.sendChunkWithRetry(url, chunk, contentRange);
+      const result = await this.sendChunkWithRetry(url, chunk, contentRange, end);
       if (result === 'cancelled') return;
       if (result === 'paused-out') {
         this.emitState('paused');
         return;
       }
       if (result === 'provider-limited') return;
-      if (typeof result === 'object') {
+      if (typeof result === 'object' && 'code' in result) {
         this.emitState('error', result);
         return;
       }
 
-      offset = end;
+      // 308 "Resume Incomplete" (Google) là phản hồi THÀNH CÔNG cho một
+      // chunk không phải chunk cuối — không phải lỗi. Dùng `rangeHeader`
+      // server trả về để biết offset kế tiếp thật, không giả định cả chunk
+      // vừa gửi đã được nhận hết (Fix 4). OneDrive (202, luôn nằm trong
+      // 200-299) vẫn rơi vào nhánh 'done' như trước, không bị ảnh hưởng.
+      if (typeof result === 'object' && result.kind === 'continue') {
+        offset = result.offset;
+      } else {
+        offset = end;
+      }
       this.uploaded = offset;
       this.emitProgress();
-      await this.maybeHeartbeat();
+      const hbResult = await this.maybeHeartbeat();
+      if (hbResult === 'cancelled') return;
+      if (hbResult === 'paused-out') {
+        this.emitState('paused');
+        return;
+      }
     }
 
     await this.finishUpload();
@@ -412,15 +502,30 @@ export class LargeFileUploader {
   private async sendChunkWithRetry(
     url: string,
     chunk: Blob,
-    contentRange: string
-  ): Promise<'success' | 'paused-out' | 'cancelled' | 'provider-limited' | { code: string; message: string }> {
+    contentRange: string,
+    chunkEnd: number
+  ): Promise<
+    | { kind: 'done' }
+    | { kind: 'continue'; offset: number }
+    | 'paused-out'
+    | 'cancelled'
+    | 'provider-limited'
+    | { code: string; message: string }
+  > {
     let attempt = 0;
     while (true) {
       if (this.cancelled) return 'cancelled';
       if (this.paused) return 'paused-out';
       try {
         const res = await this.transport.putChunk(url, chunk, contentRange, this.abortController.signal);
-        if (res.status >= 200 && res.status < 300) return 'success';
+        if (res.status === 308) {
+          // Google: "Resume Incomplete" — chunk đã nhận, chưa phải chunk
+          // cuối. KHÔNG phải lỗi. Đọc offset kế tiếp từ header `Range` thay
+          // vì giả định cả chunk gửi đã được chấp nhận trọn vẹn.
+          const nextOffset = parseResumableRangeEnd(res.rangeHeader) ?? chunkEnd;
+          return { kind: 'continue', offset: nextOffset };
+        }
+        if (res.status >= 200 && res.status < 300) return { kind: 'done' };
         if (res.status === 429 || res.status === 503) {
           this.emitState('provider-limited');
           await this.transport.sleep(res.retryAfter ? res.retryAfter * 1000 : 1000);
@@ -432,6 +537,8 @@ export class LargeFileUploader {
         await this.transport.sleep(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
         continue;
       } catch (err) {
+        if (this.cancelled) return 'cancelled';
+        if (this.paused) return 'paused-out';
         const special = detectSpecialError(err);
         if (special?.providerLimited) {
           this.emitState('provider-limited');

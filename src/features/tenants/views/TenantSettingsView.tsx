@@ -32,7 +32,7 @@ export const TenantSettingsView: React.FC<TenantSettingsViewProps> = ({
     setIsLoadingPolicy(true);
     try {
       const settings = await getTenantSettings(tenant.id);
-      setAllowUnscannedDownload(Boolean(settings?.allowUnscannedDownload));
+      setAllowUnscannedDownload(Boolean(settings?.allowUnscannedLargeFileDownload));
     } catch (error) {
       console.error('Không thể nạp cấu hình tải tệp chưa quét virus:', error);
       showToast('error', 'Không thể nạp cấu hình tải tệp chưa quét virus.');

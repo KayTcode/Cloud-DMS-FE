@@ -42,9 +42,9 @@ export function createTransport(
       return beginLargeSession(beginRequest, idempotencyKey);
     },
 
-    async presign(partNumber: number, sha256: string | null): Promise<string> {
+    async presign(partNumber: number, sha256: string | null): Promise<{ url: string; expiresAt: string }> {
       const res = await presignPart(session.sessionId, partNumber, sha256);
-      return res.url;
+      return { url: res.url, expiresAt: res.expiresAt };
     },
 
     async putPart(

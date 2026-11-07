@@ -232,8 +232,13 @@ export async function getDepartmentFilesApi(
   return response?.data || response;
 }
 
-export async function downloadTenantFileApi(fileId: string, fileName: string, archiveKind?: string | null): Promise<void> {
-  return driveApi.downloadFile(fileId, fileName, archiveKind);
+export async function downloadTenantFileApi(
+  fileId: string,
+  fileName: string,
+  archiveKind?: string | null,
+  confirmUnscanned?: () => Promise<boolean>
+): Promise<void> {
+  return driveApi.downloadFile(fileId, fileName, archiveKind, confirmUnscanned);
 }
 
 export async function deleteTenantFileApi(fileId: string): Promise<boolean> {

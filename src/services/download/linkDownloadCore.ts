@@ -45,6 +45,34 @@ export interface DownloadLinkLike {
 export interface DownloadViaLinkDeps {
   createDownloadLink: (fileId: string, acknowledgeUnscanned: boolean) => Promise<DownloadLinkLike>;
   document: MinimalDocument;
+  /**
+   * API's own base origin (same `VITE_API_BASE_URL` used by `axiosClient.ts`).
+   * Needed because the backend can return a RELATIVE url (e.g.
+   * `/api/files/{id}/download?ticket=...`) for a "proxied" download — the
+   * frontend's own origin differs from the API's, so a bare relative href
+   * on the anchor would resolve against the SPA's origin and download the
+   * app shell instead of the file (Fix 9).
+   */
+  apiBaseUrl: string;
+}
+
+/**
+ * Resolves a backend-returned download url against the API's own origin
+ * when it is relative (starts with `/`). An already-absolute url (e.g. a
+ * direct S3/provider link) is left untouched.
+ */
+export function resolveDownloadUrl(url: string, apiBaseUrl: string): string {
+  if (!url.startsWith('/')) return url;
+  // Use the API base's ORIGIN only (not its full path, e.g. `.../api`) so a
+  // relative url that already includes its own `/api/...` prefix doesn't
+  // get doubled up.
+  let origin: string;
+  try {
+    origin = new URL(apiBaseUrl).origin;
+  } catch {
+    origin = apiBaseUrl.replace(/\/+$/, '');
+  }
+  return `${origin}${url}`;
 }
 
 export interface DownloadViaLinkOptions {
@@ -95,7 +123,7 @@ export async function downloadViaLinkCore(
   }
 
   const anchor = deps.document.createElement('a');
-  anchor.href = result.url;
+  anchor.href = resolveDownloadUrl(result.url, deps.apiBaseUrl);
   deps.document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

@@ -210,11 +210,14 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       } catch (err) {
         const anyErr = err as { code?: string; message?: string } | null;
+        const message = anyErr?.message ?? 'Không thể bắt đầu upload';
         updateTask(id, {
           state: 'error',
-          error: { code: anyErr?.code ?? 'BEGIN_FAILED', message: anyErr?.message ?? 'Không thể bắt đầu upload' },
+          error: { code: anyErr?.code ?? 'BEGIN_FAILED', message },
         });
-        return id;
+        // Fix 7: a failed begin-call must reject, not silently resolve
+        // with an id as if enqueueing had succeeded.
+        throw new Error(message);
       }
 
       try {
@@ -256,16 +259,61 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         lastSampleAt: Date.now(),
         lastUploaded: 0,
       };
-      const uploader = new LargeFileUploader(file, session, transport, handleEvent(id, session.sessionId));
+      // Fix 7: resolve this promise only when the task actually reaches
+      // 'done' (or is paused by the user — see below), and reject on a
+      // real failure (error/cancelled/lock-busy), so callers in
+      // `uploadSelection.ts` and the view handlers stop reporting
+      // ok:true/success toasts for files that never actually finished.
+      let settleOutcome: ((outcome: 'done' | 'failed', err?: { code: string; message: string }) => void) | null = null;
+      const outcomePromise = new Promise<void>((resolve, reject) => {
+        settleOutcome = (outcome, err) => {
+          if (outcome === 'done') resolve();
+          else reject(err ? new Error(err.message) : new Error('Tải lên thất bại.'));
+        };
+      });
+
+      const eventHandler = handleEvent(id, session.sessionId);
+      const wrappedHandler = (e: UploadEvent) => {
+        eventHandler(e);
+        if (e.type === 'state') {
+          if (e.state === 'done') {
+            settleOutcome?.('done');
+            settleOutcome = null;
+          } else if (e.state === 'error' || e.state === 'cancelled') {
+            settleOutcome?.('failed', e.error);
+            settleOutcome = null;
+          } else if (e.state === 'paused') {
+            // Người dùng tự tạm dừng (hoặc hết lượt thử lại rồi tạm dừng):
+            // không phải một thất bại để báo lỗi toast, nhưng cũng chưa
+            // xong — coi như đã "giao" cho trình quản lý upload nền, không
+            // chặn các mục còn lại trong lô (uploadSelection's concurrency
+            // loop vẫn đang await promise này, nhưng các worker khác không
+            // bị ảnh hưởng). Giải quyết promise để không treo UI gọi hàm
+            // này; người gọi vẫn thấy task 'paused' qua `tasks` nếu cần.
+            settleOutcome?.('done');
+            settleOutcome = null;
+          }
+        }
+      };
+
+      const uploader = new LargeFileUploader(file, session, transport, wrappedHandler);
       entry.uploader = uploader;
       entriesRef.current.set(id, entry);
 
+      let lockBusy = false;
       await withSessionLock(
         session.sessionId,
         () => uploader.start(),
-        () => updateTask(id, { state: 'error', error: { code: 'LOCKED', message: LOCKED_ELSEWHERE_MESSAGE } })
+        () => {
+          lockBusy = true;
+          updateTask(id, { state: 'error', error: { code: 'LOCKED', message: LOCKED_ELSEWHERE_MESSAGE } });
+        }
       );
+      if (lockBusy) {
+        throw new Error(LOCKED_ELSEWHERE_MESSAGE);
+      }
 
+      await outcomePromise;
       return id;
     },
     [handleEvent, updateTask]

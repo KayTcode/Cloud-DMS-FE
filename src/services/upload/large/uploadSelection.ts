@@ -53,13 +53,29 @@ function toErrorResult(err: unknown, fallbackCode: string, fallbackMessage: stri
 
 async function isBlocked(file: File, deps: UploadSelectionDeps): Promise<boolean> {
   const head = await deps.readHead(file);
-  return detectBlockedSignature(head) !== null;
+  const signature = detectBlockedSignature(head);
+  if (signature === null) return false;
+  if (signature === 'MSI') {
+    return file.name.toLowerCase().endsWith('.msi');
+  }
+  return true;
 }
 
 function parentPathOf(relativePath: string): string {
   const segments = relativePath.split('/');
   segments.pop();
   return segments.join('/');
+}
+
+const DUPLICATE_NAME_MESSAGE_PATTERN = /(tồn tại|cùng tên|trùng tên|đã có thư mục)/i;
+
+function isDuplicateNameError(err: unknown): boolean {
+  const anyErr = err as { code?: string; message?: string } | null;
+  if (anyErr?.code === 'DUPLICATE_NAME') return true;
+  if (typeof anyErr?.message === 'string' && DUPLICATE_NAME_MESSAGE_PATTERN.test(anyErr.message)) {
+    return true;
+  }
+  return false;
 }
 
 async function createRootFolder(
@@ -74,8 +90,7 @@ async function createRootFolder(
       return await deps.createFolder(name, target.folderId ?? null, target);
     } catch (err) {
       lastErr = err;
-      const code = (err as { code?: string } | null)?.code;
-      if (code !== 'DUPLICATE_NAME') {
+      if (!isDuplicateNameError(err)) {
         throw err;
       }
     }
@@ -135,7 +150,11 @@ async function runTree(
 
       try {
         if (item.route === 'zip-file') {
-          await deps.uploadZip([file], [], itemTarget);
+          const bareFile = new File([file], file.name, {
+            type: file.type,
+            lastModified: file.lastModified,
+          });
+          await deps.uploadZip([bareFile], [], itemTarget);
           results.push({ relativePath: item.relativePath, ok: true });
         } else {
           if (await isBlocked(file, deps)) {

@@ -53,6 +53,17 @@ const txtItem = focus5.items.find((i) => i.relativePath === 'P/a/x.txt');
 assert.equal(bigItem.route, 'large');
 assert.equal(txtItem.route, 'zip-file');
 
+// Fix 1: small folder selection (under size/count thresholds) must still
+// route to 'zip-package', not 'tree', just like the flat multi-file case.
+const smallFolder = planUpload(
+  [
+    { size: 10, relativePath: 'P/a.txt' },
+    { size: 20, relativePath: 'P/b.txt' },
+  ],
+  ['P']
+);
+assert.equal(smallFolder.mode, 'zip-package');
+
 assert.equal(detectBlockedSignature(Uint8Array.of(0x4d, 0x5a, 0, 0)), 'PE');
 assert.equal(
   detectBlockedSignature(Uint8Array.of(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70)),

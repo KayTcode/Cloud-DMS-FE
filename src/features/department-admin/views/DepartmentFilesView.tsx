@@ -63,6 +63,7 @@ import { Edit3 } from 'lucide-react';
 import { uploadSelection } from '@/services/upload/large/uploadSelection';
 import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
 import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+import { UnscannedDownloadDialog } from '@/components/feedback/UnscannedDownloadDialog';
 
 async function readFileHead(file: File): Promise<Uint8Array> {
   const buffer = await file.slice(0, 65536).arrayBuffer();
@@ -133,6 +134,25 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  // DepartmentFilesView has its own bespoke file tables (doesn't go through
+  // DriveView), so it needs its own unscanned-download confirmation dialog
+  // wiring, following the same pattern DriveView uses: own dialog-open
+  // state + a pending-resolve ref, exposed as a `confirmUnscanned` closure
+  // passed into `downloadTenantFileApi` -> `driveApi.downloadFile` instead
+  // of letting it fall back to native `window.confirm`.
+  const [unscannedDialogOpen, setUnscannedDialogOpen] = useState(false);
+  const unscannedResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const confirmUnscanned = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      unscannedResolveRef.current = resolve;
+      setUnscannedDialogOpen(true);
+    });
+  const resolveUnscannedDialog = (confirmed: boolean) => {
+    setUnscannedDialogOpen(false);
+    unscannedResolveRef.current?.(confirmed);
+    unscannedResolveRef.current = null;
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
@@ -732,7 +752,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     try {
       setActiveMenuId(null);
       if (onAddToast) onAddToast('info', `Đang tải xuống tệp "${item.name}"...`);
-      await downloadTenantFileApi(item.id, item.name, item.archiveKind);
+      await downloadTenantFileApi(item.id, item.name, item.archiveKind, confirmUnscanned);
     } catch (err: any) {
       if (err?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
       if (onAddToast) onAddToast('error', err?.message || 'Không thể tải xuống tệp tin.');
@@ -2137,6 +2157,13 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       <DocumentModalsContainer
         parentFolderId={currentFolderId && !currentFolderId.startsWith('drive-') ? currentFolderId : null}
         {...docModals.containerProps}
+      />
+
+      {/* Xác nhận tải tệp chưa quét virus (thay cho window.confirm) */}
+      <UnscannedDownloadDialog
+        isOpen={unscannedDialogOpen}
+        onClose={() => resolveUnscannedDialog(false)}
+        onConfirm={() => resolveUnscannedDialog(true)}
       />
     </div>
   );
