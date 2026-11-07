@@ -36,6 +36,15 @@ import {
   getStorageProviderAvailableQuotaApi,
   getStorageProvidersApi
 } from '../api/systemAdminQueries';
+import { QuotaUnitInput } from '@/components/common/QuotaUnitInput';
+import {
+  QuotaUnit,
+  UNIT_BYTES,
+  unitToBytes,
+  bytesToUnit,
+  formatQuotaAuto,
+  formatQuotaWithUnit,
+} from '@/utils/quotaUnitUtils';
 
 interface TenantDetailsModalProps {
   tenant: SystemTenant | null;
@@ -72,7 +81,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
   const [realDepartmentsCount, setRealDepartmentsCount] = useState<number | null>(null);
 
   // Quota Adjustment States
-  const [quotaGB, setQuotaGB] = useState<number>(0);
+  const [quotaValue, setQuotaValue] = useState<number>(10);
+  const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [isSavingQuota, setIsSavingQuota] = useState(false);
   const [quotaSuccessMessage, setQuotaSuccessMessage] = useState<string | null>(null);
   const [quotaErrorMessage, setQuotaErrorMessage] = useState<string | null>(null);
@@ -132,11 +142,18 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
         setProviders(validProviders);
       }
 
-      // Initialize quotaGB
-      const currentGB = initialQuotaBytes > 0
-        ? Math.round(initialQuotaBytes / (1024 * 1024 * 1024))
-        : 10;
-      setQuotaGB(currentGB);
+      // Initialize quotaValue and quotaUnit
+      const currentBytes = initialQuotaBytes > 0 ? initialQuotaBytes : 10 * UNIT_BYTES.GB;
+      if (currentBytes >= UNIT_BYTES.TB) {
+        setQuotaUnit('TB');
+        setQuotaValue(bytesToUnit(currentBytes, 'TB'));
+      } else if (currentBytes < UNIT_BYTES.GB) {
+        setQuotaUnit('MB');
+        setQuotaValue(bytesToUnit(currentBytes, 'MB'));
+      } else {
+        setQuotaUnit('GB');
+        setQuotaValue(bytesToUnit(currentBytes, 'GB'));
+      }
 
       // Determine selected provider
       if (initialProviderId && validProviders.some(p => p.id === initialProviderId)) {
@@ -185,7 +202,7 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
 
   // Real calculations
   const quotaBytes = realQuota?.storageQuotaBytes || 0;
-  const currentQuotaGB = Math.round(quotaBytes / (1024 * 1024 * 1024));
+  const currentQuotaDisplay = quotaBytes > 0 ? formatQuotaAuto(quotaBytes) : 'Chưa cấp Quota';
 
   // Quota đã cấp cho các phòng ban
   const allocatedToDeptsBytes = realQuota?.allocatedToDepartmentsBytes || 0;
@@ -199,52 +216,61 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
     ? Math.min(100, Math.round((allocatedToDeptsBytes / quotaBytes) * 100))
     : 0;
 
-  const storageQuotaDisplay = quotaBytes > 0 ? formatBytes(quotaBytes) : 'Chưa cấp Quota';
+  const storageQuotaDisplay = currentQuotaDisplay;
   const remainingQuotaDisplay = formatBytes(unallocatedBytes);
   const allocatedToDeptsDisplay = formatBytes(allocatedToDeptsBytes);
 
   // Boundaries for Quota Adjustment
   // Min: Không được nhỏ hơn mức Quota đã cấp cho các phòng ban hoặc dữ liệu file thực tế
   const minRequiredBytes = Math.max(allocatedToDeptsBytes, actualPhysicalUsedBytes);
-  const minGB = Math.max(1, Math.ceil(minRequiredBytes / (1024 * 1024 * 1024)));
 
   // Selected provider details & Available pool
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
   const providerRemainingGB = providerAvailable?.availableToAllocateGB ?? 1000;
-  // If tenant is on this provider, they can increase by providerRemainingGB
-  const maxGB = providerAvailable
-    ? Math.max(minGB, currentQuotaGB + providerAvailable.availableToAllocateGB)
-    : Math.max(minGB + 50, currentQuotaGB + 50);
+  const providerRemainingBytes = providerRemainingGB * UNIT_BYTES.GB;
+
+  // If tenant is on this provider, they can increase by providerRemainingBytes
+  const maxAllowedBytes = providerAvailable
+    ? Math.max(minRequiredBytes, quotaBytes + providerRemainingBytes)
+    : Math.max(minRequiredBytes + 50 * UNIT_BYTES.GB, quotaBytes + 50 * UNIT_BYTES.GB);
 
   // Delta calculations
   const isTenantSuspended = tenant.status !== 'Active';
-  const deltaGB = quotaGB - currentQuotaGB;
-  const isChanged = quotaGB !== currentQuotaGB;
-  const isBelowMin = quotaGB < minGB;
-  const isAboveMax = providerAvailable ? (deltaGB > providerAvailable.availableToAllocateGB) : false;
+  const targetQuotaBytes = unitToBytes(quotaValue, quotaUnit);
+  const deltaBytes = targetQuotaBytes - quotaBytes;
+  const isChanged = targetQuotaBytes !== quotaBytes;
+  const isBelowMin = targetQuotaBytes < minRequiredBytes;
+  const isAboveMax = deltaBytes > providerRemainingBytes;
   const canSave = isChanged && !isBelowMin && !isAboveMax && !isSavingQuota && !isTenantSuspended && Boolean(selectedProviderId);
 
   // Simulated metrics for Tab 2
-  const newQuotaBytes = quotaGB * 1024 * 1024 * 1024;
-  const simulatedRemainingBytes = Math.max(0, newQuotaBytes - allocatedToDeptsBytes);
-  const simulatedUsagePercentage = newQuotaBytes > 0
-    ? Math.min(100, Math.round((allocatedToDeptsBytes / newQuotaBytes) * 100))
+  const simulatedRemainingBytes = Math.max(0, targetQuotaBytes - allocatedToDeptsBytes);
+  const simulatedUsagePercentage = targetQuotaBytes > 0
+    ? Math.min(100, Math.round((allocatedToDeptsBytes / targetQuotaBytes) * 100))
     : 0;
 
   // Stepper handlers
-  const handleStepQuota = (amount: number) => {
+  const handleStepDeltaBytes = (stepBytes: number) => {
     if (isTenantSuspended) return;
-    setQuotaGB((prev) => {
-      const next = prev + amount;
-      return Math.max(minGB, Math.min(maxGB, next));
-    });
+    const nextBytes = Math.max(minRequiredBytes, Math.min(maxAllowedBytes, targetQuotaBytes + stepBytes));
+    setQuotaValue(bytesToUnit(nextBytes, quotaUnit));
     setQuotaSuccessMessage(null);
     setQuotaErrorMessage(null);
   };
 
   const handleResetQuota = () => {
     if (isTenantSuspended) return;
-    setQuotaGB(currentQuotaGB || 10);
+    const currentBytes = quotaBytes || 10 * UNIT_BYTES.GB;
+    if (currentBytes >= UNIT_BYTES.TB) {
+      setQuotaUnit('TB');
+      setQuotaValue(bytesToUnit(currentBytes, 'TB'));
+    } else if (currentBytes < UNIT_BYTES.GB) {
+      setQuotaUnit('MB');
+      setQuotaValue(bytesToUnit(currentBytes, 'MB'));
+    } else {
+      setQuotaUnit('GB');
+      setQuotaValue(bytesToUnit(currentBytes, 'GB'));
+    }
     setQuotaSuccessMessage(null);
     setQuotaErrorMessage(null);
   };
@@ -277,7 +303,7 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
     setQuotaSuccessMessage(null);
 
     try {
-      const targetBytes = quotaGB * 1024 * 1024 * 1024;
+      const targetBytes = targetQuotaBytes;
       await allocateTenantStorageQuotaApi(tenant.id, {
         storageProviderId: providerId,
         quotaBytes: targetBytes,
@@ -287,7 +313,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
       const updated = await getTenantStorageQuota(tenant.id);
       if (updated) {
         setRealQuota(updated);
-        setQuotaGB(Math.round(updated.storageQuotaBytes / (1024 * 1024 * 1024)));
+        const newBytes = updated.storageQuotaBytes;
+        setQuotaValue(bytesToUnit(newBytes, quotaUnit));
       }
 
       // Refetch provider availability
@@ -306,7 +333,7 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
           .catch(() => { });
       }
 
-      setQuotaSuccessMessage(`Đã cập nhật hạn mức Quota thành công: ${quotaGB} GB!`);
+      setQuotaSuccessMessage(`Đã cập nhật hạn mức Quota thành công: ${formatQuotaAuto(targetBytes)}!`);
       if (onQuotaUpdated) {
         onQuotaUpdated(tenant.id, targetBytes);
       }
@@ -607,7 +634,7 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div>
                   <span className="text-slate-400 block text-[11px]">Hạn mức hiện tại:</span>
-                  <span className="font-bold text-slate-800 text-sm font-mono">{currentQuotaGB} GB</span>
+                  <span className="font-bold text-slate-800 text-sm font-mono">{currentQuotaDisplay}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">Quota còn lại (chưa cấp):</span>
@@ -688,7 +715,7 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                       className="text-[11px] text-slate-500 hover:text-slate-700 flex items-center gap-1 font-medium cursor-pointer"
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>Khôi phục ({currentQuotaGB} GB)</span>
+                      <span>Khôi phục ({currentQuotaDisplay})</span>
                     </button>
                   )}
                 </div>
@@ -740,47 +767,23 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                   )}
                 </div>
 
-                {/* Big Stepper Input */}
-                <div className="flex items-center justify-center gap-3 py-1">
-                  <button
-                    type="button"
-                    onClick={() => handleStepQuota(-5)}
-                    disabled={quotaGB <= minGB || isSavingQuota || isTenantSuspended}
-                    className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 font-bold flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-                    title="Giảm 5 GB"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="number"
-                      min={minGB}
-                      max={maxGB}
-                      disabled={isTenantSuspended}
-                      value={quotaGB}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setQuotaGB(isNaN(val) ? 0 : val);
-                        setQuotaSuccessMessage(null);
-                        setQuotaErrorMessage(null);
-                      }}
-                      className="w-32 sm:w-40 h-12 text-center text-2xl font-bold font-mono text-slate-900 border-2 border-blue-500/80 rounded-xl bg-blue-50/20 focus:outline-hidden focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all pr-8 disabled:bg-slate-100 disabled:text-slate-400"
-                    />
-                    <span className="absolute right-3 text-xs font-bold text-slate-400 font-mono pointer-events-none">
-                      GB
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleStepQuota(5)}
-                    disabled={quotaGB >= maxGB || isSavingQuota || isTenantSuspended}
-                    className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 font-bold flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-                    title="Tăng 5 GB"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                {/* Quota Unit Input (MB / GB / TB) */}
+                <div className="pt-1">
+                  <QuotaUnitInput
+                    label="Hạn mức Quota điều chỉnh"
+                    value={quotaValue}
+                    unit={quotaUnit}
+                    onChange={(val, u) => {
+                      setQuotaValue(val);
+                      setQuotaUnit(u);
+                      setQuotaSuccessMessage(null);
+                      setQuotaErrorMessage(null);
+                    }}
+                    maxBytes={maxAllowedBytes}
+                    minBytes={minRequiredBytes}
+                    disabled={isTenantSuspended || isSavingQuota}
+                    helperText={`Tối thiểu: ${formatQuotaAuto(minRequiredBytes)} (Đã cấp PB / Tệp tin). Tối đa khả dụng: ${formatQuotaAuto(maxAllowedBytes)}.`}
+                  />
                 </div>
 
                 {/* Quick Presets Buttons */}
@@ -789,34 +792,48 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                     Phím tắt tăng / giảm nhanh:
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {[-10, -5].map((delta) => {
-                      const target = quotaGB + delta;
-                      const disabled = target < minGB || isSavingQuota;
+                    {[
+                      { label: '-10 GB', delta: -10 * UNIT_BYTES.GB },
+                      { label: '-5 GB', delta: -5 * UNIT_BYTES.GB },
+                      { label: '-1 GB', delta: -1 * UNIT_BYTES.GB },
+                      { label: '-500 MB', delta: -500 * UNIT_BYTES.MB },
+                    ].map((btn) => {
+                      const target = targetQuotaBytes + btn.delta;
+                      const disabled = target < minRequiredBytes || isSavingQuota || isTenantSuspended;
                       return (
                         <button
-                          key={delta}
+                          key={btn.label}
                           type="button"
-                          onClick={() => handleStepQuota(delta)}
+                          onClick={() => handleStepDeltaBytes(btn.delta)}
                           disabled={disabled}
                           className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                         >
-                          {delta} GB
+                          {btn.label}
                         </button>
                       );
                     })}
 
-                    {[5, 10, 20, 50, 100].map((delta) => {
-                      const target = quotaGB + delta;
-                      const disabled = target > maxGB || isSavingQuota;
+                    {[
+                      { label: '+500 MB', delta: 500 * UNIT_BYTES.MB },
+                      { label: '+1 GB', delta: 1 * UNIT_BYTES.GB },
+                      { label: '+5 GB', delta: 5 * UNIT_BYTES.GB },
+                      { label: '+10 GB', delta: 10 * UNIT_BYTES.GB },
+                      { label: '+20 GB', delta: 20 * UNIT_BYTES.GB },
+                      { label: '+50 GB', delta: 50 * UNIT_BYTES.GB },
+                      { label: '+100 GB', delta: 100 * UNIT_BYTES.GB },
+                      { label: '+1 TB', delta: 1 * UNIT_BYTES.TB },
+                    ].map((btn) => {
+                      const target = targetQuotaBytes + btn.delta;
+                      const disabled = target > maxAllowedBytes || isSavingQuota || isTenantSuspended;
                       return (
                         <button
-                          key={delta}
+                          key={btn.label}
                           type="button"
-                          onClick={() => handleStepQuota(delta)}
+                          onClick={() => handleStepDeltaBytes(btn.delta)}
                           disabled={disabled}
                           className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
                         >
-                          +{delta} GB
+                          {btn.label}
                         </button>
                       );
                     })}
@@ -827,21 +844,23 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                 <div className="space-y-2 pt-2">
                   <input
                     type="range"
-                    min={minGB}
-                    max={maxGB}
-                    step={1}
-                    value={quotaGB}
+                    min={minRequiredBytes}
+                    max={maxAllowedBytes}
+                    step={quotaUnit === 'MB' ? 100 * UNIT_BYTES.MB : UNIT_BYTES.GB}
+                    value={targetQuotaBytes}
+                    disabled={isTenantSuspended || isSavingQuota}
                     onChange={(e) => {
-                      setQuotaGB(parseInt(e.target.value, 10));
+                      const b = Number(e.target.value);
+                      setQuotaValue(bytesToUnit(b, quotaUnit));
                       setQuotaSuccessMessage(null);
                       setQuotaErrorMessage(null);
                     }}
                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
                   <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                    <span>Min: {minGB} GB (Đã cấp PB)</span>
-                    <span className="font-bold text-slate-700">Mới: {quotaGB} GB</span>
-                    <span>Max: {maxGB} GB (Cloud Free)</span>
+                    <span>Min: {formatQuotaAuto(minRequiredBytes)} (Đã cấp PB)</span>
+                    <span className="font-bold text-slate-700">Mới: {formatQuotaAuto(targetQuotaBytes)}</span>
+                    <span>Max: {formatQuotaAuto(maxAllowedBytes)} (Cloud Free)</span>
                   </div>
                 </div>
 
@@ -854,17 +873,17 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                     </span>
 
                     {/* Delta Badge */}
-                    {deltaGB > 0 ? (
+                    {deltaBytes > 0 ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 font-mono">
-                        +{deltaGB} GB từ {selectedProvider?.name || 'Cloud'}
+                        +{formatQuotaAuto(deltaBytes)} từ {selectedProvider?.name || 'Cloud'}
                       </span>
-                    ) : deltaGB < 0 ? (
+                    ) : deltaBytes < 0 ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200 font-mono">
-                        {deltaGB} GB (Thu hồi LIFO)
+                        -{formatQuotaAuto(Math.abs(deltaBytes))} (Thu hồi LIFO)
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 font-mono">
-                        Giữ nguyên ({currentQuotaGB} GB)
+                        Giữ nguyên ({currentQuotaDisplay})
                       </span>
                     )}
                   </div>
@@ -874,17 +893,18 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                     <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
                       <span>Phân bổ PB sau khi đổi:</span>
                       <span className="font-bold text-slate-700">
-                        {allocatedToDeptsDisplay} / {quotaGB} GB ({simulatedUsagePercentage}%)
+                        {allocatedToDeptsDisplay} / {formatQuotaAuto(targetQuotaBytes)} ({simulatedUsagePercentage}%)
                       </span>
                     </div>
                     <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${simulatedUsagePercentage >= 90
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          simulatedUsagePercentage >= 90
                             ? 'bg-rose-500'
                             : simulatedUsagePercentage >= 80
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-500'
-                          }`}
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
                         style={{ width: `${simulatedUsagePercentage}%` }}
                       />
                     </div>

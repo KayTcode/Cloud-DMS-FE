@@ -24,6 +24,7 @@ import { DepartmentProvider, useDepartment } from './context/DepartmentContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantContext } from '@/context/TenantContext';
 import { bytesToGB, gbToBytes } from './utils/quotaUtils';
+import { formatQuotaAuto } from '@/utils/quotaUnitUtils';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
@@ -156,13 +157,14 @@ const DepartmentAdminPortalContent: React.FC = () => {
   });
 
   // Handlers
-  const handleSaveMemberQuota = async (memberId: string, newQuotaGB: number) => {
+  const handleSaveMemberQuota = async (memberId: string, newQuotaBytes: number) => {
     try {
-      await allocateQuota(memberId, gbToBytes(newQuotaGB));
+      await allocateQuota(memberId, newQuotaBytes);
       const targetMember = members.find((m) => m.id === memberId);
+      const displayStr = formatQuotaAuto(newQuotaBytes);
       showNotification(
         'success',
-        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${newQuotaGB} GB.`
+        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${displayStr}.`
       );
     } catch (err: any) {
       const msg =

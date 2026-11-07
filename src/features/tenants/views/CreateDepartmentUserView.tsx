@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, UserPlus, Building2, Shield, Check, Info, Mail, Loader2, HardDrive, Layers, AlertCircle, Cloud } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
 import { TenantUser } from '@/features/tenants/types';
+import { QuotaUnitInput } from '@/components/common';
+import { QuotaUnit, unitToBytes, formatQuotaAuto, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
 
 interface CreateDepartmentUserViewProps {
   onBack: () => void;
@@ -21,36 +23,35 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [role, setRole] = useState('Department Administrator');
-  const [quotaGB, setQuotaGB] = useState('10');
+  const [quotaValue, setQuotaValue] = useState<number>(10);
+  const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [requirePasswordReset, setRequirePasswordReset] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Quota còn trống (chưa phân bổ cho các phòng ban) của Tenant
+  // Quota còn trống (chưa phân bổ cho các phòng ban) của Tenant (Bytes)
   const unallocatedBytes = tenant.unallocatedBytes !== undefined
     ? tenant.unallocatedBytes
     : (tenant.availableBytes !== undefined
       ? tenant.availableBytes
       : Math.max(0, (tenant.storageQuotaBytes || 0) - (tenant.allocatedToDepartmentsBytes || 0)));
-  const unallocatedQuotaGB = Number((unallocatedBytes / (1024 ** 3)).toFixed(1));
 
   const selectedDept = departments.find((d) => d.id === selectedDeptId);
-  const deptAllocatedGB = selectedDept?.allocatedStorageGB || 0;
+  const deptAllocatedBytes = selectedDept ? (selectedDept.allocatedStorageGB || 0) * (1024 ** 3) : 0;
 
   const chosenAlloc = tenant.allocations?.find((a) => a.storageProviderId === selectedStorageProviderId);
   const chosenProviderFreeBytes = chosenAlloc
     ? Math.max(0, chosenAlloc.grantedBytes - chosenAlloc.allocatedToChildrenBytes)
     : 0;
-  const chosenProviderFreeGB = Number((chosenProviderFreeBytes / (1024 ** 3)).toFixed(1));
 
-  // Hạn mức khả dụng tối đa phụ thuộc vào việc chọn nguồn Provider hay chọn tự động
-  const maxAllowedGB = selectedStorageProviderId
-    ? chosenProviderFreeGB
-    : (selectedDept ? deptAllocatedGB : unallocatedQuotaGB);
+  // Hạn mức khả dụng tối đa theo Bytes
+  const maxAllowedBytes = selectedStorageProviderId
+    ? chosenProviderFreeBytes
+    : (selectedDept ? deptAllocatedBytes : unallocatedBytes);
 
-  const quotaNum = Number(quotaGB);
-  const isOverQuota = !isNaN(quotaNum) && maxAllowedGB > 0 && quotaNum > maxAllowedGB;
+  const currentQuotaBytes = unitToBytes(quotaValue, quotaUnit);
+  const isOverQuota = maxAllowedBytes > 0 && currentQuotaBytes > maxAllowedBytes;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,16 +68,9 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
       return;
     }
 
-    const quotaVal = Number(quotaGB);
-    if (!isNaN(quotaVal) && quotaVal > 0) {
-      if (selectedStorageProviderId && quotaVal > chosenProviderFreeGB) {
-        setErrorMessage(`Hạn mức yêu cầu (${quotaVal} GB) vượt quá dung lượng khả dụng của Drive "${chosenAlloc?.storageProviderName}" (Khả dụng còn: ${chosenProviderFreeGB} GB).`);
-        return;
-      }
-      if (!selectedStorageProviderId && maxAllowedGB > 0 && quotaVal > maxAllowedGB) {
-        setErrorMessage(`Hạn mức yêu cầu (${quotaVal} GB) vượt quá dung lượng khả dụng tối đa (${maxAllowedGB} GB).`);
-        return;
-      }
+    if (quotaValue > 0 && maxAllowedBytes > 0 && currentQuotaBytes > maxAllowedBytes) {
+      setErrorMessage(`Hạn mức yêu cầu (${formatQuotaWithUnit(currentQuotaBytes, quotaUnit)}) vượt quá dung lượng khả dụng (${formatQuotaAuto(maxAllowedBytes)}).`);
+      return;
     }
 
     // Split First & Last Name
@@ -86,9 +80,7 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
 
     setIsSubmitting(true);
     try {
-      const storageQuotaBytes = !isNaN(quotaVal) && quotaVal > 0
-        ? Math.round(quotaVal * 1024 * 1024 * 1024)
-        : undefined;
+      const storageQuotaBytes = currentQuotaBytes > 0 ? currentQuotaBytes : undefined;
 
       // Auto-assign as Department Admin via Email Invitation
       const success = await handleCreateDepartmentAdmin({
@@ -293,42 +285,26 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                 <div className="text-left sm:text-right bg-white sm:bg-transparent p-2 sm:p-0 rounded-lg border sm:border-0 border-slate-200/70">
                   <span className="text-[11px] text-slate-500">Khả dụng cho phép: </span>
                   <span className="text-xs font-bold font-mono text-emerald-600">
-                    {maxAllowedGB} GB
+                    {formatQuotaAuto(maxAllowedBytes)}
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2.5 border-t border-slate-200/70">
-                {/* Quota Input */}
+                {/* Quota Input with Unit */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
-                    Dung lượng cấp phát cá nhân (GB) <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={quotaGB}
-                      onChange={(e) => setQuotaGB(e.target.value)}
-                      className={`w-full text-xs border rounded-lg px-3 py-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 transition-all font-mono ${
-                        isOverQuota
-                          ? 'border-rose-400 focus:ring-rose-500/20 focus:border-rose-500 text-rose-700 font-bold'
-                          : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
-                      }`}
-                    />
-                    <span className="text-xs text-slate-500 font-medium">GB</span>
-                  </div>
-                  {isOverQuota ? (
-                    <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>Vượt quá dung lượng khả dụng ({maxAllowedGB} GB). Vui lòng điều chỉnh lại.</span>
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Hạn mức lưu trữ tài liệu cá nhân của Trưởng phòng trên Cloud DMS.
-                    </p>
-                  )}
+                  <QuotaUnitInput
+                    value={quotaValue}
+                    unit={quotaUnit}
+                    onChange={(val, u) => {
+                      setQuotaValue(val);
+                      setQuotaUnit(u);
+                    }}
+                    maxBytes={maxAllowedBytes}
+                    label="Dung lượng cấp phát cá nhân"
+                    required
+                    helperText="Hạn mức lưu trữ tài liệu cá nhân của Trưởng phòng trên Cloud DMS."
+                  />
                 </div>
 
                 {/* Storage Provider Selector */}
