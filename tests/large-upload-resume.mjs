@@ -183,4 +183,154 @@ await run('tabLock_runsImmediatelyWithoutWebLocks', async () => {
   assert.equal(busy, false);
 });
 
+// --- resumeStore ---
+
+/**
+ * Minimal in-memory fake of the IndexedDB API, just enough to exercise
+ * resumeStore.ts's open/transaction/objectStore.put/get/getAll/delete calls.
+ */
+function makeFakeIndexedDB() {
+  const stores = new Map(); // dbName -> Map(storeName -> Map(key -> value))
+
+  function makeDb(dbName) {
+    const dbStores = stores.get(dbName);
+    return {
+      objectStoreNames: { contains: (name) => dbStores.has(name) },
+      createObjectStore(name, _options) {
+        dbStores.set(name, new Map());
+        return { name };
+      },
+      transaction(storeName, _mode) {
+        const data = dbStores.get(storeName);
+        const tx = {
+          oncomplete: null,
+          onerror: null,
+          objectStore(name) {
+            return {
+              put(value) {
+                data.set(value.sessionId, value);
+                return {};
+              },
+              get(key) {
+                const req = { result: undefined, onsuccess: null, onerror: null };
+                queueMicrotask(() => {
+                  req.result = data.get(key);
+                  req.onsuccess && req.onsuccess();
+                });
+                return req;
+              },
+              getAll() {
+                const req = { result: undefined, onsuccess: null, onerror: null };
+                queueMicrotask(() => {
+                  req.result = Array.from(data.values());
+                  req.onsuccess && req.onsuccess();
+                });
+                return req;
+              },
+              delete(key) {
+                data.delete(key);
+                return {};
+              },
+            };
+          },
+        };
+        queueMicrotask(() => tx.oncomplete && tx.oncomplete());
+        return tx;
+      },
+    };
+  }
+
+  return {
+    open(dbName, _version) {
+      if (!stores.has(dbName)) stores.set(dbName, new Map());
+      const req = { result: undefined, onupgradeneeded: null, onsuccess: null, onerror: null };
+      queueMicrotask(() => {
+        const db = makeDb(dbName);
+        req.result = db;
+        // Always report the store as missing on first open so onupgradeneeded creates it.
+        if (!db.objectStoreNames.contains('sessions')) {
+          req.onupgradeneeded && req.onupgradeneeded();
+        }
+        req.onsuccess && req.onsuccess();
+      });
+      return req;
+    },
+  };
+}
+
+/** A fake indexedDB whose `open` throws synchronously, modeling an unavailable IndexedDB. */
+function makeThrowingIndexedDB() {
+  return {
+    open() {
+      throw new Error('IndexedDB unavailable');
+    },
+  };
+}
+
+function baseSavedSession(overrides = {}) {
+  return {
+    sessionId: 'resume-sess-1',
+    fileName: 'contract.pdf',
+    size: 4096,
+    lastModified: 1700000000000,
+    partSizeBytes: 8 * 1024 * 1024,
+    fingerprint: 'deadbeef',
+    folderId: 'folder-42',
+    savedAt: Date.now(),
+    ...overrides,
+  };
+}
+
+await run('resumeStore_roundTripsSaveGetListRemove', async () => {
+  const fakeIndexedDB = makeFakeIndexedDB();
+  const { saveSession, getSession, listSessions, removeSession } = loadModule(
+    'src/services/upload/large/resumeStore.ts',
+    { indexedDB: fakeIndexedDB, queueMicrotask }
+  );
+
+  const session = baseSavedSession();
+  await saveSession(session);
+
+  const fetched = await getSession(session.sessionId);
+  assert.ok(fetched, 'getSession should return the saved session');
+  assert.equal(fetched.sessionId, session.sessionId);
+  assert.equal(fetched.fileName, session.fileName);
+  assert.equal(fetched.fingerprint, session.fingerprint);
+
+  const all = await listSessions();
+  assert.ok(all.some((s) => s.sessionId === session.sessionId), 'listSessions should include the saved session');
+
+  await removeSession(session.sessionId);
+  const afterRemove = await getSession(session.sessionId);
+  assert.equal(afterRemove, null, 'getSession should return null after removeSession');
+});
+
+await run('resumeStore_degradesGracefullyWhenIndexedDbUnavailable', async () => {
+  // No `indexedDB` global at all (common case: typeof indexedDB === 'undefined').
+  const { saveSession, getSession, listSessions, removeSession } = loadModule(
+    'src/services/upload/large/resumeStore.ts',
+    { queueMicrotask }
+  );
+
+  await assert.doesNotReject(() => saveSession(baseSavedSession()));
+  assert.equal(await getSession('missing'), null);
+  assert.equal((await listSessions()).length, 0);
+  await assert.doesNotReject(() => removeSession('missing'));
+});
+
+await run('resumeStore_degradesGracefullyWhenIndexedDbThrows', async () => {
+  // `indexedDB` exists but throws synchronously on open() (simulating a browser
+  // that disallows IndexedDB, e.g. private browsing in some engines).
+  const fakeIndexedDB = makeThrowingIndexedDB();
+  const { saveSession, getSession, listSessions, removeSession } = loadModule(
+    'src/services/upload/large/resumeStore.ts',
+    { indexedDB: fakeIndexedDB, queueMicrotask }
+  );
+
+  await assert.doesNotReject(() => saveSession(baseSavedSession()));
+  assert.equal(await getSession('missing'), null);
+  assert.equal((await listSessions()).length, 0);
+  await assert.doesNotReject(() => removeSession('missing'));
+});
+
 console.log('ALL PASS: large upload resume/fingerprint/tabLock suite');
