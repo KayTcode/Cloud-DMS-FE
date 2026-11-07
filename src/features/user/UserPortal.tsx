@@ -44,9 +44,17 @@ import { driveApi, userApi } from './api/driveApi';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { PendingUploadsSection } from '@/components/upload/PendingUploadsSection';
+import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+
+async function readFileHead(file: File): Promise<Uint8Array> {
+  const buffer = await file.slice(0, 65536).arrayBuffer();
+  return new Uint8Array(buffer);
+}
 
 export const UserPortal: React.FC = () => {
   const { user: authUser } = useAuth();
+  const { enqueueLarge, reportPendingCount } = useUploadManager();
   const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const [activeTab, setActiveTab] = useState<UserNavTab>('documents');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
@@ -274,31 +282,42 @@ export const UserPortal: React.FC = () => {
 
     try {
       showNotification(`Đang tải lên ${fileList.length} tệp tin...`, 'info');
-      const result = await driveApi.uploadFiles(fileList, currentFolderId, directories);
+      const result = await uploadSelection(
+        Array.from(fileList),
+        directories,
+        { folderId: currentFolderId },
+        {
+          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId),
+          reportPendingCount,
+          readHead: readFileHead,
+        }
+      );
 
       // Refresh lại danh sách files và Quota
       await fetchDriveItems(currentFolderId);
       await fetchPersonalQuota();
 
-      const uploadedFiles = result?.uploaded ?? result?.successfulFiles ?? [];
-      const failedFiles = result?.failed ?? result?.failedFiles ?? [];
-      const successCount = uploadedFiles.length;
-      const failedCount = failedFiles.length;
-
-      if (failedCount > 0 && successCount === 0) {
-        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
-        showNotification(
-          `Tải lên thất bại: ${errorDetail}`,
-          'error'
-        );
-      } else if (failedCount > 0 && successCount > 0) {
-        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
-        showNotification(
-          `Tải lên: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
-          'error'
-        );
+      if (result.error) {
+        showNotification(`Lỗi: ${result.error.message}`, 'error');
       } else {
-        showNotification(`Đã tải lên thành công ${successCount || fileList.length} tệp tin!`, 'success');
+        const successCount = result.items.filter((i) => i.ok).length;
+        const failedItems = result.items.filter((i) => !i.ok);
+        const failedCount = failedItems.length;
+
+        if (failedCount > 0 && successCount === 0) {
+          const errorDetail = failedItems.map((f) => `${f.relativePath}: ${f.error?.message}`).join('; ');
+          showNotification(`Tải lên thất bại: ${errorDetail}`, 'error');
+        } else if (failedCount > 0 && successCount > 0) {
+          const errorDetail = failedItems.map((f) => `${f.relativePath}: ${f.error?.message}`).join('; ');
+          showNotification(
+            `Tải lên: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
+            'error'
+          );
+        } else {
+          showNotification(`Đã tải lên thành công ${successCount || fileList.length} tệp tin!`, 'success');
+        }
       }
 
       const newActivity: UserActivity = {
@@ -323,31 +342,43 @@ export const UserPortal: React.FC = () => {
 
     try {
       showNotification(`Đang khởi tạo tải trực tiếp ${fileList.length} tệp tin lên Cloud...`, 'info');
-      const result = await driveApi.uploadDirectFiles(fileList, currentFolderId);
+      // Đi qua cùng bộ phân luồng F6: file nhỏ -> đường zip hiện có, file lớn -> F5 enqueueLarge.
+      const result = await uploadSelection(
+        Array.from(fileList),
+        [],
+        { folderId: currentFolderId },
+        {
+          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId),
+          reportPendingCount,
+          readHead: readFileHead,
+        }
+      );
 
       // Refresh lại danh sách files và Quota
       await fetchDriveItems(currentFolderId);
       await fetchPersonalQuota();
 
-      const uploadedFiles = result?.uploaded ?? [];
-      const failedFiles = result?.failed ?? [];
-      const successCount = uploadedFiles.length;
-      const failedCount = failedFiles.length;
-
-      if (failedCount > 0 && successCount === 0) {
-        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
-        showNotification(
-          `Tải trực tiếp Cloud thất bại: ${errorDetail}`,
-          'error'
-        );
-      } else if (failedCount > 0 && successCount > 0) {
-        const errorDetail = failedFiles.map((f: any) => `${f.fileName}: ${f.error}`).join('; ');
-        showNotification(
-          `Tải trực tiếp Cloud: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
-          'error'
-        );
+      if (result.error) {
+        showNotification(`Lỗi Cloud Direct: ${result.error.message}`, 'error');
       } else {
-        showNotification(`Đã tải trực tiếp thành công ${successCount || fileList.length} tệp tin lên Cloud!`, 'success');
+        const successCount = result.items.filter((i) => i.ok).length;
+        const failedItems = result.items.filter((i) => !i.ok);
+        const failedCount = failedItems.length;
+
+        if (failedCount > 0 && successCount === 0) {
+          const errorDetail = failedItems.map((f) => `${f.relativePath}: ${f.error?.message}`).join('; ');
+          showNotification(`Tải trực tiếp Cloud thất bại: ${errorDetail}`, 'error');
+        } else if (failedCount > 0 && successCount > 0) {
+          const errorDetail = failedItems.map((f) => `${f.relativePath}: ${f.error?.message}`).join('; ');
+          showNotification(
+            `Tải trực tiếp Cloud: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
+            'error'
+          );
+        } else {
+          showNotification(`Đã tải trực tiếp thành công ${successCount || fileList.length} tệp tin lên Cloud!`, 'success');
+        }
       }
 
       const newActivity: UserActivity = {

@@ -2,6 +2,7 @@ import { driveApi } from '@/features/user/api/driveApi';
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
+import { LARGE_FILE_THRESHOLD_BYTES } from '@/services/upload/large/uploadRouting';
 
 export interface FileItemDto {
   archiveKind?: 'file' | 'folder' | 'batch' | null;
@@ -107,6 +108,12 @@ export async function uploadTenantFilesApi(
   _userId?: string
 ): Promise<MultipleFileUploadResultDto> {
   const selection = Array.from(files);
+  const oversized = selection.find((file) => file.size > LARGE_FILE_THRESHOLD_BYTES);
+  if (oversized) {
+    throw new Error(
+      `Tệp "${oversized.name}" vượt ngưỡng ${LARGE_FILE_THRESHOLD_BYTES} byte, vui lòng dùng luồng tải file lớn (uploadSelection) thay vì gọi uploadTenantFilesApi trực tiếp.`
+    );
+  }
   if (selection.length > 1 || selection.some((file) => !!file.webkitRelativePath))
     return driveApi.uploadFiles(selection, folderId);
   const formData = new FormData();
@@ -132,6 +139,13 @@ export async function uploadDirectTenantFilesApi(
   _userId?: string,
   onProgress?: (fileName: string, progress: DirectUploadProgress) => void
 ): Promise<MultipleFileUploadResultDto> {
+  const selection = Array.from(files);
+  const oversized = selection.find((file) => file.size > LARGE_FILE_THRESHOLD_BYTES);
+  if (oversized) {
+    throw new Error(
+      `Tệp "${oversized.name}" vượt ngưỡng ${LARGE_FILE_THRESHOLD_BYTES} byte, vui lòng dùng luồng tải file lớn (uploadSelection) thay vì gọi uploadDirectTenantFilesApi trực tiếp.`
+    );
+  }
   return driveApi.uploadDirectFiles(files, folderId, onProgress);
 }
 

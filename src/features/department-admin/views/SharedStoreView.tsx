@@ -11,10 +11,18 @@ import { driveApi, formatBytes } from '@/features/user/api/driveApi';
 import { getDepartmentFilesApi } from '@/features/tenants/api/fileApi';
 import { FolderDto, BreadcrumbItem } from '@/features/user/types/folder.types';
 import { DriveItem, DriveFilter, FileType, UserProfile } from '@/features/user/types';
+import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+
+async function readFileHead(file: File): Promise<Uint8Array> {
+  const buffer = await file.slice(0, 65536).arrayBuffer();
+  return new Uint8Array(buffer);
+}
 
 export const SharedStoreView: React.FC = () => {
   const { departmentId } = useDepartment();
   const { user: authUser } = useAuth();
+  const { enqueueLarge, reportPendingCount } = useUploadManager();
 
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>('files');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -172,11 +180,27 @@ export const SharedStoreView: React.FC = () => {
     }
   };
 
-  const handleUploadFiles = async (fileList: FileList) => {
+  const uploadSelectionDeps = {
+    uploadZip: (files: File[], dirs: string[], target: { folderId: string | null }) =>
+      driveApi.uploadFiles(files, target.folderId, dirs),
+    enqueueLarge,
+    createFolder: (name: string, parentId: string | null) =>
+      folderApi.createFolder({ name, parentFolderId: parentId, driveKind: 'DepartmentShared', driveOwnerId: deptId }),
+    reportPendingCount,
+    readHead: readFileHead,
+  };
+
+  const handleUploadFiles = async (fileList: FileList, directories: string[] = []) => {
     try {
-      await driveApi.uploadFiles(fileList, currentFolderId);
+      const result = await uploadSelection(Array.from(fileList), directories, { folderId: currentFolderId }, uploadSelectionDeps);
       await fetchDriveItems(currentFolderId);
-      showNotification('Tải lên tệp thành công!', 'success');
+      if (result.error) {
+        showNotification(result.error.message, 'error');
+      } else if (result.items.some((i) => !i.ok)) {
+        showNotification('Một số tệp tải lên thất bại.', 'error');
+      } else {
+        showNotification('Tải lên tệp thành công!', 'success');
+      }
     } catch (err: any) {
       showNotification(err?.response?.data?.message || 'Tải lên thất bại.', 'error');
     }
@@ -184,9 +208,16 @@ export const SharedStoreView: React.FC = () => {
 
   const handleUploadDirectFiles = async (fileList: FileList) => {
     try {
-      await driveApi.uploadDirectFiles(fileList, currentFolderId);
+      // Đi qua cùng bộ phân luồng F6 (file nhỏ -> đường zip, file lớn -> F5).
+      const result = await uploadSelection(Array.from(fileList), [], { folderId: currentFolderId }, uploadSelectionDeps);
       await fetchDriveItems(currentFolderId);
-      showNotification('Tải lên trực tiếp thành công!', 'success');
+      if (result.error) {
+        showNotification(result.error.message, 'error');
+      } else if (result.items.some((i) => !i.ok)) {
+        showNotification('Một số tệp tải lên trực tiếp thất bại.', 'error');
+      } else {
+        showNotification('Tải lên trực tiếp thành công!', 'success');
+      }
     } catch (err: any) {
       showNotification(err?.response?.data?.message || 'Tải lên trực tiếp thất bại.', 'error');
     }

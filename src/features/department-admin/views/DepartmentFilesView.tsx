@@ -50,8 +50,6 @@ import { DriveItem, FileType } from '@/features/user/types';
 import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import {
   getDepartmentFilesApi,
-  uploadTenantFilesApi,
-  uploadDirectTenantFilesApi,
   downloadTenantFileApi,
   deleteTenantFileApi,
   TenantStorageSummaryDto,
@@ -61,6 +59,13 @@ import { folderApi } from '@/features/user/api/folderApi';
 import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 import { Edit3 } from 'lucide-react';
+import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+
+async function readFileHead(file: File): Promise<Uint8Array> {
+  const buffer = await file.slice(0, 65536).arrayBuffer();
+  return new Uint8Array(buffer);
+}
 
 interface DepartmentFilesViewProps {
   department: DepartmentInfo;
@@ -83,6 +88,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   onTabChange,
   onNavigateToReport,
 }) => {
+  const { enqueueLarge, reportPendingCount } = useUploadManager();
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>(initialTab);
   const [items, setItems] = useState<DriveItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -540,15 +546,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
       const uploadFolderId = currentFolderId && !currentFolderId.startsWith('drive-')
         ? currentFolderId
-        : undefined;
+        : null;
 
-      const result = directories.length
-        ? await driveApi.uploadFiles(fileList, uploadFolderId, directories)
-        : await uploadTenantFilesApi(
-            fileList,
-            undefined,
-            uploadFolderId
-          );
+      const result = await uploadSelection(
+        Array.from(fileList),
+        directories,
+        { folderId: uploadFolderId, departmentId: department.id },
+        {
+          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          reportPendingCount,
+          readHead: readFileHead,
+        }
+      );
 
       setUploadProgress(100);
       setUploadStepMsg('Tải lên hoàn tất!');
@@ -558,10 +569,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       if (onQuotaUpdated) onQuotaUpdated();
 
       if (onAddToast) {
-        if (result.failed && result.failed.length > 0) {
-          onAddToast('error', `Tải lên ${result.uploaded.length} tệp thành công, thất bại ${result.failed.length} tệp.`);
+        if (result.error) {
+          onAddToast('error', result.error.message);
         } else {
-          onAddToast('success', `Đã tải lên ${result.uploaded.length || fileList.length} tệp tin vào phòng ban ${department.name} thành công.`);
+          const successCount = result.items.filter((i) => i.ok).length;
+          const failedCount = result.items.length - successCount;
+          if (failedCount > 0) {
+            onAddToast('error', `Tải lên ${successCount} tệp thành công, thất bại ${failedCount} tệp.`);
+          } else {
+            onAddToast('success', `Đã tải lên ${successCount || fileList.length} tệp tin vào phòng ban ${department.name} thành công.`);
+          }
         }
       }
     } catch (err: any) {
@@ -588,18 +605,19 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
       const uploadFolderId = currentFolderId && !currentFolderId.startsWith('drive-')
         ? currentFolderId
-        : undefined;
+        : null;
 
-      const result = await uploadDirectTenantFilesApi(
-        fileList,
-        undefined,
-        uploadFolderId,
-        undefined,
-        undefined,
-        (fileName: string, progress: any) => {
-          const percent = progress?.percent ?? 0;
-          setUploadProgress(40 + Math.floor(percent * 0.5));
-          setUploadStepMsg(`Đang tải trực tiếp "${fileName}" lên Cloud (${percent}%)...`);
+      // Đi qua cùng bộ phân luồng F6 (file nhỏ -> đường zip, file lớn -> F5).
+      const result = await uploadSelection(
+        Array.from(fileList),
+        [],
+        { folderId: uploadFolderId, departmentId: department.id },
+        {
+          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          reportPendingCount,
+          readHead: readFileHead,
         }
       );
 
@@ -611,10 +629,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       if (onQuotaUpdated) onQuotaUpdated();
 
       if (onAddToast) {
-        if (result.failed && result.failed.length > 0) {
-          onAddToast('error', `Tải trực tiếp Cloud: ${result.uploaded.length} tệp thành công, thất bại ${result.failed.length} tệp.`);
+        if (result.error) {
+          onAddToast('error', result.error.message);
         } else {
-          onAddToast('success', `Đã tải trực tiếp ${result.uploaded.length || fileList.length} tệp tin lên Cloud thành công.`);
+          const successCount = result.items.filter((i) => i.ok).length;
+          const failedCount = result.items.length - successCount;
+          if (failedCount > 0) {
+            onAddToast('error', `Tải trực tiếp Cloud: ${successCount} tệp thành công, thất bại ${failedCount} tệp.`);
+          } else {
+            onAddToast('success', `Đã tải trực tiếp ${successCount || fileList.length} tệp tin lên Cloud thành công.`);
+          }
         }
       }
     } catch (err: any) {
