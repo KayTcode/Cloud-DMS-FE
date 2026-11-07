@@ -53,7 +53,7 @@ interface TenantDetailsModalProps {
   onClose: () => void;
   onToggleStatus: (id: string) => void;
   onChangePlan: (id: string, newPlan: PlanType) => void;
-  onOpenPortal?: (tenant: SystemTenant) => void;
+  onOpenPortal?: (tenant: SystemTenant, targetTab?: string) => void;
   onQuotaUpdated?: (tenantId: string, newQuotaBytes: number) => void;
 }
 
@@ -82,6 +82,7 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
   const [realUsersCount, setRealUsersCount] = useState<number | null>(null);
   const [tenantUsers, setTenantUsers] = useState<any[]>([]);
   const [realDepartmentsCount, setRealDepartmentsCount] = useState<number | null>(null);
+  const [tenantDepartments, setTenantDepartments] = useState<any[]>([]);
   const [isOffboardModalOpen, setIsOffboardModalOpen] = useState(false);
 
   // Quota Adjustment States
@@ -138,8 +139,10 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
 
       if (deptsRes.status === 'fulfilled' && deptsRes.value) {
         setRealDepartmentsCount(deptsRes.value.length);
+        setTenantDepartments(deptsRes.value);
       } else {
         setRealDepartmentsCount(null);
+        setTenantDepartments([]);
       }
 
       let validProviders: StorageProviderItem[] = [];
@@ -240,8 +243,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
     ? Math.max(minRequiredBytes, quotaBytes + providerRemainingBytes)
     : Math.max(minRequiredBytes + 50 * UNIT_BYTES.GB, quotaBytes + 50 * UNIT_BYTES.GB);
 
-  // Delta calculations
-  const isTenantSuspended = tenant.status !== 'Active';
+  // Delta calculations - Không khóa nếu Tenant đang ở chế độ Tiếp quản lâm thời (Interim Management)
+  const isTenantSuspended = (realQuota?.isActive === false || tenant.status === 'Suspended') && !tenant.isInterimManaged;
   const targetQuotaBytes = unitToBytes(quotaValue, quotaUnit);
   const deltaBytes = targetQuotaBytes - quotaBytes;
   const isChanged = targetQuotaBytes !== quotaBytes;
@@ -367,8 +370,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                 </h3>
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${tenant.status === 'Active'
-                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                      : 'bg-rose-50 text-rose-500 border border-rose-100'
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                    : 'bg-rose-50 text-rose-500 border border-rose-100'
                     }`}
                 >
                   {tenant.status}
@@ -402,8 +405,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
             type="button"
             onClick={() => setActiveTab('overview')}
             className={`py-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
           >
             <Layers className="w-4 h-4" />
@@ -414,8 +417,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
             type="button"
             onClick={() => setActiveTab('quota')}
             className={`py-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all cursor-pointer relative ${activeTab === 'quota'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
           >
             <Sliders className="w-4 h-4" />
@@ -506,10 +509,10 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${usagePercentage >= 90
-                        ? 'bg-rose-500'
-                        : usagePercentage >= 80
-                          ? 'bg-amber-500'
-                          : 'bg-blue-600'
+                      ? 'bg-rose-500'
+                      : usagePercentage >= 80
+                        ? 'bg-amber-500'
+                        : 'bg-blue-600'
                       }`}
                     style={{ width: `${usagePercentage}%` }}
                   />
@@ -581,6 +584,85 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Danh sách Phòng ban & Trạng thái Quản lý */}
+              <div className="p-4 rounded-xl border border-slate-200/80 bg-white shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Cơ cấu Phòng ban ({tenantDepartments.length})</span>
+                  </span>
+                  {onOpenPortal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenPortal(tenant, 'departments');
+                        onClose();
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                    >
+                      <span>Xem chi tiết trong Portal</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {tenantDepartments.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-2">Chưa có phòng ban nào được thiết lập.</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {tenantDepartments.map((dept) => {
+                      const isDeptVacant = !!dept.isVacant;
+                      return (
+                        <div
+                          key={dept.id}
+                          className={`p-2.5 rounded-lg border text-xs flex items-center justify-between transition-colors ${isDeptVacant
+                              ? 'bg-amber-50/70 border-amber-200 text-amber-900'
+                              : 'bg-slate-50 border-slate-100 text-slate-800'
+                            }`}
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold truncate">{dept.name}</span>
+                              {isDeptVacant && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-200/80 text-amber-800 shrink-0">
+                                  Khuyết Trưởng phòng
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                              <span>Mã: <code className="font-mono">{dept.code || 'N/A'}</code></span>
+                              <span>·</span>
+                              <span>Quota: <strong className="font-mono text-slate-700">{formatBytes(dept.storageQuotaBytes || ((dept.allocatedStorageGB || 0) * (1024 ** 3)))}</strong></span>
+                              {isDeptVacant && dept.vacantLeadQuotaBytes ? (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-amber-700 font-medium">Tạm giữ: {(dept.vacantLeadQuotaBytes / (1024 ** 3)).toFixed(1)} GB</span>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {isDeptVacant && onOpenPortal && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onOpenPortal(tenant, 'departments');
+                                onClose();
+                              }}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shrink-0 transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                              title="Bổ nhiệm Trưởng phòng mới và tiếp nhận kho dữ liệu tạm giữ"
+                            >
+                              <span>Bổ nhiệm ngay</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -636,6 +718,19 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                 </div>
               )}
 
+              {/* Thông tin: Tiếp quản lâm thời */}
+              {tenant.isInterimManaged && (
+                <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <Building2 className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Chế độ Tiếp quản Lâm thời (Interim Management)</span>
+                    <span className="text-indigo-800">
+                      Tổ chức đang khuyết Quản trị viên Doanh nghiệp. System Admin có toàn quyền trực tiếp điều phối Quota và phân bổ tài nguyên lưu trữ cho Doanh nghiệp.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Provider & Current State Summary */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div>
@@ -682,8 +777,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                             }
                           }}
                           className={`p-2.5 rounded-xl border text-xs transition-all cursor-pointer ${isSelected
-                              ? 'border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20 shadow-2xs'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                            ? 'border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20 shadow-2xs'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
                             }`}
                         >
                           <div className="flex items-center justify-between gap-2 mb-1">
@@ -904,13 +999,12 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                     </div>
                     <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          simulatedUsagePercentage >= 90
+                        className={`h-full rounded-full transition-all duration-300 ${simulatedUsagePercentage >= 90
                             ? 'bg-rose-500'
                             : simulatedUsagePercentage >= 80
-                            ? 'bg-amber-500'
-                            : 'bg-emerald-500'
-                        }`}
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                          }`}
                         style={{ width: `${simulatedUsagePercentage}%` }}
                       />
                     </div>
@@ -988,8 +1082,8 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
             <button
               onClick={() => onToggleStatus(tenant.id)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${tenant.status === 'Active'
-                  ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
-                  : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
                 }`}
             >
               {tenant.status === 'Active' ? 'Khóa Tenant' : 'Kích hoạt lại'}
@@ -1013,17 +1107,32 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
             )}
 
             {onOpenPortal && (
-              <button
-                onClick={() => {
-                  onOpenPortal(tenant);
-                  onClose();
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                title="Truy cập sâu vào Workspace quản trị của Tenant này"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Vào Portal Tenant</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenPortal(tenant, 'departments');
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 rounded-lg transition-colors cursor-pointer"
+                  title="Truy cập danh sách phòng ban để bổ nhiệm Trưởng phòng khuyết hoặc cấp Quota"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Quản lý Phòng ban (Khuyết Lead)</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onOpenPortal(tenant, 'overview');
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                  title="Truy cập sâu vào Workspace quản trị của Tenant này"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Vào Portal Tenant</span>
+                </button>
+              </>
             )}
           </div>
 
@@ -1080,29 +1189,29 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
             currentAdminUser={
               detectedAdminUser
                 ? {
-                    id: detectedAdminUser.id,
-                    email: detectedAdminUser.email,
+                  id: detectedAdminUser.id,
+                  email: detectedAdminUser.email,
+                  firstName: '',
+                  lastName: '',
+                  fullName: detectedAdminUser.fullName,
+                  isActive: true,
+                  roles: ['TenantAdmin'],
+                  permissions: [],
+                  createdAt: '',
+                }
+                : (tenant.adminEmail
+                  ? {
+                    id: tenant.adminId || '',
+                    email: tenant.adminEmail,
                     firstName: '',
                     lastName: '',
-                    fullName: detectedAdminUser.fullName,
+                    fullName: tenant.name,
                     isActive: true,
                     roles: ['TenantAdmin'],
                     permissions: [],
                     createdAt: '',
                   }
-                : (tenant.adminEmail
-                    ? {
-                        id: tenant.adminId || '',
-                        email: tenant.adminEmail,
-                        firstName: '',
-                        lastName: '',
-                        fullName: tenant.name,
-                        isActive: true,
-                        roles: ['TenantAdmin'],
-                        permissions: [],
-                        createdAt: '',
-                      }
-                    : null)
+                  : null)
             }
             onSuccess={(res) => {
               if (tenant) {

@@ -1,47 +1,47 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
-import { 
-  SystemTenant, 
-  SystemActivityItem, 
-  StorageProviderItem, 
-  AuditLogEntry, 
+import {
+  SystemTenant,
+  SystemActivityItem,
+  StorageProviderItem,
+  AuditLogEntry,
   PlanType,
   AdminUserDto,
   CreateAdminUserPayload,
   UpdateAdminUserPayload
 } from './types';
-import { 
+import {
   getAdminUsersApi,
-  getSystemTenantsApi, 
-  getSystemActivitiesApi, 
-  getStorageProvidersApi, 
-  getAuditLogsApi 
+  getSystemTenantsApi,
+  getSystemActivitiesApi,
+  getStorageProvidersApi,
+  getAuditLogsApi
 } from './api/systemAdminQueries';
-import { 
+import {
   createAdminUserApi,
   updateAdminUserApi,
-    changeUserStatusApi,
+  changeUserStatusApi,
   deleteAdminUserApi,
-  createSystemTenantApi, 
-  toggleTenantStatusApi, 
-  changeTenantPlanApi, 
-  deleteSystemTenantApi 
+  createSystemTenantApi,
+  toggleTenantStatusApi,
+  changeTenantPlanApi,
+  deleteSystemTenantApi
 } from './api/systemAdminCommands';
-import { 
-  DashboardView, 
-  TenantManagementView, 
-  StorageProvidersView, 
-  AuditLogsView, 
+import {
+  DashboardView,
+  TenantManagementView,
+  StorageProvidersView,
+  AuditLogsView,
   SettingsView,
   AdminHubView,
   QuotaRequestsView,
   QuotaApprovalsView
 } from './views';
-import { 
-  CreateTenantModal, 
+import {
+  CreateTenantModal,
   TenantDetailsModal,
   EditUserModal,
-    AllocateQuotaModal
+  AllocateQuotaModal
 } from './components';
 import { TenantPortal } from '@/features/tenants/TenantPortal';
 import { ArrowLeft } from 'lucide-react';
@@ -89,8 +89,9 @@ export const SystemAdminPortal: React.FC = () => {
   // State quản lý Trạng thái bật/tắt của các Dialog / Pop-up (Modals)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserDto | null>(null);
-    const [selectedQuickTenant, setSelectedQuickTenant] = useState<SystemTenant | null>(null);
+  const [selectedQuickTenant, setSelectedQuickTenant] = useState<SystemTenant | null>(null);
   const [deepDetailTenantId, setDeepDetailTenantId] = useState<string | null>(null);
+  const [deepPortalTab, setDeepPortalTab] = useState<string | undefined>(undefined);
   const [quotaUser, setQuotaUser] = useState<AdminUserDto | null>(null);
 
   // ---------------------------------------------------------------------------------------
@@ -181,7 +182,7 @@ export const SystemAdminPortal: React.FC = () => {
   // Trigger 4: Chỉ khi bấm vào Tab 'audit-logs' thì mới fetch lịch sử kiểm toán hệ thống
   useEffect(() => {
     if (activeNav === 'audit-logs') {
-      getAuditLogsApi().then(setAuditLogs).catch(() => {});
+      getAuditLogsApi().then(setAuditLogs).catch(() => { });
     }
   }, [activeNav]);
 
@@ -202,7 +203,7 @@ export const SystemAdminPortal: React.FC = () => {
     try {
       const newUser = await createAdminUserApi(payload);
       addToast('success', `Đã tạo thành công tài khoản cho ${newUser.fullName} (${newUser.email})!`);
-      
+
       // Ghi log hoạt động phía client để hiển thị tức thời (Optimistic UI Update)
       const newActivity: SystemActivityItem = {
         id: `act-${Date.now()}`,
@@ -234,7 +235,7 @@ export const SystemAdminPortal: React.FC = () => {
     }
   };
 
-  
+
 
   // [PATCH/POST API] Khóa / Mở khóa tài khoản người dùng -> POST /api/admin/users/{id}/status
   const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
@@ -269,8 +270,24 @@ export const SystemAdminPortal: React.FC = () => {
   };
 
   // Mở màn hình quản trị sâu (Deep Portal) của một Tenant cụ thể
-  const handleOpenDeepPortal = (user: AdminUserDto | SystemTenant) => {
-    setDeepDetailTenantId(user.id);
+  const handleOpenDeepPortal = (userOrTenant: AdminUserDto | SystemTenant, targetTab?: string) => {
+    let resolvedTenantId = userOrTenant.id;
+    if ('tenantId' in userOrTenant && userOrTenant.tenantId) {
+      resolvedTenantId = userOrTenant.tenantId;
+    } else {
+      const matched = tenants.find(
+        (t) =>
+          t.id === userOrTenant.id ||
+          t.vacantAdminUserId === userOrTenant.id ||
+          (t.adminEmail && (userOrTenant as any).email && t.adminEmail.toLowerCase() === (userOrTenant as any).email.toLowerCase())
+      );
+      if (matched) {
+        resolvedTenantId = matched.id;
+      }
+    }
+
+    setDeepDetailTenantId(resolvedTenantId);
+    setDeepPortalTab(targetTab || 'departments');
     setActiveNav('tenants');
   };
 
@@ -336,28 +353,44 @@ export const SystemAdminPortal: React.FC = () => {
           onPageChange={(page) => setCurrentPage(page)}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
           onSelectUser={(u) => {
-            // Chuyển đổi dữ liệu user sang định dạng Tenant DTO để mở Modal xem nhanh
+            // 1. Tìm Tenant thật tương ứng từ danh sách Doanh nghiệp
+            const matchedTenant = tenants.find(
+              (t) =>
+                (u.tenantId && t.id === u.tenantId) ||
+                (t.vacantAdminUserId && t.vacantAdminUserId === u.id) ||
+                (t.adminEmail && u.email && t.adminEmail.toLowerCase() === u.email.toLowerCase()) ||
+                (u.tenantName && t.name.toLowerCase() === u.tenantName.toLowerCase())
+            );
+
+            // 2. Phân giải Tenant ID thật: Không lấy u.id nếu u.tenantId rỗng do cựu admin đã bị offboard
+            const resolvedTenantId = u.tenantId || matchedTenant?.id || u.id;
+            const resolvedTenantName = matchedTenant?.name || u.tenantName || u.fullName;
+            const resolvedStatus = matchedTenant?.status || (u.isActive ? 'Active' : 'Suspended');
+            const resolvedIsInterim = matchedTenant?.isInterimManaged || (!u.tenantId && !u.isActive) || false;
+
             setSelectedQuickTenant({
-              id: u.tenantId || u.id,
-              name: u.tenantName || u.fullName,
-              plan: 'Enterprise',
-              usersAssigned: 1,
-              storageUsed: '0 B',
-              storageAllocated: '0 B',
-              storageDisplay: 'Đang tải...',
-              createdDate: u.createdAt,
-              status: u.isActive ? 'Active' : 'Suspended',
-              adminEmail: u.email,
+              id: resolvedTenantId,
+              name: resolvedTenantName,
+              plan: matchedTenant?.plan || 'Enterprise',
+              usersAssigned: matchedTenant?.usersAssigned || 1,
+              storageUsed: matchedTenant?.storageUsed || '0 B',
+              storageAllocated: matchedTenant?.storageAllocated || '0 B',
+              storageDisplay: matchedTenant?.storageDisplay || 'Đang tải...',
+              createdDate: matchedTenant?.createdDate || u.createdAt,
+              status: resolvedStatus,
+              adminEmail: matchedTenant?.adminEmail || u.email,
               adminId: u.id,
               adminFullName: u.fullName,
-              region: 'Cloud Storage Pool',
-              tenantCode: u.tenantCode,
+              region: matchedTenant?.region || 'Cloud Storage Pool',
+              tenantCode: matchedTenant?.tenantCode || u.tenantCode,
               phoneNumber: u.phoneNumber,
               departmentName: u.departmentName,
+              isInterimManaged: resolvedIsInterim,
+              vacantAdminUserId: matchedTenant?.vacantAdminUserId || (!u.isActive ? u.id : null),
             });
           }}
           onOpenEditModal={(u) => setEditingUser(u)}
-                    onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
+          onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
           onToggleStatus={handleToggleUserStatus}
           onDeleteUser={handleDeleteUser}
         />
@@ -377,7 +410,7 @@ export const SystemAdminPortal: React.FC = () => {
             <span>Quay lại danh sách tài khoản</span>
           </button>
 
-          <TenantPortal tenantId={deepDetailTenantId} />
+          <TenantPortal tenantId={deepDetailTenantId} initialTab={deepPortalTab as any} />
         </div>
       )}
 
@@ -435,7 +468,7 @@ export const SystemAdminPortal: React.FC = () => {
         onUpdate={handleUpdateUser}
       />
 
-            <TenantDetailsModal
+      <TenantDetailsModal
         tenant={selectedQuickTenant}
         onClose={() => setSelectedQuickTenant(null)}
         onToggleStatus={(tenantId) => toggleTenantStatusApi(tenantId, selectedQuickTenant?.status || 'Active')}
@@ -443,7 +476,7 @@ export const SystemAdminPortal: React.FC = () => {
         onOpenPortal={handleOpenDeepPortal}
         onQuotaUpdated={() => {
           loadDashboardData();
-          getStorageProvidersApi().then(setProviders).catch(() => {});
+          getStorageProvidersApi().then(setProviders).catch(() => { });
           addToast('success', 'Hạn mức Quota của Tenant đã được cập nhật!');
         }}
       />
@@ -456,7 +489,7 @@ export const SystemAdminPortal: React.FC = () => {
         onSuccess={(msg) => {
           addToast('success', msg);
           fetchUsers(currentPage, searchQuery);
-          getStorageProvidersApi().then(setProviders).catch(() => {});
+          getStorageProvidersApi().then(setProviders).catch(() => { });
         }}
       />
     </div>

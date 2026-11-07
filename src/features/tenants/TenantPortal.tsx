@@ -11,6 +11,7 @@ import {
   TenantHubView,
   TenantQuotaView,
 } from '@/features/tenants/views';
+import { ActiveTab } from '@/features/tenants/types';
 import { ArrowLeft } from 'lucide-react';
 
 // =========================================================================================
@@ -27,9 +28,10 @@ import { ArrowLeft } from 'lucide-react';
 
 interface TenantPortalProps {
   tenantId?: string; // ID của Tenant truyền vào khi SysAdmin soi dữ liệu của 1 Tenant cụ thể
+  initialTab?: ActiveTab;
 }
 
-export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenantId }) => {
+export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenantId, initialTab }) => {
   // ---------------------------------------------------------------------------------------
   // 1. LẤY STATE VÀ SERVICE METHODS TỪ GLOBAL TENANT CONTEXT
   // ---------------------------------------------------------------------------------------
@@ -57,6 +59,13 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
   const { user } = useAuth();
   const [openedDepartmentId, setOpenedDepartmentId] = useState<string | null>(null);
   const effectiveTenantId = propTenantId || user?.tenantId;
+
+  // Tự động chuyển tab ban đầu nếu có prop initialTab (ví dụ SysAdmin bấm vào Quản lý Phòng ban)
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, setActiveTab]);
 
   // Tenant Admin chỉ quản lý theo Phòng ban (Department), tự động chuyển hướng nếu activeTab là users
   useEffect(() => {
