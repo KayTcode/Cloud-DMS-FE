@@ -12,7 +12,7 @@ const STATE_LABELS: Record<UploadState, string> = {
   paused: 'Tạm dừng',
   'provider-limited': 'Tạm dừng – nhà cung cấp tạm từ chối',
   completing: 'Đang hoàn tất',
-  done: 'Hoàn tất',
+  done: 'Xong',
   error: 'Lỗi',
   cancelled: 'Đã huỷ',
 };

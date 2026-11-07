@@ -62,12 +62,19 @@ export interface UploadManagerContextValue {
   pendingRemote: UploadSessionStatus[];
   refreshPending(): Promise<void>;
   onFileCompleted(cb: (fileId: string, target: UploadTarget) => void): () => void;
+  /**
+   * Điểm mở rộng cho F6: cho phép lô upload cây thư mục báo số file chưa bắt
+   * đầu, để `beforeunload` cộng vào N cùng với số task F5 đang sending/
+   * completing. Gọi lại với 0 khi không còn file nào chờ.
+   */
+  reportPendingCount(n: number): void;
 }
 
 const UploadManagerContext = createContext<UploadManagerContextValue | null>(null);
 
-const BEFORE_UNLOAD_MESSAGE =
-  'Vẫn còn tệp đang được tải lên. Nếu rời trang bây giờ, quá trình tải lên sẽ bị gián đoạn.';
+function buildBeforeUnloadMessage(n: number): string {
+  return `Còn ${n} tệp chưa được upload, nếu rời trang các tệp này sẽ không được upload.`;
+}
 
 const LOCKED_ELSEWHERE_MESSAGE = 'Tệp này đang được upload ở một tab khác.';
 const WRONG_FILE_MESSAGE = 'Đây không phải file đang upload dở';
@@ -99,6 +106,13 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   const [pendingRemote, setPendingRemote] = useState<UploadSessionStatus[]>([]);
   const entriesRef = useRef<Map<string, InternalEntry>>(new Map());
   const completedCbsRef = useRef<Set<(fileId: string, target: UploadTarget) => void>>(new Set());
+  const externalPendingCountRef = useRef(0);
+  const [externalPendingTick, setExternalPendingTick] = useState(0);
+
+  const reportPendingCount = useCallback((n: number) => {
+    externalPendingCountRef.current = n;
+    setExternalPendingTick((t) => t + 1);
+  }, []);
 
   const updateTask = useCallback((id: string, patch: Partial<UploadTask>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -117,18 +131,21 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     void refreshPending();
   }, [refreshPending]);
 
-  // beforeunload khi có task đang gửi/đang hoàn tất.
+  // beforeunload khi có task đang gửi/đang hoàn tất, cộng thêm số file chưa
+  // bắt đầu của lô cây thư mục (F6 báo qua reportPendingCount).
   useEffect(() => {
-    const hasActive = tasks.some((t) => t.state === 'sending' || t.state === 'completing');
-    if (!hasActive) return;
+    const activeCount = tasks.filter((t) => t.state === 'sending' || t.state === 'completing').length;
+    const total = activeCount + externalPendingCountRef.current;
+    if (total <= 0) return;
+    const message = buildBeforeUnloadMessage(total);
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = BEFORE_UNLOAD_MESSAGE;
-      return BEFORE_UNLOAD_MESSAGE;
+      e.returnValue = message;
+      return message;
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [tasks]);
+  }, [tasks, externalPendingTick]);
 
   const handleEvent = useCallback(
     (id: string, sessionId: string) =>
@@ -373,6 +390,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     pendingRemote,
     refreshPending,
     onFileCompleted,
+    reportPendingCount,
   };
 
   return <UploadManagerContext.Provider value={value}>{children}</UploadManagerContext.Provider>;
