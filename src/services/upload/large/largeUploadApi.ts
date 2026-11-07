@@ -1,55 +1,26 @@
 /**
- * Thin axios wrapper for the large-file-transfer upload session API.
+ * Thin wrapper for the large-file-transfer upload session API.
  *
- * Deliberately bypasses the shared `apiClient` response interceptor
- * (src/api/axiosClient.ts), which normalizes every error into a plain
- * `Error` and discards the HTTP status / backend error `code`. This
- * module needs the original `code` field from the backend's error body
- * to build `ApiCodeError`, so it talks to axios directly and attaches
- * the same Bearer token the shared client uses.
+ * Built on `largeUploadClient` (src/api/largeUploadClient.ts) — a second
+ * axios instance that reuses the SAME auth/idempotency request logic and
+ * the SAME single-flight 401 refresh-token rotation as the shared
+ * `apiClient` (src/api/axiosClient.ts), so a token expiring mid-session
+ * (sessions can live up to an hour, with heartbeats roughly every 60s and
+ * many sequential calls) is transparently refreshed exactly like any other
+ * `apiClient` caller gets today. The only difference from `apiClient` is
+ * that non-401 errors with a backend `code` field surface as `ApiCodeError`
+ * instead of a plain `Error`, so callers can branch on specific codes like
+ * `UPLOAD_SESSION_EXPIRED` / `TOO_MANY_ACTIVE_UPLOADS` / `BLOCKED_EXTENSION`.
+ *
+ * Because `largeUploadClient`'s response interceptor already returns
+ * `response.data` on success (mirroring `apiClient`) and already rejects
+ * with `ApiCodeError`/`Error` on failure, every function below is a plain
+ * passthrough — no local try/catch needed.
  */
-import axios, { AxiosError } from 'axios';
+import { largeUploadClient } from '@/api/largeUploadClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7001/api';
-
-/**
- * Error thrown by every function in this module when the backend error
- * response body contains a `code` field (e.g. `UPLOAD_SESSION_EXPIRED`,
- * `TOO_MANY_ACTIVE_UPLOADS`, `BLOCKED_EXTENSION`, ...).
- */
-export class ApiCodeError extends Error {
-  code: string;
-  status: number;
-  retryAfterSeconds?: number;
-
-  constructor(code: string, status: number, message?: string, retryAfterSeconds?: number) {
-    super(message || code);
-    this.name = 'ApiCodeError';
-    this.code = code;
-    this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-}
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function rethrow(error: unknown): never {
-  const axiosError = error as AxiosError<any>;
-  if (axiosError?.response) {
-    const { status, data } = axiosError.response;
-    const code = data?.code;
-    if (code) {
-      const retryAfterSeconds = data?.retryAfterSeconds ?? data?.retryAfterSecond ?? undefined;
-      const message = data?.message || data?.detail || data?.title || code;
-      throw new ApiCodeError(code, status, message, retryAfterSeconds);
-    }
-  }
-  throw error;
-}
+export { ApiCodeError } from '@/api/largeUploadClient';
 
 // ---------------------------------------------------------------------------
 // Types matching the backend contract (camelCase mirror of the C# DTOs)
@@ -138,15 +109,11 @@ export async function beginLargeSession(
   idempotencyKey: string,
   signal?: AbortSignal
 ): Promise<LargeSession> {
-  try {
-    const res = await axios.post<LargeSession>(`${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSIONS}`, req, {
-      headers: { ...authHeaders(), 'Idempotency-Key': idempotencyKey },
-      signal,
-    });
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.post(API_ENDPOINTS.FILES.UPLOAD_SESSIONS, req, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+    signal,
+  });
+  return res;
 }
 
 export async function presignPart(
@@ -155,103 +122,52 @@ export async function presignPart(
   checksumSha256: string | null,
   signal?: AbortSignal
 ): Promise<PresignPartResult> {
-  try {
-    const res = await axios.post<PresignPartResult>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSION_PRESIGN_PART(sessionId, partNumber)}`,
-      { checksumSha256 },
-      { headers: authHeaders(), signal }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.post(
+    API_ENDPOINTS.FILES.UPLOAD_SESSION_PRESIGN_PART(sessionId, partNumber),
+    { checksumSha256 },
+    { signal }
+  );
+  return res;
 }
 
 export async function heartbeat(sessionId: string, uploadedBytes: number): Promise<HeartbeatResult> {
-  try {
-    const res = await axios.post<HeartbeatResult>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSION_HEARTBEAT(sessionId)}`,
-      { uploadedBytes },
-      { headers: authHeaders() }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.post(
+    API_ENDPOINTS.FILES.UPLOAD_SESSION_HEARTBEAT(sessionId),
+    { uploadedBytes }
+  );
+  return res;
 }
 
 export async function getSession(sessionId: string): Promise<UploadSessionStatus> {
-  try {
-    const res = await axios.get<UploadSessionStatus>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSION(sessionId)}`,
-      { headers: authHeaders() }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.get(API_ENDPOINTS.FILES.UPLOAD_SESSION(sessionId));
+  return res;
 }
 
 export async function listPendingSessions(): Promise<UploadSessionStatus[]> {
-  try {
-    const res = await axios.get<UploadSessionStatus[]>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSIONS_PENDING}`,
-      { headers: authHeaders() }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.get(API_ENDPOINTS.FILES.UPLOAD_SESSIONS_PENDING);
+  return res;
 }
 
 export async function resumeSession(sessionId: string): Promise<ResumeSessionResult> {
-  try {
-    const res = await axios.post<ResumeSessionResult>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSION_RESUME(sessionId)}`,
-      null,
-      { headers: authHeaders() }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.post(API_ENDPOINTS.FILES.UPLOAD_SESSION_RESUME(sessionId), null);
+  return res;
 }
 
 export async function completeSession(sessionId: string): Promise<CompleteSessionResult> {
-  try {
-    const res = await axios.post<CompleteSessionResult>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSION_COMPLETE(sessionId)}`,
-      {},
-      { headers: authHeaders() }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.post(API_ENDPOINTS.FILES.UPLOAD_SESSION_COMPLETE(sessionId), {});
+  return res;
 }
 
 export async function abortSession(sessionId: string): Promise<void> {
-  try {
-    await axios.delete<boolean>(`${BASE_URL}${API_ENDPOINTS.FILES.UPLOAD_SESSION_ABORT(sessionId)}`, {
-      headers: authHeaders(),
-    });
-  } catch (error) {
-    return rethrow(error);
-  }
+  await largeUploadClient.delete(API_ENDPOINTS.FILES.UPLOAD_SESSION_ABORT(sessionId));
 }
 
 export async function createDownloadLink(
   fileId: string,
   acknowledgeUnscanned: boolean
 ): Promise<DownloadLinkResult> {
-  try {
-    const res = await axios.post<DownloadLinkResult>(
-      `${BASE_URL}${API_ENDPOINTS.FILES.DOWNLOAD_LINK(fileId)}`,
-      { acknowledgeUnscanned },
-      { headers: authHeaders() }
-    );
-    return res.data;
-  } catch (error) {
-    return rethrow(error);
-  }
+  const res: any = await largeUploadClient.post(API_ENDPOINTS.FILES.DOWNLOAD_LINK(fileId), {
+    acknowledgeUnscanned,
+  });
+  return res;
 }
