@@ -41,6 +41,7 @@ import {
   X,
 } from 'lucide-react';
 import { driveApi, userApi } from './api/driveApi';
+import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { PendingUploadsSection } from '@/components/upload/PendingUploadsSection';
@@ -84,6 +85,9 @@ export const UserPortal: React.FC = () => {
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
   const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  // F7: learned reactively from the first UNSCANNED_DOWNLOAD_DISABLED 403
+  // this screen sees — not fetched proactively.
+  const [downloadsDisabled, setDownloadsDisabled] = useState(false);
 
   // Modals state
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
@@ -454,7 +458,10 @@ export const UserPortal: React.FC = () => {
       showNotification(`Tải xuống "${item.name}" thành công!`, 'success');
     } catch (error: any) {
       console.error('Lỗi tải tệp tin:', error);
-      showNotification('Không thể tải tệp tin về máy.', 'error');
+      if (error?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) {
+        setDownloadsDisabled(true);
+      }
+      showNotification(error?.message || 'Không thể tải tệp tin về máy.', 'error');
     }
   };
 
@@ -650,6 +657,8 @@ export const UserPortal: React.FC = () => {
             onToggleStar={handleToggleStar}
             onDeleteFile={handleDeleteItem}
             onShareItem={(item) => setShareItem(item)}
+            downloadsDisabled={downloadsDisabled}
+            downloadsDisabledReason={UNSCANNED_DOWNLOAD_DISABLED_MESSAGE}
             onDownloadItem={handleDownloadItem}
             folders={apiFolders}
             breadcrumb={breadcrumb}

@@ -13,6 +13,7 @@ import { FolderDto, BreadcrumbItem } from '@/features/user/types/folder.types';
 import { DriveItem, DriveFilter, FileType, UserProfile } from '@/features/user/types';
 import { uploadSelection } from '@/services/upload/large/uploadSelection';
 import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
 
 async function readFileHead(file: File): Promise<Uint8Array> {
   const buffer = await file.slice(0, 65536).arrayBuffer();
@@ -32,6 +33,9 @@ export const SharedStoreView: React.FC = () => {
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
+  // F7: learned reactively from the first UNSCANNED_DOWNLOAD_DISABLED 403
+  // this screen sees — not fetched proactively.
+  const [downloadsDisabled, setDownloadsDisabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
@@ -351,11 +355,14 @@ export const SharedStoreView: React.FC = () => {
             }
           }}
           onShareItem={() => {}}
+          downloadsDisabled={downloadsDisabled}
+          downloadsDisabledReason={UNSCANNED_DOWNLOAD_DISABLED_MESSAGE}
           onDownloadItem={async (item) => {
             try {
               await driveApi.downloadFile(item.id, item.name, item.archiveKind);
-            } catch {
-              showNotification('Không thể tải xuống tệp.', 'error');
+            } catch (error: any) {
+              if (error?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
+              showNotification(error?.message || 'Không thể tải xuống tệp.', 'error');
             }
           }}
           folders={apiFolders}

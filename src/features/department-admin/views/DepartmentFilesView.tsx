@@ -44,6 +44,7 @@ import {
   Clock,
   Tag,
   Calendar,
+  ShieldAlert,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
@@ -60,6 +61,7 @@ import { DocumentModalsContainer, useDocumentModals } from '@/features/document-
 import { DocumentDetailsDto } from '@/features/document-submission';
 import { Edit3 } from 'lucide-react';
 import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
 import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
 
 async function readFileHead(file: File): Promise<Uint8Array> {
@@ -120,6 +122,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
   // Dropdown states
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  // F7: learned reactively from the first UNSCANNED_DOWNLOAD_DISABLED 403
+  // this screen sees — not fetched proactively.
+  const [downloadsDisabled, setDownloadsDisabled] = useState(false);
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
@@ -729,7 +734,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       if (onAddToast) onAddToast('info', `Đang tải xuống tệp "${item.name}"...`);
       await downloadTenantFileApi(item.id, item.name, item.archiveKind);
     } catch (err: any) {
-      if (onAddToast) onAddToast('error', 'Không thể tải xuống tệp tin.');
+      if (err?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
+      if (onAddToast) onAddToast('error', err?.message || 'Không thể tải xuống tệp tin.');
     }
   };
 
@@ -1637,9 +1643,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           {getGoogleDriveIcon(file.fileType, file.extension)}
-                          <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-                            {file.name}
-                          </h4>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                              {file.name}
+                            </h4>
+                            {file.scanStatus === 'TooLargeToScan' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
+                                <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
@@ -1884,9 +1897,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
                               {getGoogleDriveIcon(file.fileType, file.extension)}
-                              <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                                {file.name}
-                              </span>
+                              <div className="min-w-0">
+                                <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                  {file.name}
+                                </span>
+                                {file.scanStatus === 'TooLargeToScan' && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium ml-2">
+                                    <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-slate-600">

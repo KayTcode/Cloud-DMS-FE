@@ -2,6 +2,7 @@ import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { packageForStorage, extractStorageZip } from '@/services/upload/storageZip';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
+import { downloadViaLink } from '@/services/download/linkDownload';
 import {
   DriveItem,
   FileType,
@@ -332,8 +333,35 @@ export const driveApi = {
     }
   },
 
-  // Download file securely with Bearer token (GET /api/files/{id}/download)
+  // Download file securely. Files with no archive/zip-package wrapper
+  // (`archiveKind === null`) download via a direct storage-provider link
+  // (`downloadViaLink`), bypassing the old zip-package download entirely.
+  // Zip-package files (`archiveKind` is `'file' | 'folder' | 'batch'`) keep
+  // using the legacy backend-streamed download below. When `archiveKind`
+  // is unknown (`undefined`, e.g. callers that only have a DTO without the
+  // field), we optimistically try the link path first and fall back to the
+  // legacy path only if the backend tells us to (`USE_PACKAGE_DOWNLOAD`).
   downloadFile: async (fileId: string, fileName = 'download', archiveKind?: string | null): Promise<void> => {
+    const confirmUnscanned = async () =>
+      typeof window !== 'undefined'
+        ? window.confirm('Tệp này chưa được quét virus (có thể do quá lớn để quét). Bạn vẫn muốn tải về?')
+        : false;
+
+    if (archiveKind === null) {
+      await downloadViaLink(fileId, { confirmUnscanned });
+      return;
+    }
+
+    if (archiveKind === undefined) {
+      try {
+        await downloadViaLink(fileId, { confirmUnscanned });
+        return;
+      } catch (error: any) {
+        if (error?.code !== 'USE_PACKAGE_DOWNLOAD') throw error;
+        // fall through to the legacy path below
+      }
+    }
+
     const folderPackage = archiveKind === 'folder' || archiveKind === 'batch';
     let destination: any = null;
     if (folderPackage && typeof (window as any).showDirectoryPicker === 'function') {

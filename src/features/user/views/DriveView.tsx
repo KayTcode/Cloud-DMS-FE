@@ -27,6 +27,7 @@ import {
   FolderOutput,
   AlertTriangle,
   CheckCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
@@ -71,6 +72,11 @@ interface DriveViewProps {
   onShareToDepartment?: (item: DriveItem) => void;
   onUnshareFromDepartment?: (item: DriveItem) => Promise<void>;
   onRefreshItems?: () => void;
+  // F7: learned reactively from the first 403 the org-level download policy
+  // returns (not fetched proactively) — disables the download buttons with
+  // a tooltip explaining why.
+  downloadsDisabled?: boolean;
+  downloadsDisabledReason?: string;
 }
 
 type SortField = 'name' | 'updatedAt' | 'size';
@@ -91,6 +97,8 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onDeleteFile,
   onShareItem,
   onDownloadItem,
+  downloadsDisabled = false,
+  downloadsDisabledReason = 'Tổ chức của bạn đã tắt tính năng tải về tệp chưa quét virus.',
   folders: apiFolders = [],
   breadcrumb = [],
   onNavigateFolder,
@@ -808,6 +816,11 @@ export const DriveView: React.FC<DriveViewProps> = ({
                               {driveKind === 'DepartmentShared' && file.authorName && (
                                 <p className="text-[10px] text-slate-500 mt-0.5">{file.authorName}</p>
                               )}
+                              {file.scanStatus === 'TooLargeToScan' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
+                                  <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -1001,10 +1014,11 @@ export const DriveView: React.FC<DriveViewProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onDownloadItem(file);
+                              if (!downloadsDisabled) onDownloadItem(file);
                             }}
-                            className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
-                            title="Tải về máy"
+                            disabled={downloadsDisabled}
+                            className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={downloadsDisabled ? downloadsDisabledReason : 'Tải về máy'}
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>
@@ -1128,6 +1142,11 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   {driveKind === 'DepartmentShared' && file.authorName && (
                                     <div className="text-[10px] text-slate-500 mt-0.5">{file.authorName}</div>
                                   )}
+                                  {file.scanStatus === 'TooLargeToScan' && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
+                                      <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1207,9 +1226,10 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => onDownloadItem(file)}
-                                  className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
-                                  title="Tải về"
+                                  onClick={() => { if (!downloadsDisabled) onDownloadItem(file); }}
+                                  disabled={downloadsDisabled}
+                                  className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title={downloadsDisabled ? downloadsDisabledReason : 'Tải về'}
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>

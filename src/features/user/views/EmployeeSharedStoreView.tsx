@@ -5,6 +5,7 @@ import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { DriveItem, UserProfile } from '../types';
 import { driveApi, mapFileEntryToDriveItem } from '../api/driveApi';
 import { useAuth } from '@/context/AuthContext';
+import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
 
 interface EmployeeSharedStoreViewProps {
   currentUser: UserProfile;
@@ -22,6 +23,7 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [downloadsDisabled, setDownloadsDisabled] = useState(false);
 
   const fetchSharedStore = useCallback(async (folderId: string | null) => {
     if (!departmentId) return;
@@ -56,10 +58,11 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
   const handleDownloadItem = async (item: DriveItem) => {
     try {
       onShowToast(`Đang chuẩn bị tải xuống "${item.name}"...`, 'info');
-      await driveApi.downloadFile(item.id, item.name);
+      await driveApi.downloadFile(item.id, item.name, item.archiveKind);
       onShowToast(`Tải xuống "${item.name}" thành công!`, 'success');
-    } catch (error) {
-      onShowToast('Không thể tải tệp tin về máy.', 'error');
+    } catch (error: any) {
+      if (error?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
+      onShowToast(error?.message || 'Không thể tải tệp tin về máy.', 'error');
     }
   };
 
@@ -88,6 +91,8 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
       isReadOnly={true}
       readOnlyBannerText="Kho chung chỉ cho phép xem và tải tệp."
       driveKind="DepartmentShared"
+      downloadsDisabled={downloadsDisabled}
+      downloadsDisabledReason={UNSCANNED_DOWNLOAD_DISABLED_MESSAGE}
     />
     </div>
   );
