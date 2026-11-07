@@ -148,7 +148,7 @@ export const TenantSettingsView: React.FC<TenantSettingsViewProps> = ({
           <div className="flex items-center justify-between mt-4">
             <div className="pr-4">
               <label className="block text-xs font-semibold text-slate-700">
-                Cho phép tải tệp chưa được quét virus
+                Cho phép tải tệp quá lớn để quét virus (kèm cảnh báo)
               </label>
               <p className="text-xs text-slate-500 mt-0.5">
                 Khi tắt, người dùng trong tổ chức sẽ không thể tải các tệp quá lớn để quét virus (TooLargeToScan).
