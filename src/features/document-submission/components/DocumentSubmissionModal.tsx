@@ -44,9 +44,9 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
   // Form State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const [releaseYear, setReleaseYear] = useState<number>(new Date().getFullYear());
-  const [releaseMonth, setReleaseMonth] = useState<string>('');
-  const [releaseDay, setReleaseDay] = useState<string>('');
+  const [releaseYear, setReleaseYear] = useState<number>(() => new Date().getFullYear());
+  const [releaseMonth, setReleaseMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [releaseDay, setReleaseDay] = useState<number>(() => new Date().getDate());
   const [keywords, setKeywords] = useState('');
   const [abstract, setAbstract] = useState('');
   const [description, setDescription] = useState('');
@@ -61,18 +61,14 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
   const [errorMessage, setErrorMessage] = useState('');
   const [dragActive, setDragActive] = useState(false);
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
-  const months = Array.from({ length: 12 }, (_, i) => i + 1);
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-
   // Hàm xóa sạch trắng form khi nộp xong hoặc mở lại form mới
   const resetForm = useCallback(() => {
     setSelectedFile(null);
     setTitle('');
-    setReleaseYear(new Date().getFullYear());
-    setReleaseMonth('');
-    setReleaseDay('');
+    const now = new Date();
+    setReleaseYear(now.getFullYear());
+    setReleaseMonth(now.getMonth() + 1);
+    setReleaseDay(now.getDate());
     setKeywords('');
     setAbstract('');
     setDescription('');
@@ -146,10 +142,6 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
       setErrorMessage('Vui lòng nhập tiêu đề tài liệu.');
       return;
     }
-    if (!releaseYear || releaseYear < 1900 || releaseYear > currentYear + 1) {
-      setErrorMessage(`Năm phát hành không hợp lệ (1900 - ${currentYear + 1}).`);
-      return;
-    }
     if (effectiveRetentionDays <= 0) {
       setErrorMessage('Số ngày lưu trữ phải lớn hơn 0.');
       return;
@@ -166,9 +158,9 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
           parentFolderId: parentFolderId || null,
           retentionDays: effectiveRetentionDays,
           title: title.trim(),
-          releaseYear,
-          releaseMonth: releaseMonth ? parseInt(releaseMonth, 10) : null,
-          releaseDay: releaseDay ? parseInt(releaseDay, 10) : null,
+          releaseYear: releaseYear || new Date().getFullYear(),
+          releaseMonth: releaseMonth || (new Date().getMonth() + 1),
+          releaseDay: releaseDay || new Date().getDate(),
           keywords: keywords.trim() || null,
           abstract: abstract.trim() || null,
           description: description.trim() || null,
@@ -324,59 +316,25 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
             </div>
           </div>
 
-          {/* 4. Ngày phát hành (Năm, Tháng, Ngày) */}
+          {/* 4. Thời điểm phát hành (Cố định tự động lấy ngày hiện tại) */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              4. Thời điểm phát hành <span className="text-rose-500">*</span>
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] text-slate-500 mb-1">Năm (*)</label>
-                <select
-                  value={releaseYear}
-                  onChange={(e) => setReleaseYear(Number(e.target.value))}
-                  disabled={isSubmitting}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-                >
-                  {years.map((y) => (
-                    <option key={y} value={y}>
-                      Năm {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] text-slate-500 mb-1">Tháng (Tùy chọn)</label>
-                <select
-                  value={releaseMonth}
-                  onChange={(e) => setReleaseMonth(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-                >
-                  <option value="">-- Không chọn --</option>
-                  {months.map((m) => (
-                    <option key={m} value={m}>
-                      Tháng {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] text-slate-500 mb-1">Ngày (Tùy chọn)</label>
-                <select
-                  value={releaseDay}
-                  onChange={(e) => setReleaseDay(e.target.value)}
-                  disabled={isSubmitting || !releaseMonth}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  <option value="">-- Không chọn --</option>
-                  {days.map((d) => (
-                    <option key={d} value={d}>
-                      Ngày {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                4. Thời điểm phát hành
+              </label>
+              <span className="text-[11px] text-blue-600 font-medium flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" /> Tự động lấy ngày hiện tại
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-100/80 border border-slate-200/80 text-slate-700 text-sm">
+              <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="font-semibold text-slate-900">
+                Ngày {String(releaseDay).padStart(2, '0')}/{String(releaseMonth).padStart(2, '0')}/{releaseYear}
+              </span>
+              <span className="text-xs text-slate-500">(Ghi nhận thời điểm nộp văn bản)</span>
+              <span className="ml-auto text-[11px] bg-slate-200 text-slate-700 font-medium px-2 py-0.5 rounded-md">
+                Chỉ đọc
+              </span>
             </div>
           </div>
 

@@ -70,6 +70,8 @@ interface DepartmentFilesViewProps {
   onAddToast?: (type: 'success' | 'error' | 'info', message: string) => void;
   onTabChange?: (tab: 'files' | 'trash') => void;
   onNavigateToReport?: () => void;
+  searchFilter?: string;
+  onSearchChange?: (query: string) => void;
 }
 
 export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
@@ -81,6 +83,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   onAddToast,
   onTabChange,
   onNavigateToReport,
+  searchFilter = '',
+  onSearchChange,
 }) => {
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>(initialTab);
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -98,7 +102,18 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchFilter);
+
+  useEffect(() => {
+    if (searchFilter !== undefined && searchFilter !== searchQuery) {
+      setSearchQuery(searchFilter);
+    }
+  }, [searchFilter]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (onSearchChange) onSearchChange(value);
+  };
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<'name' | 'updatedAt' | 'size'>('name');
   const [sortAsc, setSortAsc] = useState<boolean>(true);
@@ -389,9 +404,26 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const filteredItems = items.filter((item) => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const matchName = item.name.toLowerCase().includes(q);
+      const matchSnippet = item.contentSnippet ? item.contentSnippet.toLowerCase().includes(q) : false;
+      const matchTags = item.tags ? item.tags.some((t) => t.toLowerCase().includes(q)) : false;
+      const matchTitle = item.metadata?.title ? item.metadata.title.toLowerCase().includes(q) : false;
+      const matchOtherTitle = item.metadata?.otherTitle ? item.metadata.otherTitle.toLowerCase().includes(q) : false;
+      const matchAuthor = item.metadata?.author ? item.metadata.author.toLowerCase().includes(q) : false;
+      const matchKeywords = item.metadata?.keywords ? item.metadata.keywords.toLowerCase().includes(q) : false;
+      const matchAbstract = item.metadata?.abstract ? item.metadata.abstract.toLowerCase().includes(q) : false;
+      const matchDescription = item.metadata?.description ? item.metadata.description.toLowerCase().includes(q) : false;
+
       return (
-        item.name.toLowerCase().includes(q) ||
-        (item.contentSnippet && item.contentSnippet.toLowerCase().includes(q))
+        matchName ||
+        matchSnippet ||
+        matchTags ||
+        matchTitle ||
+        matchOtherTitle ||
+        matchAuthor ||
+        matchKeywords ||
+        matchAbstract ||
+        matchDescription
       );
     }
 
@@ -933,13 +965,13 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={activeTab === 'trash' ? "Tìm trong thùng rác phòng ban..." : "Tìm kiếm trong Drive..."}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder={activeTab === 'trash' ? "Tìm trong thùng rác phòng ban..." : "Tìm theo tên, từ khóa, tóm tắt, mô tả..."}
                 className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200/70 focus:bg-white border border-transparent focus:border-blue-500 rounded-full text-slate-900 placeholder:text-slate-500 focus:outline-none transition-all"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => handleSearchChange('')}
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-3.5 h-3.5" />
