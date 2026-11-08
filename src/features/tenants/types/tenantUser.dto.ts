@@ -85,5 +85,6 @@ export interface AssignVacantDepartmentLeadResultDto {
   transferredFilesCount: number;
   transferredBytes: number;
   newAdminTotalQuotaBytes: number;
+  quotaToNewLeadBytes?: number;
   assignedAt: string;
 }

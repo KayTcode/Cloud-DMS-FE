@@ -180,6 +180,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
       sharedWith: ['me'],
       tags: [item.fileType?.toUpperCase() || 'FILE'],
       department: item.department,
+      scanStatus: (item.scanStatus as DriveItem['scanStatus']) ?? null,
     };
   };
 

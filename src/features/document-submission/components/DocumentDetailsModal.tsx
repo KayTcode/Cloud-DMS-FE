@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { documentApi } from '../api/documentApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
-import { DocumentDetailsDto } from '../types/document.types';
+import { DocumentDetailsDto, DocumentMetadataDto } from '../types/document.types';
 
 interface DocumentDetailsModalProps {
   fileId: string | null;
@@ -67,19 +67,19 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   if (!isOpen || !fileId) return null;
 
-  const metadata = details?.metadata || ((details as any)?.title ? {
-    id: (details as any).metadataId || '',
-    fileEntryId: details?.fileId || '',
-    author: (details as any).author || (details as any).ownerName || '',
-    title: (details as any).title,
-    otherTitle: (details as any).otherTitle,
-    releaseYear: (details as any).issueYear || (details as any).releaseYear || 0,
-    releaseMonth: (details as any).issueMonth || (details as any).releaseMonth || null,
-    releaseDay: (details as any).issueDay || (details as any).releaseDay || null,
-    releaseDateFormatted: (details as any).releaseDateFormatted || ((details as any).issueYear ? `Năm ${(details as any).issueYear}` : ''),
-    keywords: (details as any).keywords || null,
-    abstract: (details as any).abstract || null,
-    description: (details as any).description || null,
+  const metadata: DocumentMetadataDto | null = details?.metadata ?? (details?.title != null ? {
+    id: details.metadataId || '',
+    fileEntryId: details.fileId || '',
+    author: details.author || details.ownerName || '',
+    title: details.title,
+    otherTitle: details.otherTitle,
+    releaseYear: details.issueYear || details.releaseYear || 0,
+    releaseMonth: details.issueMonth ?? details.releaseMonth ?? null,
+    releaseDay: details.issueDay ?? details.releaseDay ?? null,
+    releaseDateFormatted: details.releaseDateFormatted || (details.issueYear ? `Năm ${details.issueYear}` : ''),
+    keywords: details.keywords ?? null,
+    abstract: details.abstract ?? null,
+    description: details.description ?? null,
   } : null);
   const isExpiringSoon = details?.daysRemaining !== undefined && details.daysRemaining !== null && details.daysRemaining <= 7;
   const keywordsList = metadata?.keywords

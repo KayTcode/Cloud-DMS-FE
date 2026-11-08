@@ -9,6 +9,8 @@ import { UserPortal } from '@/features/user';
 import { LoginPage, AcceptInvitationPage, GoogleOAuthCallback } from '@/features/auth';
 
 import { OneDriveOAuthCallback } from '@/features/system-admin/components/OneDriveOAuthCallback';
+import { UploadManagerProvider } from '@/services/upload/large/UploadManagerContext';
+import { LargeUploadPanel } from '@/components/upload/LargeUploadPanel';
 
 /**
  * AppContent: Handles authentication gate & role-based portal rendering
@@ -56,11 +58,14 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <TenantProvider>
-      <MainLayout>
-        {renderPortalByRole()}
-      </MainLayout>
-    </TenantProvider>
+    <UploadManagerProvider>
+      <TenantProvider>
+        <MainLayout>
+          {renderPortalByRole()}
+        </MainLayout>
+      </TenantProvider>
+      <LargeUploadPanel />
+    </UploadManagerProvider>
   );
 };
 

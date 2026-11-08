@@ -59,7 +59,7 @@ export const DepartmentProvider: React.FC<{ children: ReactNode; departmentIdOve
   useEffect(() => {
     if (departmentIdOverride) return;
     let isCancelled = false;
-    if (!departmentId && user?.role === 'DepartmentAdmin') {
+    if (!departmentIdOverride && !departmentId && user?.role === 'DepartmentAdmin') {
       departmentApi
         .getSetupInfo()
         .then((info) => {
@@ -74,7 +74,7 @@ export const DepartmentProvider: React.FC<{ children: ReactNode; departmentIdOve
     return () => {
       isCancelled = true;
     };
-  }, [departmentId, user?.role, updateUser]);
+  }, [departmentIdOverride, departmentId, user?.role, updateUser]);
 
   useEffect(() => {
     if (departmentId) {

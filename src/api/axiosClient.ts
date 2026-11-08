@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 import { ProblemDetails } from '@/types/common.types';
 
 //Lấy URL của backend từ biến môi trường của Vite
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7001/api';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7001/api';
 
 //Tạo instance của axios với base URL và headers mặc định
 export const apiClient = axios.create({
@@ -13,48 +13,58 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
+/**
+ * Thêm JWT Bearer Token vào header của request & tự động bổ sung Idempotency-Key
+ * cho các request thay đổi dữ liệu (POST, PUT, PATCH, DELETE) nếu chưa có.
+ * Dùng chung bởi `apiClient` và bất kỳ axios instance khác cần cùng hành vi
+ * (ví dụ: `largeUploadClient.ts`), để chỉ có một nơi định nghĩa logic này.
+ */
+export function attachAuthAndIdempotency(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
+  const token = localStorage.getItem('access_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const method = config.method?.toLowerCase();
+  if (config.headers && ['post', 'put', 'patch', 'delete'].includes(method || '')) {
+    const existingKey = typeof (config.headers as any).get === 'function'
+      ? (config.headers as any).get('Idempotency-Key')
+      : config.headers['Idempotency-Key'];
+
+    if (!existingKey) {
+      const generatedKey =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+      if (typeof (config.headers as any).set === 'function') {
+        (config.headers as any).set('Idempotency-Key', generatedKey);
+      }
+      config.headers['Idempotency-Key'] = generatedKey;
+    }
+  }
+
+  // Nếu gửi FormData (upload file), xóa Content-Type để Axios và Browser tự tính kèm boundary chuẩn
+  if (config.data instanceof FormData && config.headers) {
+    if (typeof (config.headers as any).delete === 'function') {
+      (config.headers as any).delete('Content-Type');
+    }
+    delete config.headers['Content-Type'];
+  }
+
+  return config;
+}
+
 // Request Interceptor: Thêm JWT Bearer Token vào header của request & tự động bổ sung Idempotency-Key
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    // Tự động gán Idempotency-Key cho các request thay đổi dữ liệu (POST, PUT, PATCH, DELETE) nếu chưa có
-    const method = config.method?.toLowerCase();
-    if (config.headers && ['post', 'put', 'patch', 'delete'].includes(method || '')) {
-      const existingKey = typeof (config.headers as any).get === 'function'
-        ? (config.headers as any).get('Idempotency-Key')
-        : config.headers['Idempotency-Key'];
-
-      if (!existingKey) {
-        const generatedKey =
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-        if (typeof (config.headers as any).set === 'function') {
-          (config.headers as any).set('Idempotency-Key', generatedKey);
-        }
-        config.headers['Idempotency-Key'] = generatedKey;
-      }
-    }
-
-    // Nếu gửi FormData (upload file), xóa Content-Type để Axios và Browser tự tính kèm boundary chuẩn
-    if (config.data instanceof FormData && config.headers) {
-      if (typeof (config.headers as any).delete === 'function') {
-        (config.headers as any).delete('Content-Type');
-      }
-      delete config.headers['Content-Type'];
-    }
-
-    return config;
-  },
+  (config: InternalAxiosRequestConfig) => attachAuthAndIdempotency(config),
   (error: AxiosError) => Promise.reject(error)
 );
 
-// Trạng thái xoay vòng Refresh Token (tránh race condition nhiều request 401 cùng lúc)
+// Trạng thái xoay vòng Refresh Token (tránh race condition nhiều request 401 cùng lúc).
+// Module-level nên được chia sẻ bởi MỌI axios instance gọi `refreshAccessToken()` dưới đây
+// (apiClient và largeUploadClient) — đảm bảo chỉ có một lượt refresh chạy tại một thời điểm,
+// không có 2 refresh chạy đua nhau ghi đè token của nhau.
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
@@ -71,6 +81,52 @@ const processQueue = (error: any, token: string | null = null) => {
   });
   failedQueue = [];
 };
+
+/**
+ * Xoay vòng refresh access token dùng chung (single-flight): nếu đang có một lượt
+ * refresh chạy, các lời gọi tiếp theo xếp hàng chờ chung kết quả thay vì tự gọi
+ * `/auth/refresh` riêng. Trả về access token mới, hoặc throw khi refresh thất bại
+ * (đồng thời dọn localStorage và điều hướng về /login, giống hành vi cũ).
+ * Dùng chung bởi response interceptor của `apiClient` và `largeUploadClient`.
+ */
+export async function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.href = '/login';
+    throw new Error('Không có refresh token');
+  }
+
+  if (isRefreshing) {
+    return new Promise<string>((resolve, reject) => {
+      failedQueue.push({ resolve: resolve as (value?: unknown) => void, reject });
+    });
+  }
+
+  isRefreshing = true;
+  try {
+    const refreshRes = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+    const newAccessToken = refreshRes.data.accessToken;
+    const newRefreshToken = refreshRes.data.refreshToken;
+
+    localStorage.setItem('access_token', newAccessToken);
+    if (newRefreshToken) {
+      localStorage.setItem('refresh_token', newRefreshToken);
+    }
+
+    processQueue(null, newAccessToken);
+    return newAccessToken;
+  } catch (refreshErr) {
+    processQueue(refreshErr, null);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.href = '/login';
+    throw refreshErr;
+  } finally {
+    isRefreshing = false;
+  }
+}
 
 // Response Interceptor: Định dạng lỗi từ .NET Web API & Xoay vòng Refresh Token (FE-07 / P3-02)
 apiClient.interceptors.response.use(
@@ -91,59 +147,16 @@ apiClient.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
-          return Promise.reject(error);
-        }
-
-        if (isRefreshing) {
-          // Nếu đang có request refresh đang chạy ngầm, xếp hàng chờ token mới
-          return new Promise((resolve, reject) => {
-            failedQueue.push({ resolve, reject });
-          })
-            .then((newToken) => {
-              if (originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${newToken}`;
-              }
-              return apiClient(originalRequest);
-            })
-            .catch((err) => Promise.reject(err));
-        }
-
         originalRequest._retry = true;
-        isRefreshing = true;
 
         try {
-          // Gọi API refresh độc lập bằng axios để không chạy qua interceptor này
-          const refreshRes = await axios.post(`${BASE_URL}/auth/refresh`, {
-            refreshToken,
-          });
-
-          const newAccessToken = refreshRes.data.accessToken;
-          const newRefreshToken = refreshRes.data.refreshToken;
-
-          localStorage.setItem('access_token', newAccessToken);
-          if (newRefreshToken) {
-            localStorage.setItem('refresh_token', newRefreshToken);
-          }
-
+          const newAccessToken = await refreshAccessToken();
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           }
-
-          processQueue(null, newAccessToken);
           return apiClient(originalRequest);
         } catch (refreshErr) {
-          processQueue(refreshErr, null);
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
           return Promise.reject(refreshErr);
-        } finally {
-          isRefreshing = false;
         }
       }
 

@@ -1,6 +1,8 @@
 import apiClient from '@/api/axiosClient';
+import { API_ENDPOINTS } from '@/api/endpoints';
 import { packageForStorage, extractStorageZip } from '@/services/upload/storageZip';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
+import { downloadViaLink } from '@/services/download/linkDownload';
 import {
   DriveItem,
   FileType,
@@ -76,6 +78,10 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     metadata: dto.metadata || null,
     department: dto.departmentName || '',
     previewUrl: dto.previewUrl,
+    authorName: dto.authorName || undefined,
+    isSharedLink: dto.isSharedLink ?? undefined,
+    isSharedToDepartment: dto.isSharedToDepartment ?? undefined,
+    scanStatus: dto.scanStatus ?? null,
   };
 };
 
@@ -327,8 +333,44 @@ export const driveApi = {
     }
   },
 
-  // Download file securely with Bearer token (GET /api/files/{id}/download)
-  downloadFile: async (fileId: string, fileName = 'download', archiveKind?: string | null): Promise<void> => {
+  // Download file securely. Files with no archive/zip-package wrapper
+  // (`archiveKind === null`) download via a direct storage-provider link
+  // (`downloadViaLink`), bypassing the old zip-package download entirely.
+  // Zip-package files (`archiveKind` is `'file' | 'folder' | 'batch'`) keep
+  // using the legacy backend-streamed download below. When `archiveKind`
+  // is unknown (`undefined`, e.g. callers that only have a DTO without the
+  // field), we optimistically try the link path first and fall back to the
+  // legacy path only if the backend tells us to (`USE_PACKAGE_DOWNLOAD`).
+  downloadFile: async (
+    fileId: string,
+    fileName = 'download',
+    archiveKind?: string | null,
+    confirmUnscanned?: () => Promise<boolean>
+  ): Promise<void> => {
+    const confirmUnscannedResolved =
+      confirmUnscanned ??
+      (async () =>
+        typeof window !== 'undefined'
+          ? window.confirm(
+              'Tệp này quá lớn để quét virus. Hệ thống đã chặn các loại tệp thực thi, nhưng không thể đảm bảo tệp an toàn. Chỉ mở nếu bạn tin người gửi.'
+            )
+          : false);
+
+    if (archiveKind === null) {
+      await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
+      return;
+    }
+
+    if (archiveKind === undefined) {
+      try {
+        await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
+        return;
+      } catch (error: any) {
+        if (error?.code !== 'USE_PACKAGE_DOWNLOAD') throw error;
+        // fall through to the legacy path below
+      }
+    }
+
     const folderPackage = archiveKind === 'folder' || archiveKind === 'batch';
     let destination: any = null;
     if (folderPackage && typeof (window as any).showDirectoryPicker === 'function') {
@@ -442,6 +484,22 @@ export const driveApi = {
   revokeShare: async (fileId: string, recipientId: string): Promise<any> => {
     const res: any = await apiClient.delete(`/files/${fileId}/share/${recipientId}`);
     return res?.value ?? res?.data ?? res;
+  },
+
+  // Rename a file (PATCH /api/files/{fileId})
+  renameFile: async (fileId: string, name: string): Promise<any> => {
+    const res: any = await apiClient.patch(`/files/${fileId}`, { name });
+    return res?.value ?? res?.data ?? res;
+  },
+
+  // Chia sẻ tệp tin lên Kho chung Phòng ban
+  shareToDepartment: async (fileId: string, targetFolderId: string | null): Promise<void> => {
+    await apiClient.post(API_ENDPOINTS.FILES.DEPARTMENT_SHARE(fileId), { targetFolderId });
+  },
+
+  // Thu hồi chia sẻ tệp tin khỏi Kho chung Phòng ban
+  unshareFromDepartment: async (fileId: string): Promise<void> => {
+    await apiClient.delete(API_ENDPOINTS.FILES.DEPARTMENT_SHARE(fileId));
   },
 
   // Backward compatibility alias for share

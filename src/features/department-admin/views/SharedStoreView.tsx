@@ -11,18 +11,31 @@ import { driveApi, formatBytes } from '@/features/user/api/driveApi';
 import { getDepartmentFilesApi } from '@/features/tenants/api/fileApi';
 import { FolderDto, BreadcrumbItem } from '@/features/user/types/folder.types';
 import { DriveItem, DriveFilter, FileType, UserProfile } from '@/features/user/types';
+import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
+
+async function readFileHead(file: File): Promise<Uint8Array> {
+  const buffer = await file.slice(0, 65536).arrayBuffer();
+  return new Uint8Array(buffer);
+}
 
 export const SharedStoreView: React.FC = () => {
   const { departmentId } = useDepartment();
   const { user: authUser } = useAuth();
+  const { enqueueLarge, reportPendingCount } = useUploadManager();
 
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>('files');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
   const [movingFolder, setMovingFolder] = useState<FolderDto | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
+  // F7: learned reactively from the first UNSCANNED_DOWNLOAD_DISABLED 403
+  // this screen sees — not fetched proactively.
+  const [downloadsDisabled, setDownloadsDisabled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
@@ -49,6 +62,7 @@ export const SharedStoreView: React.FC = () => {
         setBreadcrumb(res.breadcrumb);
       }
       setApiFolders(res.folders);
+      setIsReadOnly(res.isReadOnly ?? false);
     } catch (err) {
       console.error('Lỗi nạp thư mục kho chung:', err);
     }
@@ -88,6 +102,7 @@ export const SharedStoreView: React.FC = () => {
           sharedWith: [],
           tags: [],
           contentSnippet: '',
+          scanStatus: (f as any).scanStatus ?? null,
         };
       });
       setDriveItems(files);
@@ -143,11 +158,53 @@ export const SharedStoreView: React.FC = () => {
     }
   };
 
-  const handleUploadFiles = async (fileList: FileList) => {
+  const handleRenameFile = async (fileId: string, name: string) => {
+    if (!name.trim()) {
+      showNotification('Tên tệp không hợp lệ.', 'error');
+      return;
+    }
     try {
-      await driveApi.uploadFiles(fileList, currentFolderId);
+      await driveApi.renameFile(fileId, name.trim());
       await fetchDriveItems(currentFolderId);
-      showNotification('Tải lên tệp thành công!', 'success');
+      showNotification('Đã đổi tên tệp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Đổi tên tệp thất bại.';
+      showNotification(msg, 'error');
+    }
+  };
+
+  const handleConfirmHandover = async (folderId: string) => {
+    try {
+      await folderApi.confirmHandover(folderId);
+      await fetchFolders(currentFolderId);
+      showNotification('Đã tiếp nhận bàn giao.', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
+      showNotification(msg, 'error');
+    }
+  };
+
+  const uploadSelectionDeps = {
+    uploadZip: (files: File[], dirs: string[], target: { folderId: string | null }) =>
+      driveApi.uploadFiles(files, target.folderId, dirs),
+    enqueueLarge,
+    createFolder: (name: string, parentId: string | null) =>
+      folderApi.createFolder({ name, parentFolderId: parentId, driveKind: 'DepartmentShared', driveOwnerId: deptId }),
+    reportPendingCount,
+    readHead: readFileHead,
+  };
+
+  const handleUploadFiles = async (fileList: FileList, directories: string[] = []) => {
+    try {
+      const result = await uploadSelection(Array.from(fileList), directories, { folderId: currentFolderId }, uploadSelectionDeps);
+      await fetchDriveItems(currentFolderId);
+      if (result.error) {
+        showNotification(result.error.message, 'error');
+      } else if (result.items.some((i) => !i.ok)) {
+        showNotification('Một số tệp tải lên thất bại.', 'error');
+      } else {
+        showNotification('Tải lên tệp thành công!', 'success');
+      }
     } catch (err: any) {
       showNotification(err?.response?.data?.message || 'Tải lên thất bại.', 'error');
     }
@@ -155,9 +212,16 @@ export const SharedStoreView: React.FC = () => {
 
   const handleUploadDirectFiles = async (fileList: FileList) => {
     try {
-      await driveApi.uploadDirectFiles(fileList, currentFolderId);
+      // Đi qua cùng bộ phân luồng F6 (file nhỏ -> đường zip, file lớn -> F5).
+      const result = await uploadSelection(Array.from(fileList), [], { folderId: currentFolderId }, uploadSelectionDeps);
       await fetchDriveItems(currentFolderId);
-      showNotification('Tải lên trực tiếp thành công!', 'success');
+      if (result.error) {
+        showNotification(result.error.message, 'error');
+      } else if (result.items.some((i) => !i.ok)) {
+        showNotification('Một số tệp tải lên trực tiếp thất bại.', 'error');
+      } else {
+        showNotification('Tải lên trực tiếp thành công!', 'success');
+      }
     } catch (err: any) {
       showNotification(err?.response?.data?.message || 'Tải lên trực tiếp thất bại.', 'error');
     }
@@ -291,11 +355,14 @@ export const SharedStoreView: React.FC = () => {
             }
           }}
           onShareItem={() => {}}
-          onDownloadItem={async (item) => {
+          downloadsDisabled={downloadsDisabled}
+          downloadsDisabledReason={UNSCANNED_DOWNLOAD_DISABLED_MESSAGE}
+          onDownloadItem={async (item, confirmUnscanned) => {
             try {
-              await driveApi.downloadFile(item.id, item.name, item.archiveKind);
-            } catch {
-              showNotification('Không thể tải xuống tệp.', 'error');
+              await driveApi.downloadFile(item.id, item.name, item.archiveKind, confirmUnscanned);
+            } catch (error: any) {
+              if (error?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
+              showNotification(error?.message || 'Không thể tải xuống tệp.', 'error');
             }
           }}
           folders={apiFolders}
@@ -304,8 +371,20 @@ export const SharedStoreView: React.FC = () => {
           onRenameFolder={handleRenameFolder}
           onMoveFolder={handleMoveFolder}
           onTrashFolder={handleTrashFolder}
+          onRenameFile={handleRenameFile}
           driveKind="DepartmentShared"
           driveOwnerId={deptId}
+          isReadOnly={isReadOnly}
+          onConfirmHandover={handleConfirmHandover}
+          onUnshareFromDepartment={async (item) => {
+            try {
+              await driveApi.unshareFromDepartment(item.id);
+              await fetchDriveItems(currentFolderId);
+              showNotification('Đã gỡ khỏi Kho chung.', 'success');
+            } catch (err: any) {
+              showNotification(err?.response?.data?.message || err?.message || 'Không thể gỡ khỏi Kho chung.', 'error');
+            }
+          }}
         />
       )}
 

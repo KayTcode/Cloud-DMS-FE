@@ -220,6 +220,31 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
                         <span>{dept.adminEmail}</span>
                       </div>
                     )}
+
+                    {/* Storage bar */}
+                    {dept.storageUsedBytes != null && dept.storageQuotaBytes != null && dept.storageQuotaBytes > 0 && (
+                      <div className="mt-1.5">
+                        {(() => {
+                          const usedGB = dept.storageUsedBytes / (1024 ** 3);
+                          const quotaGB = dept.storageQuotaBytes / (1024 ** 3);
+                          const pct = Math.min(100, Math.round((dept.storageUsedBytes / dept.storageQuotaBytes) * 100));
+                          return (
+                            <>
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
+                                <span className="flex items-center gap-0.5"><HardDrive className="w-2.5 h-2.5" /> Dung lượng</span>
+                                <span className="tabular-nums">{usedGB.toFixed(1)} GB / {quotaGB.toFixed(1)} GB ({pct}%)</span>
+                              </div>
+                              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </div>
 
