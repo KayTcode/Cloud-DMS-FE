@@ -14,6 +14,7 @@ import {
 import { StorageProviderItem } from '../types';
 import { ConnectProviderModal } from '../components/ConnectProviderModal';
 import { EditProviderModal } from '../components/EditProviderModal';
+import { StorageMigrationPanel } from '../components/StorageMigrationPanel';
 import { getStorageProvidersApi } from '../api/systemAdminQueries';
 import { deleteStorageProviderApi } from '../api/systemAdminCommands';
 import { formatBytes } from '../../department-admin/utils/quotaUtils';
@@ -34,6 +35,7 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<StorageProviderItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
 
   useEffect(() => {
     setProviders(initialProviders);
@@ -117,6 +119,8 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
         </div>
       </div>
 
+      {migrationOpen && <StorageMigrationPanel providers={providers} onClose={() => { setMigrationOpen(false); void fetchProviders(); }} />}
+      <button className="border rounded-lg px-4 py-2 text-sm font-semibold" onClick={() => setMigrationOpen(true)}>Di chuyển dữ liệu giữa các kho lưu trữ</button>
       {/* Cloud Pool Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {providers.map((p) => {
@@ -182,6 +186,10 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                   </div>
                 )}
 
+                {(p.migrationReservedBytes || p.migrationRetainedBytes) ? <p className="mt-3 text-xs text-amber-700">
+                  Đang dành chỗ di chuyển: {formatBytes(p.migrationReservedBytes || 0)} · Bản nguồn chờ dọn: {formatBytes(p.migrationRetainedBytes || 0)}
+                </p> : null}
+                {p.migrationReadOnly && <p className="text-xs text-amber-700 mt-2">Kho nguồn đang chỉ đọc, không nhận phân bổ hoặc tải lên mới.</p>}
                 {/* Metrics detail */}
                 <div className="mt-4 space-y-2 text-xs border-t border-slate-100 pt-3">
                   <div className="flex justify-between py-0.5">

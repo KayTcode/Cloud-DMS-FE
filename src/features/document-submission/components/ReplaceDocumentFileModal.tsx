@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X,
   Upload,
@@ -32,6 +32,20 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
   const [uploadPercent, setUploadPercent] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const resetForm = useCallback(() => {
+    setSelectedFile(null);
+    setIsSubmitting(false);
+    setUploadPercent(0);
+    setErrorMessage('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen, resetForm]);
+
   if (!isOpen || !fileId) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,6 +68,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
         (percent) => setUploadPercent(percent)
       );
 
+      resetForm();
       if (onSuccess) {
         onSuccess();
       }
@@ -81,7 +96,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Thay Thế Tệp Vật Lý</h3>
-              <p className="text-xs text-slate-500">Cập nhật nội dung tệp mà không làm mất siêu dữ liệu</p>
+              <p className="text-xs text-slate-500">Cập nhật nội dung tệp mà không làm mất thông tin mô tả</p>
             </div>
           </div>
           <button
@@ -101,7 +116,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
             </div>
           )}
 
-          {/* Cảnh báo xóa file cũ trên S3 và bảo toàn metadata */}
+          {/* Cảnh báo xóa file cũ trên S3 và bảo toàn thông tin */}
           <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2 text-amber-900 text-xs leading-relaxed">
             <div className="flex items-center gap-2 font-bold">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -114,7 +129,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
             </p>
             <p className="flex items-center gap-1.5 text-emerald-800 font-semibold pt-1">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              Toàn bộ Siêu dữ liệu (Tiêu đề, Tác giả, Ngày phát hành, Từ khóa...) được giữ nguyên 100%!
+              Toàn bộ Thông tin tệp (Tiêu đề, Tác giả, Ngày phát hành, Từ khóa...) được giữ nguyên 100%!
             </p>
           </div>
 

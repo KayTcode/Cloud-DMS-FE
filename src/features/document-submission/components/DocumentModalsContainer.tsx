@@ -13,8 +13,8 @@ export interface DocumentModalsContainerProps {
   detailsFileId: string | null;
   closeDetails: () => void;
   openReplace: (fileId: string, fileName: string) => void;
-  openEdit: (details: DocumentDetailsDto) => void;
-  openExtend: (details: DocumentDetailsDto) => void;
+  openEdit: (target: string | DocumentDetailsDto) => void;
+  openExtend: (target: string | DocumentDetailsDto) => void;
   replaceState: {
     isOpen: boolean;
     fileId: string | null;
@@ -24,11 +24,13 @@ export interface DocumentModalsContainerProps {
   editState: {
     isOpen: boolean;
     details: DocumentDetailsDto | null;
+    fileId?: string | null;
   };
   closeEdit: () => void;
   extendState: {
     isOpen: boolean;
     details: DocumentDetailsDto | null;
+    fileId?: string | null;
   };
   closeExtend: () => void;
   onSuccess: (message?: string) => void;
@@ -61,7 +63,7 @@ export const DocumentModalsContainer: React.FC<DocumentModalsContainerProps> = (
         onSuccess={() => onSuccess('Nộp tài liệu mới thành công!')}
       />
 
-      {/* 2. Modal Chi tiết siêu dữ liệu */}
+      {/* 2. Modal Chi tiết thông tin tệp */}
       <DocumentDetailsModal
         isOpen={Boolean(detailsFileId)}
         fileId={detailsFileId}
@@ -77,21 +79,23 @@ export const DocumentModalsContainer: React.FC<DocumentModalsContainerProps> = (
         fileId={replaceState.fileId}
         currentFileName={replaceState.fileName}
         onClose={closeReplace}
-        onSuccess={() => onSuccess('Đã thay thế tệp và bảo toàn 100% siêu dữ liệu!')}
+        onSuccess={() => onSuccess('Đã thay thế tệp và bảo toàn 100% thông tin tệp!')}
       />
 
-      {/* 4. Modal Sửa siêu dữ liệu */}
+      {/* 4. Modal Sửa thông tin tệp */}
       <EditDocumentMetadataModal
         isOpen={editState.isOpen}
         details={editState.details}
+        fileId={editState.fileId}
         onClose={closeEdit}
-        onSuccess={() => onSuccess('Cập nhật siêu dữ liệu tài liệu thành công!')}
+        onSuccess={() => onSuccess('Cập nhật thông tin tài liệu thành công!')}
       />
 
       {/* 5. Modal Gia hạn thời hạn lưu trữ */}
       <ExtendRetentionModal
         isOpen={extendState.isOpen}
         details={extendState.details}
+        fileId={extendState.fileId}
         onClose={closeExtend}
         onSuccess={() => onSuccess('Gia hạn thời hạn lưu trữ thành công!')}
       />

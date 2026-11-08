@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Mail, Phone, HardDrive, Sparkles, AlertTriangle } from 'lucide-react';
 import { CreateEmployeePayload } from '../types';
-import { gbToBytes } from '../utils/quotaUtils';
+import { QuotaUnitInput } from '@/components/common';
+import { QuotaUnit, unitToBytes, formatQuotaAuto, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
 
 interface AddMemberModalProps {
   isOpen: boolean;
@@ -20,23 +21,27 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const maxQuota = Math.max(0, Math.floor(availableQuotaGB));
-  const minQuota = maxQuota > 0 ? 1 : 0;
+  const maxQuotaBytes = Math.max(0, availableQuotaGB * 1024 * 1024 * 1024);
+  const defaultInitialQuota = availableQuotaGB >= 5 ? 5 : Math.max(1, Math.floor(availableQuotaGB));
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [quotaGB, setQuotaGB] = useState<number>(maxQuota);
+  const [quotaValue, setQuotaValue] = useState<number>(defaultInitialQuota);
+  const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setQuotaGB(maxQuota);
+      setQuotaValue(defaultInitialQuota);
+      setQuotaUnit('GB');
       setErrorMessage(null);
     }
-  }, [isOpen, maxQuota]);
+  }, [isOpen, availableQuotaGB]);
+
+  const currentQuotaBytes = unitToBytes(quotaValue, quotaUnit);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,20 +52,20 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       return;
     }
 
-    if (maxQuota <= 0) {
+    if (maxQuotaBytes <= 0) {
       setErrorMessage('Phòng ban không còn dung lượng khả dụng để cấp cho nhân viên mới.');
       return;
     }
 
-    if (quotaGB > availableQuotaGB) {
+    if (currentQuotaBytes > maxQuotaBytes) {
       setErrorMessage(
-        `Hạn mức cấp (${quotaGB} GB) vượt quá dung lượng khả dụng của phòng ban (${availableQuotaGB} GB).`
+        `Hạn mức cấp (${formatQuotaWithUnit(currentQuotaBytes, quotaUnit)}) vượt quá dung lượng khả dụng của phòng ban (${formatQuotaAuto(maxQuotaBytes)}).`
       );
       return;
     }
 
-    if (quotaGB < minQuota) {
-      setErrorMessage(`Hạn mức tối thiểu phải từ ${minQuota} GB.`);
+    if (currentQuotaBytes <= 0) {
+      setErrorMessage('Hạn mức Quota phải lớn hơn 0.');
       return;
     }
 
@@ -71,7 +76,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
         lastName: lastName.trim(),
         email: email.trim(),
         phoneNumber: phoneNumber.trim() || undefined,
-        storageQuotaBytes: gbToBytes(quotaGB),
+        storageQuotaBytes: currentQuotaBytes,
       });
       onClose();
     } catch (err: any) {
@@ -186,30 +191,23 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
             </div>
           </div>
 
-          {/* Hạn mức cấp ban đầu */}
+          {/* Hạn mức cấp ban đầu with QuotaUnitInput */}
           <div>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                <HardDrive className="w-3.5 h-3.5 text-blue-600" />
-                <span>Hạn mức lưu trữ ban đầu:</span>
-              </div>
-              <span className="font-bold text-blue-600 font-mono text-sm">{quotaGB} GB</span>
-            </div>
-            <input
-              type="range"
-              min={minQuota}
-              max={Math.max(minQuota, maxQuota)}
-              step={1}
-              value={quotaGB}
-              disabled={maxQuota <= 0}
-              onChange={(e) => setQuotaGB(Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            <QuotaUnitInput
+              value={quotaValue}
+              unit={quotaUnit}
+              onChange={(val, u) => {
+                setQuotaValue(val);
+                setQuotaUnit(u);
+              }}
+              maxBytes={maxQuotaBytes}
+              label="Hạn mức lưu trữ ban đầu"
+              required
+              disabled={maxQuotaBytes <= 0}
+              placeholder="5"
+              helperText="Hạn mức dung lượng cá nhân phân bổ cho nhân viên này."
             />
-            <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-              <span>Tối thiểu: {minQuota} GB</span>
-              <span>Khả dụng tối đa: {availableQuotaGB} GB</span>
-            </div>
-            {maxQuota <= 0 && (
+            {maxQuotaBytes <= 0 && (
               <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs flex items-start gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
                 <span>
@@ -231,7 +229,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || maxQuota <= 0}
+              disabled={isSubmitting || maxQuotaBytes <= 0}
               className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Đang gửi thư mời...' : 'Gửi thư mời nhân viên'}

@@ -3,9 +3,13 @@ export interface DocumentMetadataDto {
   fileEntryId: string;
   title: string;
   author: string;
+  otherTitle?: string | null;
   releaseYear: number;
+  issueYear?: number | null;
   releaseMonth?: number | null;
+  issueMonth?: number | null;
   releaseDay?: number | null;
+  issueDay?: number | null;
   keywords?: string | null;
   abstract?: string | null;
   description?: string | null;

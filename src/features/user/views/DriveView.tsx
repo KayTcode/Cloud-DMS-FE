@@ -34,7 +34,7 @@ import { FolderDto, BreadcrumbItem } from '../types/folder.types';
 import { FolderBreadcrumb } from '../components/FolderBreadcrumb';
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 import { UnscannedDownloadDialog } from '@/components/feedback/UnscannedDownloadDialog';
-import { DocumentModalsContainer, useDocumentModals } from '@/features/document-submission';
+import { DocumentModalsContainer, useDocumentModals, DocumentContextMenu } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 
 interface DriveViewProps {
@@ -173,9 +173,25 @@ export const DriveView: React.FC<DriveViewProps> = ({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchName = item.name.toLowerCase().includes(q);
-      const matchTags = item.tags.some((t) => t.toLowerCase().includes(q));
-      const matchDept = item.department?.toLowerCase().includes(q);
-      return matchName || matchTags || matchDept;
+      const matchTags = item.tags ? item.tags.some((t) => t.toLowerCase().includes(q)) : false;
+      const matchDept = item.department ? item.department.toLowerCase().includes(q) : false;
+      const matchTitle = item.metadata?.title ? item.metadata.title.toLowerCase().includes(q) : false;
+      const matchOtherTitle = item.metadata?.otherTitle ? item.metadata.otherTitle.toLowerCase().includes(q) : false;
+      const matchAuthor = item.metadata?.author ? item.metadata.author.toLowerCase().includes(q) : false;
+      const matchKeywords = item.metadata?.keywords ? item.metadata.keywords.toLowerCase().includes(q) : false;
+      const matchAbstract = item.metadata?.abstract ? item.metadata.abstract.toLowerCase().includes(q) : false;
+      const matchDescription = item.metadata?.description ? item.metadata.description.toLowerCase().includes(q) : false;
+      return (
+        matchName ||
+        matchTags ||
+        matchDept ||
+        matchTitle ||
+        matchOtherTitle ||
+        matchAuthor ||
+        matchKeywords ||
+        matchAbstract ||
+        matchDescription
+      );
     }
 
     // In trash view, all items are already filtered by server
@@ -962,12 +978,14 @@ export const DriveView: React.FC<DriveViewProps> = ({
                             </div>
                           )}
                           {isReadOnly && (
+                          <div className="flex items-center gap-0.5 shrink-0">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleStar(file.id);
                               }}
-                              className="text-slate-300 hover:text-amber-500 transition-colors shrink-0 p-1 cursor-pointer"
+                              className="text-slate-300 hover:text-amber-500 transition-colors p-1 cursor-pointer"
+                              title={file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}
                             >
                               <Star
                                 className={`w-4 h-4 ${
@@ -975,6 +993,17 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 }`}
                               />
                             </button>
+
+                            <DocumentContextMenu
+                              file={file}
+                              docModals={docModals}
+                              onOpenPreview={() => onOpenFilePreview(file)}
+                              onDownload={() => onDownloadItem(file)}
+                              onShare={() => onShareItem(file)}
+                              onToggleStar={() => onToggleStar(file.id)}
+                              onDelete={() => onDeleteFile(file.id)}
+                            />
+                          </div>
                           )}
                         </div>
 
@@ -1266,6 +1295,15 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 )}
+                                <DocumentContextMenu
+                                  file={file}
+                                  docModals={docModals}
+                                  onOpenPreview={() => onOpenFilePreview(file)}
+                                  onDownload={() => onDownloadItem(file)}
+                                  onShare={() => onShareItem(file)}
+                                  onToggleStar={() => onToggleStar(file.id)}
+                                  onDelete={() => onDeleteFile(file.id)}
+                                />
                               </div>
                             </td>
                           </tr>
@@ -1281,7 +1319,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
       )}
 
     
-      {/* Bộ Modals quản lý tài liệu và siêu dữ liệu tập trung */}
+      {/* Bộ Modals quản lý tài liệu và thông tin tệp tập trung */}
       <DocumentModalsContainer
         parentFolderId={currentFolderId}
         {...docModals.containerProps}

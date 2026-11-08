@@ -1,6 +1,21 @@
-import { kycHttp, urlApi } from 'service';
+export const login = async (payload) => {
+  const response = await fetch('/api/User/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 
-export const login = async (domainApp, payload) => {
-  const { data } = await kycHttp.post({ path: `kyc/${domainApp}/${urlApi.customer.login}`, payload });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data && data.message
+        ? data.message
+        : 'Invalid email or password.',
+    );
+  }
+
   return data;
 };

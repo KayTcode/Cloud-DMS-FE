@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Building2,
   Search,
@@ -1126,6 +1126,8 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
         </>
       )}
 
+      </>
+      )}
       {/* 5.6. MODAL XEM CHI TIẾT TỆP TIN (File Detail Inspector Modal) */}
       {selectedFileForDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">

@@ -3,6 +3,8 @@ import { Building2, HardDrive, ShieldCheck, ArrowRight, Sparkles, AlertCircle, I
 import { useDepartment } from '../context/DepartmentContext';
 import { useAuth } from '@/context/AuthContext';
 import { departmentApi } from '../api';
+import { QuotaUnitInput } from '@/components/common/QuotaUnitInput';
+import { QuotaUnit, unitToBytes, formatQuotaAuto, UNIT_BYTES } from '@/utils/quotaUnitUtils';
 
 export const SetupDepartmentView: React.FC = () => {
   const { setupDepartment, isMutating } = useDepartment();
@@ -12,8 +14,9 @@ export const SetupDepartmentView: React.FC = () => {
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [retentionDays, setRetentionDays] = useState<number>(30);
-  const [personalQuotaGB, setPersonalQuotaGB] = useState<number>(2);
-  const [assignedQuotaGB, setAssignedQuotaGB] = useState<number>(10);
+  const [personalQuotaValue, setPersonalQuotaValue] = useState<number>(2);
+  const [personalQuotaUnit, setPersonalQuotaUnit] = useState<QuotaUnit>('GB');
+  const [assignedQuotaBytes, setAssignedQuotaBytes] = useState<number>(10 * UNIT_BYTES.GB);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,10 +31,23 @@ export const SetupDepartmentView: React.FC = () => {
             return;
           }
         }
-        if (isMounted && typeof info?.assignedQuotaGB === 'number' && info.assignedQuotaGB > 0) {
-          const quota = Math.max(1, Math.round(info.assignedQuotaGB));
-          setAssignedQuotaGB(quota);
-          setPersonalQuotaGB((prev) => Math.min(prev, quota));
+        if (isMounted) {
+          const totalBytes =
+            info?.assignedQuotaBytes ||
+            (typeof info?.assignedQuotaGB === 'number' && info.assignedQuotaGB > 0
+              ? Math.round(info.assignedQuotaGB * UNIT_BYTES.GB)
+              : 10 * UNIT_BYTES.GB);
+          setAssignedQuotaBytes(totalBytes);
+
+          // Đặt mặc định 2 GB hoặc 20% tổng dung lượng
+          const defaultBytes = Math.min(totalBytes, 2 * UNIT_BYTES.GB);
+          if (defaultBytes >= UNIT_BYTES.GB) {
+            setPersonalQuotaUnit('GB');
+            setPersonalQuotaValue(Math.max(1, Math.round(defaultBytes / UNIT_BYTES.GB)));
+          } else {
+            setPersonalQuotaUnit('MB');
+            setPersonalQuotaValue(Math.max(100, Math.round(defaultBytes / UNIT_BYTES.MB)));
+          }
         }
       } catch (err) {
         console.warn('[SetupDepartmentView] Không thể tải thông tin setup-info, giữ hạn mức mặc định:', err);
@@ -61,13 +77,28 @@ export const SetupDepartmentView: React.FC = () => {
       return;
     }
 
+    const personalQuotaBytes = unitToBytes(personalQuotaValue, personalQuotaUnit);
+    if (personalQuotaBytes <= 0) {
+      setErrorMessage('Hạn mức cá nhân giữ lại cho Trưởng phòng phải lớn hơn 0');
+      return;
+    }
+    if (personalQuotaBytes < 100 * UNIT_BYTES.MB) {
+      setErrorMessage('Hạn mức cá nhân giữ lại cho Trưởng phòng tối thiểu là 100 MB');
+      return;
+    }
+    if (personalQuotaBytes > assignedQuotaBytes) {
+      setErrorMessage('Hạn mức cá nhân không được vượt quá tổng hạn mức phòng ban được cấp');
+      return;
+    }
+
     try {
       await setupDepartment({
         name: name.trim(),
         code: code.trim().toUpperCase(),
         description: description.trim() || undefined,
         retentionDays: retentionDays > 0 ? retentionDays : 30,
-        adminPersonalQuotaGB: personalQuotaGB > 0 ? personalQuotaGB : undefined,
+        adminPersonalQuotaBytes: personalQuotaBytes,
+        adminPersonalQuotaGB: Number((personalQuotaBytes / UNIT_BYTES.GB).toFixed(2)),
       });
     } catch (err: any) {
       const data = err?.response?.data;
@@ -85,7 +116,8 @@ export const SetupDepartmentView: React.FC = () => {
     }
   };
 
-  const remainingForEmployeesGB = Math.max(0, assignedQuotaGB - personalQuotaGB);
+  const personalQuotaBytes = unitToBytes(personalQuotaValue, personalQuotaUnit);
+  const remainingForEmployeesBytes = Math.max(0, assignedQuotaBytes - personalQuotaBytes);
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
@@ -114,7 +146,7 @@ export const SetupDepartmentView: React.FC = () => {
         )}
 
         {/* Setup Form */}
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-5">
+        <form onSubmit={handleSubmit} noValidate className="p-6 md:p-8 space-y-5">
           {/* Tên phòng ban */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -197,31 +229,60 @@ export const SetupDepartmentView: React.FC = () => {
                 </span>
               </div>
               <span className="text-xs font-bold font-mono text-blue-600">
-                {personalQuotaGB} GB
+                {formatQuotaAuto(personalQuotaBytes)}
               </span>
             </div>
 
-            <input
-              type="range"
-              min={1}
-              max={assignedQuotaGB}
-              step={1}
-              value={personalQuotaGB}
-              onChange={(e) => setPersonalQuotaGB(Number(e.target.value))}
-              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+            <QuotaUnitInput
+              value={personalQuotaValue}
+              unit={personalQuotaUnit}
+              onChange={(val, u) => {
+                setPersonalQuotaValue(val);
+                setPersonalQuotaUnit(u);
+              }}
+              maxBytes={assignedQuotaBytes}
+              minBytes={100 * UNIT_BYTES.MB}
+              placeholder="Nhập dung lượng cá nhân..."
             />
 
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-              <span>Tối thiểu: 1 GB</span>
-              <span>Khuyến nghị: 2 GB - {Math.min(5, assignedQuotaGB)} GB</span>
-              <span>Tối đa: {assignedQuotaGB} GB (Tổng ví được cấp)</span>
+            {/* Quick preset buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] text-slate-400 font-medium">Gợi ý nhanh:</span>
+              {[
+                { label: '500 MB', val: 500, u: 'MB' as QuotaUnit, bytes: 500 * UNIT_BYTES.MB },
+                { label: '1 GB', val: 1, u: 'GB' as QuotaUnit, bytes: 1 * UNIT_BYTES.GB },
+                { label: '2 GB', val: 2, u: 'GB' as QuotaUnit, bytes: 2 * UNIT_BYTES.GB },
+                { label: '5 GB', val: 5, u: 'GB' as QuotaUnit, bytes: 5 * UNIT_BYTES.GB },
+                { label: '10 GB', val: 10, u: 'GB' as QuotaUnit, bytes: 10 * UNIT_BYTES.GB },
+              ]
+                .filter((p) => p.bytes <= assignedQuotaBytes)
+                .map((p) => {
+                  const isSelected = personalQuotaUnit === p.u && personalQuotaValue === p.val;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setPersonalQuotaUnit(p.u);
+                        setPersonalQuotaValue(p.val);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
             </div>
 
             <div className="pt-2 border-t border-slate-200/60 flex items-start gap-2 text-[11px] text-slate-500 leading-relaxed">
               <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
               <div>
-                <span>Tổng hạn mức phòng ban được cấp: <strong className="text-slate-700 font-mono">{assignedQuotaGB} GB</strong>. </span>
-                <span>Ngân sách còn lại cho nhân viên: <strong className="text-emerald-600 font-mono">{remainingForEmployeesGB} GB</strong>.</span>
+                <span>Tổng hạn mức phòng ban được cấp: <strong className="text-slate-700 font-mono">{formatQuotaAuto(assignedQuotaBytes)}</strong>. </span>
+                <span>Ngân sách còn lại cho nhân viên: <strong className="text-emerald-600 font-mono">{formatQuotaAuto(remainingForEmployeesBytes)}</strong>.</span>
               </div>
             </div>
           </div>
