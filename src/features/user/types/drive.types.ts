@@ -1,3 +1,5 @@
+import { DocumentMetadataDto } from '@/features/document-submission';
+
 export type FileType = 'pdf' | 'docx' | 'sheet' | 'slide' | 'image' | 'archive' | 'folder' | 'code' | 'other';
 
 export interface DriveItem {
@@ -28,6 +30,7 @@ export interface DriveItem {
   department?: string;
   previewUrl?: string;
   contentSnippet?: string;
+  metadata?: DocumentMetadataDto | null;
 }
 
 export type DriveViewMode = 'grid' | 'list';
@@ -94,6 +97,7 @@ export interface SharedFileItem {
   department?: string;
   createdAt: string;
   scanStatus?: string;
+  metadata?: DocumentMetadataDto | null;
 }
 
 export interface SharedFileListResponse {
@@ -103,4 +107,3 @@ export interface SharedFileListResponse {
   pageSize: number;
   hasMore?: boolean;
 }
-

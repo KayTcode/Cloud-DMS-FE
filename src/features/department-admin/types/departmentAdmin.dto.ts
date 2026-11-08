@@ -13,6 +13,7 @@ export interface UserStorageQuotaDto {
   fileCount?: number;
   availableBytes: number;
   usagePercentage: number;
+  isActive?: boolean;
 }
 
 export interface DepartmentUsersQuotaSummaryDto {

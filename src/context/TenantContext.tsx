@@ -84,7 +84,7 @@ interface TenantContextType {
   handleOpenCreateDepartmentUser: (deptName?: string) => void;
   handleUserCreated: (newUser: TenantUser) => Promise<void>;
   handleCreateDepartmentAdmin: (payload: CreateDepartmentAdminPayload) => Promise<boolean>;
-  handleAllocateDepartmentQuota: (departmentId: string, quotaGB: number) => Promise<boolean>;
+  handleAllocateDepartmentQuota: (departmentId: string, quotaGBOrBytes: number, isBytes?: boolean) => Promise<boolean>;
   handleUpdateTenant: (updated: Partial<TenantInfo>) => Promise<void>;
   handleSelectNav: (nav: NavItem) => void;
 }
@@ -208,6 +208,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           actualStorageUsedBytes: summary.actualStorageUsedBytes,
           availableBytes: summary.availableBytes,
           usagePercentage: summary.usagePercentage,
+          allocations: summary.allocations,
         });
 
         const qBytes = summary.storageQuotaBytes;
@@ -234,6 +235,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           availableBytes: availBytes,
           storageProviderName: summary.storageProviderName,
           usagePercentage: usagePct,
+          allocations: summary.allocations,
         }));
       }
 
@@ -302,6 +304,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             availableBytes: availBytes,
             storageProviderName: loadedQuota?.storageProviderName,
             usagePercentage: usagePct,
+            allocations: loadedQuota?.allocations,
           };
         });
       }
@@ -398,7 +401,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       'success',
       `Đã tạo tài khoản thành công cho ${created.name} thuộc phòng ban ${created.department}!`
     );
-    setActiveTab('users');
+    setActiveTab('departments');
   };
 
   const handleCreateDepartmentAdmin = async (payload: CreateDepartmentAdminPayload): Promise<boolean> => {
@@ -449,23 +452,24 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const handleAllocateDepartmentQuota = async (departmentId: string, quotaGB: number): Promise<boolean> => {
+  const handleAllocateDepartmentQuota = async (departmentId: string, quotaGBOrBytes: number, isBytes = false): Promise<boolean> => {
     try {
-      const quotaBytes = Math.round(quotaGB * 1024 * 1024 * 1024);
+      const quotaBytes = isBytes ? Math.round(quotaGBOrBytes) : Math.round(quotaGBOrBytes * 1024 * 1024 * 1024);
       await allocateDepartmentQuotaApi(tenant.id, departmentId, quotaBytes);
 
+      const displayGB = Number((quotaBytes / (1024 ** 3)).toFixed(1));
       setDepartments((prev) =>
-        prev.map((d) => (d.id === departmentId ? { ...d, allocatedStorageGB: quotaGB } : d))
+        prev.map((d) => (d.id === departmentId ? { ...d, allocatedStorageGB: displayGB } : d))
       );
 
       const targetDept = departments.find((d) => d.id === departmentId);
       const deptName = targetDept?.name || 'Phòng ban';
 
-      addToast('success', `Đã cập nhật Quota lưu trữ cho phòng ban ${deptName}: ${quotaGB} GB thành công!`);
+      addToast('success', `Đã cập nhật Quota lưu trữ cho phòng ban ${deptName}: ${displayGB} GB thành công!`);
 
       const newEvent: TenantEvent = {
         id: `evt-${Date.now()}`,
-        text: `Điều chỉnh hạn mức lưu trữ phòng ban ${deptName} lên ${quotaGB} GB`,
+        text: `Điều chỉnh hạn mức lưu trữ phòng ban ${deptName} lên ${displayGB} GB`,
         timeAgo: 'Just now',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: 'storage',

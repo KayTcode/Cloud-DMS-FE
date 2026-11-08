@@ -134,6 +134,9 @@ export const getSystemTenantsApi = async (): Promise<SystemTenant[]> => {
           storageDisplay: `${formatBytes(uBytes)} / ${formatBytes(qBytes)}`,
           createdDate: t.createdAt ? new Date(t.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo',
           status: t.isActive ? 'Active' : 'Suspended',
+          adminEmail: t.adminEmail,
+          adminId: t.adminId,
+          adminFullName: t.adminFullName,
           storageProviderName: t.storageProviderName || 'Cloud Storage Pool',
           usagePercentage: usagePct,
         };
@@ -168,6 +171,8 @@ export const getSystemTenantsApi = async (): Promise<SystemTenant[]> => {
               createdDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo',
               status: u.isActive ? 'Active' : 'Suspended',
               adminEmail: u.email,
+              adminId: u.id,
+              adminFullName: u.fullName,
               storageProviderName: 'Google Drive Enterprise',
               usagePercentage: 0,
             });

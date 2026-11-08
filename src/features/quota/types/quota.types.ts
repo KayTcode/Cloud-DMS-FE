@@ -20,7 +20,7 @@ export interface QuotaRequestDto {
   approverId: string;
   approverName: string;
   quotaType: string;
-  currentQuotaBytes: number;
+  currentQuotaBytes: number | null;
   requestedAdditionalBytes: number;
   approvedAdditionalBytes?: number | null;
   isTemporary: boolean;

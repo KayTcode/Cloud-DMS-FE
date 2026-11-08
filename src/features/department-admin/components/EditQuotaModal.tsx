@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sliders, AlertTriangle, Check, ShieldCheck } from 'lucide-react';
 import { DepartmentMember } from '../types';
+import { QuotaUnitInput } from '@/components/common';
+import { QuotaUnit, unitToBytes, formatQuotaAuto, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
 
 interface EditQuotaModalProps {
   member: DepartmentMember | null;
@@ -8,7 +10,7 @@ interface EditQuotaModalProps {
   deptAvailableGB: number;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (memberId: string, newQuotaGB: number) => Promise<void>;
+  onSave: (memberId: string, newQuotaBytes: number) => Promise<void>;
 }
 
 export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
@@ -21,23 +23,27 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
 }) => {
   if (!isOpen || !member) return null;
 
-  const [quota, setQuota] = useState<number>(member.allocatedQuotaGB);
+  const [quotaValue, setQuotaValue] = useState<number>(member.allocatedQuotaGB);
+  const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (member) {
-      setQuota(member.allocatedQuotaGB);
+      setQuotaValue(member.allocatedQuotaGB);
+      setQuotaUnit('GB');
       setErrorMessage(null);
     }
   }, [member]);
 
-  const minQuota = Math.max(1, Math.ceil(member.usedSpaceGB));
-  const quotaDifference = quota - member.allocatedQuotaGB;
-  const maxAllowable = Math.max(member.allocatedQuotaGB, member.allocatedQuotaGB + deptAvailableGB);
+  const currentMemberBytes = (member.allocatedQuotaGB || 0) * (1024 ** 3);
+  const usedBytes = (member.usedSpaceGB || 0) * (1024 ** 3);
+  const maxAllowableBytes = currentMemberBytes + Math.max(0, deptAvailableGB * (1024 ** 3));
 
-  const isExceedingDept = quotaDifference > deptAvailableGB;
-  const isLowerThanUsed = quota < member.usedSpaceGB;
+  const currentQuotaBytes = unitToBytes(quotaValue, quotaUnit);
+
+  const isExceedingDept = currentQuotaBytes > maxAllowableBytes;
+  const isLowerThanUsed = currentQuotaBytes < usedBytes;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,13 +55,18 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
     }
 
     if (isExceedingDept) {
-      setErrorMessage(`Phòng ban không còn đủ hạn mức để cấp thêm ${quotaDifference} GB.`);
+      setErrorMessage(`Hạn mức vượt quá tổng dung lượng phòng ban cho phép (${formatQuotaAuto(maxAllowableBytes)}).`);
+      return;
+    }
+
+    if (currentQuotaBytes <= 0) {
+      setErrorMessage('Hạn mức Quota phải lớn hơn 0.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await onSave(member.id, quota);
+      await onSave(member.id, currentQuotaBytes);
       onClose();
     } catch (err: any) {
       const msg =
@@ -68,7 +79,7 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
     }
   };
 
-  const newPercent = quota > 0 ? Math.round((member.usedSpaceGB / quota) * 100) : 0;
+  const newPercent = currentQuotaBytes > 0 ? Math.min(100, Math.round((usedBytes / currentQuotaBytes) * 100)) : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
@@ -120,43 +131,22 @@ export const EditQuotaModal: React.FC<EditQuotaModalProps> = ({
             </div>
           </div>
 
-          {/* Slider & Number Input */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-semibold text-slate-700">Hạn mức mới đề xuất:</label>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-bold text-blue-600 font-mono text-base">{quota} GB</span>
-                <span className={`text-[11px] font-semibold ${newPercent >= 90 ? 'text-rose-600' : 'text-slate-500'}`}>
-                  ({newPercent}% dung lượng)
-                </span>
-              </div>
-            </div>
-
-            <input
-              type="range"
-              min={minQuota}
-              max={Math.max(minQuota + 10, maxAllowable)}
-              step={1}
-              value={quota}
-              onChange={(e) => setQuota(Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+          {/* Input Quota with Unit */}
+          <div>
+            <QuotaUnitInput
+              value={quotaValue}
+              unit={quotaUnit}
+              onChange={(val, u) => {
+                setQuotaValue(val);
+                setQuotaUnit(u);
+              }}
+              maxBytes={maxAllowableBytes}
+              minBytes={usedBytes}
+              label="Hạn mức mới đề xuất"
+              required
+              helperText={`Dung lượng tối thiểu phải bằng dung lượng đã dùng (${formatQuotaAuto(usedBytes)}). Tối đa: ${formatQuotaAuto(maxAllowableBytes)}.`}
             />
-
-            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-              <span>Tối thiểu: {minQuota} GB</span>
-              <span>Khả dụng tối đa: {maxAllowable} GB</span>
-            </div>
           </div>
-
-          {/* Warning / Validation Notice */}
-          {isExceedingDept && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                Yêu cầu tăng thêm +{quotaDifference} GB vượt quá dung lượng phòng ban còn lại ({deptAvailableGB} GB).
-              </span>
-            </div>
-          )}
 
           {/* Submit */}
           <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">

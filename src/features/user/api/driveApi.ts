@@ -73,6 +73,7 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     trashed: isTrash || Boolean(dto.isDeleted),
     sharedWith: dto.isShared ? ['shared'] : (dto.sharedWith || []),
     tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
+    metadata: dto.metadata || null,
     department: dto.departmentName || '',
     previewUrl: dto.previewUrl,
   };
@@ -112,6 +113,7 @@ export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
     department: dto.departmentName || undefined,
     createdAt: dto.createdAt ? new Date(dto.createdAt).toLocaleDateString('vi-VN') : '',
     scanStatus: dto.scanStatus || 'Clean',
+    metadata: dto.metadata || null,
   };
 };
 

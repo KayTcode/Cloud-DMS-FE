@@ -1,13 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { TenantBanner, TenantTabs, ImpersonateModal, SubscriptionModal } from '@/features/tenants/components';
 import {
   TenantOverviewView,
-  TenantUsersView,
   CreateDepartmentUserView,
   TenantDepartmentsView,
-  TenantActivityView,
+  TenantDepartmentDetailView,
   TenantSettingsView,
   TenantHubView,
   TenantQuotaView,
@@ -32,17 +31,10 @@ interface TenantPortalProps {
 
 export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenantId }) => {
   // ---------------------------------------------------------------------------------------
-  // 1. RESOLVER TENANT ID HIỆU LỰC (Tương tự Tenant Identification Middleware trong BE)
-  // ---------------------------------------------------------------------------------------
-  const { user } = useAuth();
-  // Ưu tiên propTenantId (nếu SysAdmin truyền vào), nếu không có thì lấy tenantId của User đang đăng nhập
-  const effectiveTenantId = propTenantId || user?.tenantId;
-
-  // ---------------------------------------------------------------------------------------
-  // 2. LẤY STATE VÀ SERVICE METHODS TỪ GLOBAL TENANT CONTEXT
+  // 1. LẤY STATE VÀ SERVICE METHODS TỪ GLOBAL TENANT CONTEXT
   // ---------------------------------------------------------------------------------------
   const {
-    activeTab, // Tab con nội bộ đang chọn ('overview', 'users', 'departments', ...)
+    activeTab, // Tab con nội bộ đang chọn ('overview', 'departments', ...)
     setActiveTab, // Hàm chuyển đổi tab con
     tenant, // Thông tin DTO chi tiết của Tenant hiện hành
     events, // Danh sách sự kiện / Activity logs nội bộ
@@ -62,12 +54,26 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
     refreshTenantData, // Service nạp lại toàn bộ dữ liệu Tenant từ API Backend
   } = useTenantContext();
 
+  const { user } = useAuth();
+  const [openedDepartmentId, setOpenedDepartmentId] = useState<string | null>(null);
+  const effectiveTenantId = propTenantId || user?.tenantId;
+
+  // Tenant Admin chỉ quản lý theo Phòng ban (Department), tự động chuyển hướng nếu activeTab là users
+  useEffect(() => {
+    if (activeTab === 'users' || activeTab === 'activity') {
+      setActiveTab('departments');
+    }
+  }, [activeTab, setActiveTab]);
+
   // ---------------------------------------------------------------------------------------
   // 3. EFFECT ĐỒNG BỘ DỮ LIỆU TENANT (Tương tự Data Binding / Load Entity by ID)
   // - Khi ở Tab 'hub': KHÔNG nạp dữ liệu gì từ API (0 API load ban đầu).
   // - Khi người dùng chuyển sang các tab nghiệp vụ: Tự động nạp thông tin Tenant tương ứng từ BE.
   // ---------------------------------------------------------------------------------------
   useEffect(() => {
+    if (activeTab !== 'departments') {
+      setOpenedDepartmentId(null);
+    }
     if (activeTab === 'hub') {
       return;
     }
@@ -139,21 +145,21 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             />
           )}
 
-          {/* Tab 2: Quản lý danh sách nhân viên thuộc Tenant */}
-          {activeTab === 'users' && (
-            <TenantUsersView
-              users={users}
-              onBackToOverview={() => setActiveTab('overview')}
-              onCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
-            />
-          )}
-
           {/* Tab 3: Quản lý cơ cấu các phòng ban (Departments) */}
-          {activeTab === 'departments' && (
-            <TenantDepartmentsView
-              onBackToOverview={() => setActiveTab('overview')}
-              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
-            />
+          {(activeTab === 'departments' || activeTab === 'users') && (
+            openedDepartmentId ? (
+              <TenantDepartmentDetailView
+                departmentId={openedDepartmentId}
+                onBack={() => setOpenedDepartmentId(null)}
+                onCreateUser={() => handleOpenCreateDepartmentUser(openedDepartmentId)}
+              />
+            ) : (
+              <TenantDepartmentsView
+                onBackToOverview={() => setActiveTab('overview')}
+                onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+                onOpenDepartment={(deptId) => setOpenedDepartmentId(deptId)}
+              />
+            )
           )}
 
           {/* Tab 3B: Form tạo mới nhân viên cho một phòng ban cụ thể */}
@@ -167,9 +173,6 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
           {/* Tab 4B: Quản lý Hạn mức & Phê duyệt Quota */}
           {activeTab === 'quota' && <TenantQuotaView tenant={tenant} onBackToOverview={() => setActiveTab('overview')} />}
-
-          {/* Tab 5: Nhật ký thao tác của người dùng trong Tenant */}
-          {activeTab === 'activity' && <TenantActivityView events={events} onBackToOverview={() => setActiveTab('overview')} />}
 
           {/* Tab 6: Cài đặt cấu hình riêng của Tenant (Tên, logo, liên hệ) */}
           {activeTab === 'settings' && (

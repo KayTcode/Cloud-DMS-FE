@@ -32,6 +32,7 @@ import {
 import { SharedFileItem, FileType, DriveItem } from '../types';
 import { driveApi } from '../api/driveApi';
 import { SharedFolderBrowser } from '../components/SharedFolderBrowser';
+import { DocumentDetailsModal } from '@/features/document-submission';
 
 interface SharedFilesViewProps {
   onOpenFilePreview: (file: DriveItem) => void;
@@ -67,6 +68,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedMetadataFileId, setSelectedMetadataFileId] = useState<string | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -631,6 +633,13 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           </div>
         </div>
       )}
+    
+      {/* Modal xem chi tiết siêu dữ liệu tài liệu được chia sẻ */}
+      <DocumentDetailsModal
+        isOpen={Boolean(selectedMetadataFileId)}
+        fileId={selectedMetadataFileId}
+        onClose={() => setSelectedMetadataFileId(null)}
+      />
     </div>
   );
 };

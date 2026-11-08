@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Building2,
   Search,
@@ -1123,6 +1123,8 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
 
       </>
       )}

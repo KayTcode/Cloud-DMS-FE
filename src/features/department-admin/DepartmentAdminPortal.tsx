@@ -24,10 +24,11 @@ import { DepartmentProvider, useDepartment } from './context/DepartmentContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantContext } from '@/context/TenantContext';
 import { bytesToGB, gbToBytes } from './utils/quotaUtils';
+import { formatQuotaAuto } from '@/utils/quotaUnitUtils';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
-  const { activeNav, setActiveNav } = useTenantContext();
+  const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const {
     hasDepartment,
     summary,
@@ -39,7 +40,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
   } = useDepartment();
 
   const [activeTab, setActiveTab] = useState<DepartmentNavTab>('hub');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
@@ -138,6 +138,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
 
     const matchingEmp = employees.find((e) => e.id === u.userId || e.email.toLowerCase() === u.email.toLowerCase());
     const role = matchingEmp?.roles?.[0] || 'Employee';
+    const isUserActive = u.isActive !== undefined ? u.isActive : (matchingEmp?.isActive ?? true);
 
     return {
       id: u.userId,
@@ -148,21 +149,22 @@ const DepartmentAdminPortalContent: React.FC = () => {
       allocatedQuotaGB: bytesToGB(u.quotaBytes),
       usedSpaceGB: bytesToGB(u.usedBytes),
       fileCount: u.fileCount || (u as any).FileCount || 0,
-      lastActive: matchingEmp?.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
-      status: u.usagePercentage >= 90 ? 'warning' : 'active',
+      lastActive: isUserActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
+      status: !isUserActive ? 'paused' : (u.usagePercentage >= 90 ? 'warning' : 'active'),
       avatarInitials: initials,
       avatarColor: colors[idx % colors.length],
     };
   });
 
   // Handlers
-  const handleSaveMemberQuota = async (memberId: string, newQuotaGB: number) => {
+  const handleSaveMemberQuota = async (memberId: string, newQuotaBytes: number) => {
     try {
-      await allocateQuota(memberId, gbToBytes(newQuotaGB));
+      await allocateQuota(memberId, newQuotaBytes);
       const targetMember = members.find((m) => m.id === memberId);
+      const displayStr = formatQuotaAuto(newQuotaBytes);
       showNotification(
         'success',
-        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${newQuotaGB} GB.`
+        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${displayStr}.`
       );
     } catch (err: any) {
       const msg =
@@ -244,6 +246,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
               else setActiveNav('dashboard');
             }}
             onNavigateToReport={() => handleNavigateTab('report')}
+            searchFilter={searchQuery}
+            onSearchChange={setSearchQuery}
           />
         )}
 

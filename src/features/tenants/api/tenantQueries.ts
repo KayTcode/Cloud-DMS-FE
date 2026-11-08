@@ -1,7 +1,18 @@
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
-import { TenantInfo, TenantUser, Department, TenantEvent } from '@/features/tenants/types';
+import { TenantInfo, TenantUser, Department, TenantEvent, DepartmentDetail } from '@/features/tenants/types';
 import { initialTenant, initialEvents } from '@/data/tenantMockData';
+
+export interface TenantQuotaAllocationItem {
+  allocationId: string;
+  storageProviderId: string;
+  storageProviderName: string;
+  storageProviderType: number;
+  grantedBytes: number;
+  allocatedToChildrenBytes: number;
+  usedBytes: number;
+  createdAt?: string;
+}
 
 export interface TenantQuotaData {
   tenantId: string;
@@ -17,6 +28,7 @@ export interface TenantQuotaData {
   actualStorageUsedBytes?: number; // Dung lượng dữ liệu file thực tế
   availableBytes: number;
   usagePercentage: number;
+  allocations?: TenantQuotaAllocationItem[];
 }
 
 /**
@@ -49,6 +61,18 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
         actualStorageUsedBytes: actualUsed,
         availableBytes: availBytes,
         usagePercentage: usagePct,
+        allocations: Array.isArray(data.allocations)
+          ? data.allocations.map((a: any) => ({
+              allocationId: a.allocationId || a.id,
+              storageProviderId: a.storageProviderId,
+              storageProviderName: a.storageProviderName || 'Cloud Storage',
+              storageProviderType: a.storageProviderType ?? 0,
+              grantedBytes: Number(a.grantedBytes || 0),
+              allocatedToChildrenBytes: Number(a.allocatedToChildrenBytes || 0),
+              usedBytes: Number(a.usedBytes || 0),
+              createdAt: a.createdAt,
+            }))
+          : [],
       };
     }
     return null;
@@ -84,6 +108,7 @@ export interface TenantOverviewSummary {
     othersBytes: number;
     othersCount: number;
   };
+  allocations?: TenantQuotaAllocationItem[];
 }
 
 /**
@@ -121,6 +146,18 @@ export async function getTenantOverviewSummary(tenantId: string): Promise<Tenant
           othersBytes: 0,
           othersCount: 0,
         },
+        allocations: Array.isArray(data.allocations)
+          ? data.allocations.map((a: any) => ({
+              allocationId: a.allocationId || a.id,
+              storageProviderId: a.storageProviderId,
+              storageProviderName: a.storageProviderName || 'Cloud Storage',
+              storageProviderType: a.storageProviderType ?? 0,
+              grantedBytes: Number(a.grantedBytes || 0),
+              allocatedToChildrenBytes: Number(a.allocatedToChildrenBytes || 0),
+              usedBytes: Number(a.usedBytes || 0),
+              createdAt: a.createdAt,
+            }))
+          : [],
       };
     }
     return null;
@@ -209,6 +246,7 @@ export async function getTenantDepartments(tenantId: string): Promise<Department
           adminIsActive: d.adminIsActive ?? d.AdminIsActive ?? true,
           vacantLeadQuotaBytes: d.vacantLeadQuotaBytes ?? d.VacantLeadQuotaBytes ?? undefined,
           interimHandoverFolderId: d.interimHandoverFolderId ?? d.InterimHandoverFolderId ?? undefined,
+          isVacant: typeof d.isVacant === 'boolean' ? d.isVacant : (typeof d.IsVacant === 'boolean' ? d.IsVacant : false),
         };
       });
     }
@@ -277,3 +315,39 @@ export async function getTenantEvents(tenantId: string): Promise<TenantEvent[]> 
   }
 }
 
+/**
+ * Query: Lấy chi tiết phòng ban của Tenant (kèm thông tin Trưởng phòng và danh sách nhân sự)
+ * Khớp BE: GetDepartmentDetailQuery -> GET /api/tenant/{tenantId}/departments/{departmentId}
+ */
+export async function getDepartmentDetail(tenantId: string, departmentId: string): Promise<DepartmentDetail | null> {
+  try {
+    const res: any = await apiClient.get(API_ENDPOINTS.TENANTS.DEPARTMENT_DETAIL(tenantId, departmentId));
+    const data = res?.value || res?.data || res;
+    if (data && data.id) {
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error('[Tenant] Lỗi khi lấy chi tiết phòng ban:', error);
+    throw error;
+  }
+}
+
+/**
+ * Query: Lấy danh sách tệp/thư mục trong kho cá nhân của Trưởng phòng cũ khi phòng đang khuyết
+ * Khớp BE: GetHeldLeadDriveChildrenQuery -> GET /api/tenant/{tenantId}/departments/{departmentId}/held-lead-drive
+ */
+export async function getHeldLeadDriveChildren(
+  tenantId: string,
+  departmentId: string,
+  folderId?: string
+): Promise<any> {
+  try {
+    const url = API_ENDPOINTS.TENANTS.HELD_LEAD_DRIVE(tenantId, departmentId);
+    const res: any = await apiClient.get(url, { params: folderId ? { folderId } : undefined });
+    return res?.value || res?.data || res;
+  } catch (error) {
+    console.error('[Tenant] Lỗi khi lấy tệp Trưởng phòng cũ:', error);
+    throw error;
+  }
+}

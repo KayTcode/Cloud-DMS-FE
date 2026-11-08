@@ -558,6 +558,7 @@ export const UserPortal: React.FC = () => {
             onRenameFolder={handleRenameFolder}
             onMoveFolder={handleMoveFolder}
             onTrashFolder={handleTrashFolder}
+            onRefreshItems={() => fetchDriveItems(currentFolderId)}
           />
         )}
 

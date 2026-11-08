@@ -1,4 +1,5 @@
 import React from 'react';
+import { ShieldAlert, UserPlus } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
 
 interface TenantBannerProps {
@@ -6,6 +7,7 @@ interface TenantBannerProps {
   onSuspendToggle: () => void;
   onManageSubscriptions: () => void;
   onNavigateToTenants?: () => void;
+  onAssignNewAdmin?: () => void;
 }
 
 export const TenantBanner: React.FC<TenantBannerProps> = ({
@@ -13,6 +15,7 @@ export const TenantBanner: React.FC<TenantBannerProps> = ({
   onSuspendToggle,
   onManageSubscriptions,
   onNavigateToTenants,
+  onAssignNewAdmin,
 }) => {
   return (
     <div>
@@ -101,6 +104,33 @@ export const TenantBanner: React.FC<TenantBannerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Interim Takeover Banner (Tiếp quản lâm thời) */}
+      {tenant.isInterimManaged && (
+        <div className="mt-4 p-4 rounded-xl border border-amber-300 bg-amber-50/90 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-amber-200/80 text-amber-800 shrink-0">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                Chế độ tiếp quản lâm thời bởi System Admin
+              </div>
+              <div className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                Tổ chức đang khuyết Quản trị viên Doanh nghiệp (TenantAdmin). Toàn bộ quyền điều phối Phòng ban và Quota lưu trữ đang được System Admin tiếp quản trực tiếp.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onAssignNewAdmin ? onAssignNewAdmin() : undefined}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors shrink-0 shadow-2xs cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" />
+            Bổ nhiệm Quản trị viên Mới
+          </button>
+        </div>
+      )}
     </div>
   );
 };

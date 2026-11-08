@@ -10,7 +10,7 @@ interface TenantOverviewViewProps {
   events: TenantEvent[];
   onImpersonate: () => void;
   onDownloadBackup: () => void;
-  onNavigateTab: (tab: 'users' | 'departments' | 'activity') => void;
+  onNavigateTab: (tab: 'departments') => void;
   onCreateDepartmentUser: () => void;
 }
 
@@ -38,7 +38,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Total User Accounts Card */}
           <div
-            onClick={() => onNavigateTab('users')}
+            onClick={() => onNavigateTab('departments')}
             className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs hover:border-slate-300 transition-all cursor-pointer group"
           >
             <h4 className="text-xs font-semibold text-slate-800 tracking-tight">Total User Accounts</h4>
@@ -114,9 +114,7 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
         <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-2xs">
           <div className="flex items-center justify-between mb-3.5">
             <h4 className="text-xs font-semibold text-slate-800 tracking-tight">Recent Tenant Events</h4>
-            <button onClick={() => onNavigateTab('activity')} className="text-[11px] text-blue-600 hover:underline font-medium cursor-pointer">
-              View all
-            </button>
+
           </div>
 
           <div className="space-y-3">
