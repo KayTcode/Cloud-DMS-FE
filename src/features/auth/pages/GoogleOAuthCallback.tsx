@@ -19,10 +19,14 @@ export const GoogleOAuthCallback: React.FC = () => {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
-      const user = await completeExternalLogin();
-      if (user) {
-        window.location.replace('/');
-      } else {
+      try {
+        const user = await completeExternalLogin();
+        if (user) {
+          window.location.replace('/');
+        } else {
+          setError('Đăng nhập Google không thành công.');
+        }
+      } catch {
         setError('Đăng nhập Google không thành công.');
       }
     };
