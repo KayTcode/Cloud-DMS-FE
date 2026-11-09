@@ -154,7 +154,7 @@ apiClient.interceptors.response.use(
 
       // Xử lý 503: Gateway / Kong đang khởi động
       if (status === 503) {
-        return Promise.reject(new Error('Hệ thống bảo mật đang khởi động hoặc tạm gián đoạn. Vui lòng thử lại sau.'));
+        return Promise.reject(new Error('Hệ thống bảo mật chưa sẵn sàng. Vui lòng thử lại sau.'));
       }
 
       if (status === 400 && data?.errors) {

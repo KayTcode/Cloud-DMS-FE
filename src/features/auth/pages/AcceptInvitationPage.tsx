@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Building2,
   Building,
@@ -14,7 +14,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getAuthClient } from '@/api/authClient';
+import { getAuthClient, AuthRequestError } from '@/api/authClient';
 import { googleStartUrl } from '@/features/auth/api/authApi';
 import { validateInvitationPassword } from '../invitationPassword';
 import type { InvitationInfo } from '@/api/authClient';
@@ -22,37 +22,39 @@ import type { InvitationInfo } from '@/api/authClient';
 export const AcceptInvitationPage: React.FC = () => {
   const { completeExternalLogin } = useAuth();
 
-  const [token, setToken] = useState('');
+  // Đọc token một lần duy nhất từ URL — tránh StrictMode double-effect ghi đè bằng ''
+  const [token] = useState(() => new URLSearchParams(window.location.search).get('token') ?? '');
   const [invitationInfo, setInvitationInfo] = useState<InvitationInfo | null>(null);
 
-  const [pageState, setPageState] = useState<'validating' | 'ready' | 'invalid' | 'submitting' | 'success'>('validating');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pageState, setPageState] = useState<'validating' | 'ready' | 'invalid' | 'submitting' | 'success'>(
+    () => (new URLSearchParams(window.location.search).get('token') ? 'validating' : 'invalid')
+  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    () => (new URLSearchParams(window.location.search).get('token') ? null : 'Đường dẫn không hợp lệ. Thiếu mã xác minh (Token).')
+  );
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  // Xoá query string khỏi URL một lần
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tokenParam = params.get('token') || '';
-
-    // Xoá query khỏi URL ngay lập tức
     if (window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
+  }, []);
 
-    setToken(tokenParam);
-
-    if (!tokenParam) {
-      setPageState('invalid');
-      setErrorMessage('Đường dẫn không hợp lệ. Thiếu mã xác minh (Token).');
-      return;
-    }
+  // Validate invitation token
+  const validatedRef = useRef(false);
+  useEffect(() => {
+    if (!token) return;
+    if (validatedRef.current) return;
+    validatedRef.current = true;
 
     const validate = async () => {
       try {
-        const info = await getAuthClient().validateInvitation(tokenParam);
+        const info = await getAuthClient().validateInvitation(token);
         if (info) {
           setInvitationInfo(info);
           setPageState('ready');
@@ -62,13 +64,24 @@ export const AcceptInvitationPage: React.FC = () => {
         }
       } catch (err: unknown) {
         setPageState('invalid');
-        const e = err as { message?: string };
-        setErrorMessage(e?.message || 'Không thể kiểm tra mã kích hoạt. Vui lòng thử lại sau.');
+        if (err instanceof AuthRequestError) {
+          if (err.status === 503) {
+            setErrorMessage('Hệ thống bảo mật chưa sẵn sàng. Vui lòng thử lại sau.');
+          } else if (err.status === 429) {
+            const wait = err.retryAfterSeconds ? ` Vui lòng thử lại sau ${err.retryAfterSeconds} giây.` : '';
+            setErrorMessage(`Quá nhiều yêu cầu.${wait}`);
+          } else {
+            setErrorMessage(err.message || 'Không thể kiểm tra mã kích hoạt. Vui lòng thử lại sau.');
+          }
+        } else {
+          const e = err as { message?: string };
+          setErrorMessage(e?.message || 'Không thể kiểm tra mã kích hoạt. Vui lòng thử lại sau.');
+        }
       }
     };
 
     validate();
-  }, []);
+  }, [token]);
 
   const getRoleMeta = (type?: string) => {
     switch (type) {
@@ -123,8 +136,18 @@ export const AcceptInvitationPage: React.FC = () => {
       }
     } catch (err: unknown) {
       setPageState('ready');
-      const e = err as { message?: string };
-      setErrorMessage(e?.message || 'Kích hoạt tài khoản không thành công. Vui lòng thử lại.');
+      if (err instanceof AuthRequestError) {
+        if (err.status === 401) {
+          setErrorMessage('Mật khẩu không đúng hoặc tài khoản bị khoá.');
+        } else if (err.status === 503) {
+          setErrorMessage('Hệ thống bảo mật chưa sẵn sàng. Vui lòng thử lại sau.');
+        } else {
+          setErrorMessage(err.message || 'Kích hoạt tài khoản không thành công. Vui lòng thử lại.');
+        }
+      } else {
+        const e = err as { message?: string };
+        setErrorMessage(e?.message || 'Kích hoạt tài khoản không thành công. Vui lòng thử lại.');
+      }
     }
   };
 
