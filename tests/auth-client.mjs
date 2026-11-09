@@ -141,7 +141,7 @@ function makeClient(fetchResponses, { origin = 'https://localhost:8443' } = {}) 
 // Helpers
 // ============================================================
 function csrfResp(token = 'csrf-1') {
-  return { status: 200, body: { token } };
+  return { status: 200, body: { requestToken: token } };
 }
 function loginOkResp(tok = 'tok-1') {
   return { status: 200, body: { accessToken: tok } };

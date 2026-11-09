@@ -65,6 +65,7 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
   let _loggedOut = false; // đã logout/401 → không refresh nữa
   let _refreshingPromise: Promise<boolean> | null = null;
   let _epoch = '';
+  let _revision = 0; // tăng mỗi khi logout để guard race condition giữa fetch và json()
 
   // --- Session event listeners ---
   const _listeners = new Set<(type: 'login' | 'logout' | 'refresh') => void>();
@@ -77,11 +78,16 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
     if (msg.type === 'logout') {
       _token = null;
       _loggedOut = true;
+      _revision++;
       _epoch = msg.epoch ?? '';
       _emit('logout');
     } else if (msg.type === 'login') {
-      // Tab khác đăng nhập — không tự cập nhật token (token trong RAM của tab kia)
-      // chỉ phát sự kiện nếu cần
+      // Bỏ qua message từ chính tab này (BroadcastChannel thực không gửi lại cho sender)
+      if (msg.epoch && msg.epoch === _epoch) return;
+      // Tab khác đăng nhập → xoá token cũ, cho phép refresh lấy session mới
+      _token = null;
+      _loggedOut = false;
+      _emit('login');
     } else if (msg.type === 'refresh') {
       _epoch = msg.epoch ?? '';
     }
@@ -100,7 +106,7 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
 
   // --- Lấy CSRF + POST trong cùng 1 lần giữ khoá ---
   async function cookieRequest(path: string, body: Record<string, unknown>): Promise<Response> {
-    return locks.request(LOCK_NAME, async () => {
+    return locks.request<Response>(LOCK_NAME, async () => {
       // 1. Lấy CSRF token
       const csrfRes = await fetchFn(`${BASE}/csrf`, {
         method: 'GET',
@@ -117,7 +123,10 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
           retryAfter ? parseInt(retryAfter, 10) : null
         );
       }
-      const { token: csrfToken } = await csrfRes.json();
+      const { requestToken: csrfToken } = await csrfRes.json();
+      if (!csrfToken) {
+        throw new AuthRequestError('CSRF token rỗng', 502);
+      }
 
       // 2. POST với CSRF header
       const headers: Record<string, string> = {
@@ -134,7 +143,7 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
         body: JSON.stringify(body),
       });
       return res as unknown as Response;
-    }) as Promise<Response>;
+    });
   }
 
   // --- Xử lý response lỗi chung ---
@@ -153,10 +162,12 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
     if (res.status === 429 || (!res.ok && res.status !== 200)) {
       handleErrorResponse(res);
     }
+    const snap = _revision;
     const data = await (res as any).json();
-    _token = data.accessToken ?? null;
+    if (_revision !== snap) return false; // logout xảy ra trong khi chờ json()
+    if (!data.accessToken) return false;
+    _token = data.accessToken;
     _loggedOut = false;
-    _emit('login');
     _broadcast('login');
     return true;
   }
@@ -167,13 +178,13 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
       const res = await cookieRequest('refresh', {});
       if (res.status === 401) return false;
       if (!res.ok) return false;
+      const snap = _revision;
       const data = await (res as any).json();
-      _token = data.accessToken ?? null;
-      if (_token) {
-        _loggedOut = false;
-        _emit('login');
-      }
-      return !!_token;
+      if (_revision !== snap) return false;
+      if (!data.accessToken) return false;
+      _token = data.accessToken;
+      _loggedOut = false;
+      return true;
     } catch {
       return false;
     }
@@ -198,6 +209,7 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
         if (res.status === 401) {
           _token = null;
           _loggedOut = true;
+          _revision++;
           _emit('logout');
           _broadcast('logout');
           return false;
@@ -205,8 +217,11 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
         if (!res.ok) {
           handleErrorResponse(res);
         }
+        const snap = _revision;
         const data = await (res as any).json();
-        _token = data.accessToken ?? null;
+        if (_revision !== snap) return false;
+        if (!data.accessToken) return false;
+        _token = data.accessToken;
         _emit('refresh');
         _broadcast('refresh');
         return true;
@@ -225,6 +240,7 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
     } catch { /* ignore */ }
     _token = null;
     _loggedOut = true;
+    _revision++;
     _emit('logout');
     _broadcast('logout');
   }
@@ -234,9 +250,18 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
     try {
       const res = await cookieRequest('invitations/validate', { token });
       if (res.status === 400) return null;
+      if (res.status === 429 || res.status === 503) {
+        const retryAfter = res.headers.get('Retry-After');
+        throw new AuthRequestError(
+          `Yêu cầu kiểm tra thất bại: ${res.status}`,
+          res.status,
+          retryAfter ? parseInt(retryAfter, 10) : null
+        );
+      }
       if (!res.ok) return null;
       return await (res as any).json() as InvitationInfo;
-    } catch {
+    } catch (err) {
+      if (err instanceof AuthRequestError) throw err;
       return null;
     }
   }
@@ -247,10 +272,12 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
     if (!res.ok) {
       handleErrorResponse(res);
     }
+    const snap = _revision;
     const data = await (res as any).json();
-    _token = data.accessToken ?? null;
+    if (_revision !== snap) return false;
+    if (!data.accessToken) return false;
+    _token = data.accessToken;
     _loggedOut = false;
-    _emit('login');
     _broadcast('login');
     return true;
   }
@@ -289,7 +316,7 @@ export function getAuthClient(): AuthClient {
     _singleton = createAuthClient({
       fetch: window.fetch.bind(window),
       locks: navigator.locks,
-      createChannel: (name) => new BroadcastChannel(name),
+      createChannel: (name) => new BroadcastChannel(name) as unknown as AuthClientDeps['createChannel'] extends (n: string) => infer R ? R : never,
       origin: window.location.origin,
     });
   }
