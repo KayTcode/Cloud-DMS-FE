@@ -17,6 +17,7 @@ function loadModule(path) {
 
 const {
   downloadViaLinkCore,
+  resolveDownloadUrl,
   UNSCANNED_DOWNLOAD_DISABLED_MESSAGE,
   TOO_MANY_DOWNLOADS_MESSAGE,
 } = loadModule('src/services/download/linkDownloadCore.ts');
@@ -195,6 +196,18 @@ await run('absoluteUrl_passesThroughUnchanged', async () => {
     apiBaseUrl: 'https://api.example.com/api',
   });
   assert.deepEqual(clicks, ['https://s3.example.com/bucket/file-8?sig=xyz']);
+});
+
+await run('resolveDownloadUrl_relativeApiBase_returnsUrlUnchanged', async () => {
+  assert.equal(resolveDownloadUrl('/api/files/1/download?ticket=t', '/api'), '/api/files/1/download?ticket=t');
+});
+
+await run('resolveDownloadUrl_absoluteApiBase_prependsOrigin', async () => {
+  assert.equal(resolveDownloadUrl('/api/files/1/download', 'https://localhost:8443/api'), 'https://localhost:8443/api/files/1/download');
+});
+
+await run('resolveDownloadUrl_absoluteUrl_passesThroughUnchanged', async () => {
+  assert.equal(resolveDownloadUrl('https://s3.example/x', '/api'), 'https://s3.example/x');
 });
 
 console.log('PASS: downloadViaLink handles clean/unscanned-ack/disabled/rate-limit/package-fallback flows');

@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 import { ProblemDetails } from '@/types/common.types';
 
 //Lấy URL của backend từ biến môi trường của Vite
-export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7001/api';
+export const BASE_URL = '/api';
 
 //Tạo instance của axios với base URL và headers mặc định
 export const apiClient = axios.create({
