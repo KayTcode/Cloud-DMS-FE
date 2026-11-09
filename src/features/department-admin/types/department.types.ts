@@ -48,11 +48,11 @@ export interface DepartmentInfo {
   id?: string;
   name: string;
   code?: string;
-  tenantName: string;
+  tenantName?: string;
   adminId?: string;
-  adminName: string;
-  adminRole: string;
-  adminEmail: string;
+  adminName?: string;
+  adminRole?: string;
+  adminEmail?: string;
   totalAllocatedGB: number;
   tenantPoolLimitGB: number;
   usedSpaceGB: number;

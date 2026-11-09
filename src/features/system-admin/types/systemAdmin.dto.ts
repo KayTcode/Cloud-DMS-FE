@@ -92,6 +92,7 @@ export interface GetUsersQueryFilter {
   tenantId?: string;
   departmentId?: string;
   isActive?: boolean;
+  migrationReadOnly?: boolean;
   pageNumber?: number;
   pageSize?: number;
 }
@@ -149,6 +150,10 @@ export interface SystemActivityItem {
 }
 
 export interface StorageProviderItem {
+  isActive?: boolean;
+  migrationReservedBytes?: number;
+  migrationRetainedBytes?: number;
+  migrationReadOnly?: boolean;
   id: string;
   name: string;
   type: string;

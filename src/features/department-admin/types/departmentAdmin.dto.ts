@@ -90,6 +90,7 @@ export interface DepartmentEmployeeDto {
   roles: string[];
   departmentId?: string;
   createdAt: string;
+  storageQuotaBytes?: number;
 }
 
 export interface PaginatedResult<T> {

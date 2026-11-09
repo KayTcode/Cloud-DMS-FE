@@ -30,7 +30,12 @@ export interface DriveItem {
   department?: string;
   previewUrl?: string;
   contentSnippet?: string;
+  authorName?: string;
+  isSharedLink?: boolean;
+  isSharedToDepartment?: boolean;
+  isPendingHandover?: boolean;
   metadata?: DocumentMetadataDto | null;
+  scanStatus?: 'Pending' | 'Clean' | 'Infected' | 'Failed' | 'TooLargeToScan' | null;
 }
 
 export type DriveViewMode = 'grid' | 'list';

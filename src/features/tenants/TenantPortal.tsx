@@ -158,6 +158,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
           {(activeTab === 'departments' || activeTab === 'users') && (
             openedDepartmentId ? (
               <TenantDepartmentDetailView
+                tenantId={effectiveTenantId ?? undefined}
                 departmentId={openedDepartmentId}
                 onBack={() => setOpenedDepartmentId(null)}
                 onCreateUser={() => handleOpenCreateDepartmentUser(openedDepartmentId)}

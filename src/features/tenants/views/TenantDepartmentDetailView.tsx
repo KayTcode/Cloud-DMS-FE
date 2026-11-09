@@ -14,28 +14,32 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { DepartmentDetail } from '@/features/tenants/types';
+import { DepartmentDetail, DepartmentMember } from '@/features/tenants/types';
 import { getDepartmentDetail } from '@/features/tenants/api/tenantQueries';
 import { InterimManagementPanel, DepartmentExpiringFilesTable } from '../components';
+import { TransferEmployeeDepartmentModal } from '@/features/tenants/components/TransferEmployeeDepartmentModal';
 
 interface TenantDepartmentDetailViewProps {
+  tenantId?: string;
   departmentId: string;
   onBack: () => void;
   onCreateUser?: () => void;
 }
 
 export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProps> = ({
+  tenantId: tenantIdProp,
   departmentId,
   onBack,
   onCreateUser,
 }) => {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || '';
+  const tenantId = tenantIdProp || user?.tenantId || '';
 
   const [detail, setDetail] = useState<DepartmentDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [transferTarget, setTransferTarget] = useState<DepartmentMember | null>(null);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setToast({ type, message });
@@ -286,6 +290,7 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
                   <th className="py-2.5 px-3">Email</th>
                   <th className="py-2.5 px-3">Số điện thoại</th>
                   <th className="py-2.5 px-3 text-center">Trạng thái</th>
+                  <th className="py-2.5 px-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -308,6 +313,14 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
                         {emp.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt'}
                       </span>
                     </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <button
+                        onClick={() => setTransferTarget(emp)}
+                        className="px-2 py-1 text-[10px] font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        Đổi phòng
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -321,7 +334,7 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
         tenantId={tenantId}
         departmentId={detail.id}
         departmentName={detail.name}
-        onShowToast={showToast}
+        onShowToast={(message, type) => showToast(type, message)}
         onQuotaChanged={loadDetail}
       />
 
@@ -331,6 +344,21 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
           department={detail}
           onRefresh={loadDetail}
           onShowToast={showToast}
+        />
+      )}
+
+      {/* Modal đổi phòng cho nhân viên */}
+      {transferTarget && (
+        <TransferEmployeeDepartmentModal
+          tenantId={tenantId}
+          userId={transferTarget.id}
+          userName={transferTarget.fullName}
+          currentDepartmentId={departmentId}
+          onClose={() => setTransferTarget(null)}
+          onSuccess={() => {
+            setTransferTarget(null);
+            loadDetail();
+          }}
         />
       )}
     </div>

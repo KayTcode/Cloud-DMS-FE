@@ -44,22 +44,31 @@ import {
   Clock,
   Tag,
   Calendar,
+  ShieldAlert,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
 import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import {
   getDepartmentFilesApi,
-  uploadTenantFilesApi,
-  uploadDirectTenantFilesApi,
   downloadTenantFileApi,
   deleteTenantFileApi,
   TenantStorageSummaryDto,
 } from '@/features/tenants/api/fileApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
+import { folderApi } from '@/features/user/api/folderApi';
 import { DocumentModalsContainer, useDocumentModals, DocumentContextMenu } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 import { Edit3 } from 'lucide-react';
+import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE } from '@/services/download/linkDownload';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+import { UnscannedDownloadDialog } from '@/components/feedback/UnscannedDownloadDialog';
+
+async function readFileHead(file: File): Promise<Uint8Array> {
+  const buffer = await file.slice(0, 65536).arrayBuffer();
+  return new Uint8Array(buffer);
+}
 
 interface DepartmentFilesViewProps {
   department: DepartmentInfo;
@@ -86,6 +95,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   searchFilter = '',
   onSearchChange,
 }) => {
+  const { enqueueLarge, reportPendingCount } = useUploadManager();
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>(initialTab);
   const [items, setItems] = useState<DriveItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -128,6 +138,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
   // Dropdown states
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  // F7: learned reactively from the first UNSCANNED_DOWNLOAD_DISABLED 403
+  // this screen sees — not fetched proactively.
+  const [downloadsDisabled, setDownloadsDisabled] = useState(false);
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
@@ -136,6 +149,25 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  // DepartmentFilesView has its own bespoke file tables (doesn't go through
+  // DriveView), so it needs its own unscanned-download confirmation dialog
+  // wiring, following the same pattern DriveView uses: own dialog-open
+  // state + a pending-resolve ref, exposed as a `confirmUnscanned` closure
+  // passed into `downloadTenantFileApi` -> `driveApi.downloadFile` instead
+  // of letting it fall back to native `window.confirm`.
+  const [unscannedDialogOpen, setUnscannedDialogOpen] = useState(false);
+  const unscannedResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const confirmUnscanned = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      unscannedResolveRef.current = resolve;
+      setUnscannedDialogOpen(true);
+    });
+  const resolveUnscannedDialog = (confirmed: boolean) => {
+    setUnscannedDialogOpen(false);
+    unscannedResolveRef.current?.(confirmed);
+    unscannedResolveRef.current = null;
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directFileInputRef = useRef<HTMLInputElement>(null);
@@ -249,6 +281,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           tags: [f.storageProviderName || 'Google Drive', isPersonal ? 'Thư mục cá nhân' : 'Kho chung'],
           contentSnippet: `Tài liệu lưu trữ thuộc ${department.name}. Dung lượng: ${formatBytes(f.sizeBytes)}. Trạng thái bảo mật ClamAV: ${f.scanStatus || 'Clean'}. Khóa lưu trữ: ${f.storageKey}`,
           metadata: f.metadata || null,
+          scanStatus: f.scanStatus ?? null,
         };
       });
 
@@ -273,6 +306,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           trashed: false,
           sharedWith: [],
           tags: [isPersonal ? 'Thư mục cá nhân' : 'Thư mục chung phòng ban'],
+          isPendingHandover: f.isPendingHandover ?? false,
         };
       });
 
@@ -569,15 +603,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
       const uploadFolderId = currentFolderId && !currentFolderId.startsWith('drive-')
         ? currentFolderId
-        : undefined;
+        : null;
 
-      const result = directories.length
-        ? await driveApi.uploadFiles(fileList, uploadFolderId, directories)
-        : await uploadTenantFilesApi(
-            fileList,
-            undefined,
-            uploadFolderId
-          );
+      const result = await uploadSelection(
+        Array.from(fileList),
+        directories,
+        { folderId: uploadFolderId, departmentId: department.id },
+        {
+          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          reportPendingCount,
+          readHead: readFileHead,
+        }
+      );
 
       setUploadProgress(100);
       setUploadStepMsg('Tải lên hoàn tất!');
@@ -587,10 +626,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       if (onQuotaUpdated) onQuotaUpdated();
 
       if (onAddToast) {
-        if (result.failed && result.failed.length > 0) {
-          onAddToast('error', `Tải lên ${result.uploaded.length} tệp thành công, thất bại ${result.failed.length} tệp.`);
+        if (result.error) {
+          onAddToast('error', result.error.message);
         } else {
-          onAddToast('success', `Đã tải lên ${result.uploaded.length || fileList.length} tệp tin vào phòng ban ${department.name} thành công.`);
+          const successCount = result.items.filter((i) => i.ok).length;
+          const failedCount = result.items.length - successCount;
+          if (failedCount > 0) {
+            onAddToast('error', `Tải lên ${successCount} tệp thành công, thất bại ${failedCount} tệp.`);
+          } else {
+            onAddToast('success', `Đã tải lên ${successCount || fileList.length} tệp tin vào phòng ban ${department.name} thành công.`);
+          }
         }
       }
     } catch (err: any) {
@@ -617,18 +662,19 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
       const uploadFolderId = currentFolderId && !currentFolderId.startsWith('drive-')
         ? currentFolderId
-        : undefined;
+        : null;
 
-      const result = await uploadDirectTenantFilesApi(
-        fileList,
-        undefined,
-        uploadFolderId,
-        undefined,
-        undefined,
-        (fileName: string, progress: any) => {
-          const percent = progress?.percent ?? 0;
-          setUploadProgress(40 + Math.floor(percent * 0.5));
-          setUploadStepMsg(`Đang tải trực tiếp "${fileName}" lên Cloud (${percent}%)...`);
+      // Đi qua cùng bộ phân luồng F6 (file nhỏ -> đường zip, file lớn -> F5).
+      const result = await uploadSelection(
+        Array.from(fileList),
+        [],
+        { folderId: uploadFolderId, departmentId: department.id },
+        {
+          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          reportPendingCount,
+          readHead: readFileHead,
         }
       );
 
@@ -640,10 +686,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       if (onQuotaUpdated) onQuotaUpdated();
 
       if (onAddToast) {
-        if (result.failed && result.failed.length > 0) {
-          onAddToast('error', `Tải trực tiếp Cloud: ${result.uploaded.length} tệp thành công, thất bại ${result.failed.length} tệp.`);
+        if (result.error) {
+          onAddToast('error', result.error.message);
         } else {
-          onAddToast('success', `Đã tải trực tiếp ${result.uploaded.length || fileList.length} tệp tin lên Cloud thành công.`);
+          const successCount = result.items.filter((i) => i.ok).length;
+          const failedCount = result.items.length - successCount;
+          if (failedCount > 0) {
+            onAddToast('error', `Tải trực tiếp Cloud: ${successCount} tệp thành công, thất bại ${failedCount} tệp.`);
+          } else {
+            onAddToast('success', `Đã tải trực tiếp ${successCount || fileList.length} tệp tin lên Cloud thành công.`);
+          }
         }
       }
     } catch (err: any) {
@@ -732,9 +784,10 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     try {
       setActiveMenuId(null);
       if (onAddToast) onAddToast('info', `Đang tải xuống tệp "${item.name}"...`);
-      await downloadTenantFileApi(item.id, item.name, item.archiveKind);
+      await downloadTenantFileApi(item.id, item.name, item.archiveKind, confirmUnscanned);
     } catch (err: any) {
-      if (onAddToast) onAddToast('error', 'Không thể tải xuống tệp tin.');
+      if (err?.message === UNSCANNED_DOWNLOAD_DISABLED_MESSAGE) setDownloadsDisabled(true);
+      if (onAddToast) onAddToast('error', err?.message || 'Không thể tải xuống tệp tin.');
     }
   };
 
@@ -742,6 +795,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const handleManualRefresh = () => {
     fetchDepartmentFiles();
     if (onQuotaUpdated) onQuotaUpdated();
+  };
+
+  // Xác nhận tiếp nhận bàn giao (C1) — cho thư mục trong Personal drive
+  const [confirmingHandoverFolderId, setConfirmingHandoverFolderId] = useState<string | null>(null);
+  const handleConfirmHandover = async (folderId: string) => {
+    if (!window.confirm('Toàn bộ thư mục và tệp trong thư mục bàn giao sẽ được tiếp nhận. Thao tác này không thể hoàn tác.')) return;
+    try {
+      await folderApi.confirmHandover(folderId);
+      if (onAddToast) onAddToast('success', 'Đã tiếp nhận bàn giao thành công!');
+      await fetchDepartmentFiles();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Xác nhận tiếp nhận bàn giao thất bại.';
+      if (onAddToast) onAddToast('error', msg);
+    }
   };
 
   return (
@@ -1495,17 +1562,20 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   return (
                     <div
                       key={folder.id}
-                      onDoubleClick={() => setCurrentFolderId(folder.id)}
-                      onClick={() => setCurrentFolderId(folder.id)}
-                      className={`group relative border rounded-2xl p-3 px-3.5 flex items-center justify-between transition-all duration-150 cursor-pointer ${
-                        isPersonal
-                          ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300'
-                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300'
+                      onDoubleClick={() => !folder.isPendingHandover && setCurrentFolderId(folder.id)}
+                      onClick={() => !folder.isPendingHandover && setCurrentFolderId(folder.id)}
+                      className={`group relative border rounded-2xl p-3 px-3.5 flex flex-col gap-2 transition-all duration-150 ${
+                        folder.isPendingHandover
+                          ? 'bg-amber-50/60 border-amber-300 cursor-default'
+                          : isPersonal
+                          ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300 cursor-pointer'
+                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300 cursor-pointer'
                       }`}
                     >
+                      <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                          isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+                          folder.isPendingHandover ? 'bg-amber-100 text-amber-600' : isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
                         }`}>
                           <Folder className="w-4 h-4 fill-current" />
                         </div>
@@ -1513,8 +1583,12 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
                             {folder.name}
                           </span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {isPersonal ? (
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {folder.isPendingHandover ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+                                Chờ xác nhận
+                              </span>
+                            ) : isPersonal ? (
                               <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
                                 <User className="w-2.5 h-2.5" />
                                 Riêng tôi
@@ -1585,6 +1659,17 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           </div>
                         )}
                       </div>
+                      </div>{/* end row wrapper */}
+                      {/* Confirm handover button (C1) */}
+                      {folder.isPendingHandover && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleConfirmHandover(folder.id); }}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Xác nhận tiếp nhận
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1610,9 +1695,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           {getGoogleDriveIcon(file.fileType, file.extension)}
-                          <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-                            {file.name}
-                          </h4>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                              {file.name}
+                            </h4>
+                            {file.scanStatus === 'TooLargeToScan' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
+                                <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
@@ -1683,7 +1775,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                                     Thông tin về tệp
                                   </span>
                                   <span className="text-[10px] text-slate-400 font-medium">
-                                    Năm {file.metadata.issueYear}
+                                    Năm {file.metadata.releaseYear}
                                   </span>
                                 </div>
                                 <h5 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug">
@@ -1772,9 +1864,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
                               {getGoogleDriveIcon(file.fileType, file.extension)}
-                              <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                                {file.name}
-                              </span>
+                              <div className="min-w-0">
+                                <span className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                  {file.name}
+                                </span>
+                                {file.scanStatus === 'TooLargeToScan' && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium ml-2">
+                                    <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-slate-600">
@@ -2003,6 +2102,13 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       <DocumentModalsContainer
         parentFolderId={currentFolderId && !currentFolderId.startsWith('drive-') ? currentFolderId : null}
         {...docModals.containerProps}
+      />
+
+      {/* Xác nhận tải tệp chưa quét virus (thay cho window.confirm) */}
+      <UnscannedDownloadDialog
+        isOpen={unscannedDialogOpen}
+        onClose={() => resolveUnscannedDialog(false)}
+        onConfirm={() => resolveUnscannedDialog(true)}
       />
     </div>
   );

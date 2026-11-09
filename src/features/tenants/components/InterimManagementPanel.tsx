@@ -26,7 +26,7 @@ import { PendingQuotaTable } from '@/features/quota';
 import { AddMemberModal } from '@/features/department-admin/components/AddMemberModal';
 import { EditQuotaModal } from '@/features/department-admin/components/EditQuotaModal';
 import { OffboardEmployeeModal } from '@/features/department-admin/components/OffboardEmployeeModal';
-import { CreateEmployeePayload } from '@/features/department-admin/types';
+import { CreateEmployeePayload, DepartmentMember, DepartmentInfo } from '@/features/department-admin/types';
 
 interface InterimManagementPanelProps {
   department: DepartmentDetail;
@@ -85,8 +85,8 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
 
   // Modals for Staff & Quota
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<any | null>(null);
-  const [selectedMemberForOffboard, setSelectedMemberForOffboard] = useState<any | null>(null);
+  const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
+  const [selectedMemberForOffboard, setSelectedMemberForOffboard] = useState<DepartmentMember | null>(null);
 
   // Catch NotVacant errors and trigger onRefresh
   const handleApiError = useCallback(
@@ -310,9 +310,17 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
                           onClick={() =>
                             setSelectedMemberForQuota({
                               id: emp.id,
-                              name: emp.fullName,
+                              name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
                               email: emp.email,
+                              role: emp.roles?.[0] || 'Employee',
+                              subTeam: '',
                               allocatedQuotaGB: Math.round(((emp.storageQuotaBytes || 0) / (1024 ** 3)) * 100) / 100,
+                              usedSpaceGB: 0,
+                              fileCount: 0,
+                              lastActive: emp.createdAt,
+                              status: emp.isActive ? 'active' : 'paused',
+                              avatarInitials: ((emp.firstName || '')[0] || '') + ((emp.lastName || '')[0] || ''),
+                              avatarColor: 'slate',
                             })
                           }
                           className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded cursor-pointer transition-colors"
@@ -325,9 +333,17 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
                           onClick={() =>
                             setSelectedMemberForOffboard({
                               id: emp.id,
-                              name: emp.fullName,
+                              name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
                               email: emp.email,
+                              role: emp.roles?.[0] || 'Employee',
+                              subTeam: '',
                               allocatedQuotaGB: Math.round(((emp.storageQuotaBytes || 0) / (1024 ** 3)) * 100) / 100,
+                              usedSpaceGB: 0,
+                              fileCount: 0,
+                              lastActive: emp.createdAt,
+                              status: emp.isActive ? 'active' : 'paused',
+                              avatarInitials: ((emp.firstName || '')[0] || '') + ((emp.lastName || '')[0] || ''),
+                              avatarColor: 'slate',
                             })
                           }
                           className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded cursor-pointer transition-colors"
@@ -450,7 +466,7 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
             </p>
           </div>
           <PendingQuotaTable
-            onDecideSuccess={() => {
+            onDecisionSuccess={() => {
               refreshDeptData();
               onRefresh();
             }}
@@ -480,9 +496,40 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
         isOpen={!!selectedMemberForOffboard}
         onClose={() => setSelectedMemberForOffboard(null)}
         employee={selectedMemberForOffboard}
-        departmentId={department.id}
-        departmentName={department.name}
+        department={
+          {
+            id: department.id,
+            name: department.name,
+            code: department.code,
+            adminId: department.lead?.id,
+            adminName: department.lead?.fullName,
+            adminEmail: department.lead?.email,
+            totalAllocatedGB: department.quotaBytes / (1024 ** 3),
+            tenantPoolLimitGB: department.quotaBytes / (1024 ** 3),
+            usedSpaceGB: department.usedBytes / (1024 ** 3),
+            filesStorageGB: department.usedBytes / (1024 ** 3),
+            backupsStorageGB: 0,
+            otherStorageGB: 0,
+            growthDeltaSinceAprGB: 0,
+          } satisfies DepartmentInfo
+        }
+        departmentMembers={employees.map<DepartmentMember>((emp) => ({
+          id: emp.id,
+          name: emp.fullName || `${emp.firstName} ${emp.lastName}`.trim(),
+          email: emp.email,
+          role: emp.roles?.[0] || 'Employee',
+          subTeam: '',
+          allocatedQuotaGB: Math.round(((emp.storageQuotaBytes || 0) / (1024 ** 3)) * 100) / 100,
+          usedSpaceGB: 0,
+          fileCount: 0,
+          lastActive: emp.createdAt,
+          status: emp.isActive ? 'active' : 'paused',
+          avatarInitials: ((emp.firstName || '')[0] || '') + ((emp.lastName || '')[0] || ''),
+          avatarColor: 'slate',
+        }))}
+        custodianUserId={department.lead?.id || user?.id || ''}
         onSuccess={() => {
+          setSelectedMemberForOffboard(null);
           refreshDeptData();
           onRefresh();
         }}

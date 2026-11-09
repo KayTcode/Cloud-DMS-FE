@@ -23,9 +23,11 @@ export const API_ENDPOINTS = {
     DEPARTMENT_ADMINS_OFFBOARD: (tenantId: string) => `/tenant/${tenantId}/department-admins/offboard`,
     EMPLOYEES_OFFBOARD: (tenantId: string) => `/tenant/${tenantId}/employees/offboard`,
     DEPARTMENT_ADMINS_ASSIGN_VACANT_LEAD: (tenantId: string, departmentId: string) => `/tenant/${tenantId}/departments/${departmentId}/assign-lead`,
+    TRANSFER_DEPARTMENT: (tenantId: string, userId: string) => `/tenant/${tenantId}/users/${userId}/transfer-department`,
     STORAGE: (tenantId: string) => `/tenants/${tenantId}/storage`,
     ACTIVITY: (tenantId: string) => `/tenants/${tenantId}/activity`,
     SETTINGS: (tenantId: string) => `/tenants/${tenantId}/settings`,
+    TENANT_UNSCANNED_DOWNLOAD: (tenantId: string) => `/tenants/${tenantId}/settings/unscanned-download`,
   },
   FILES: {
     UPLOAD: '/files/upload',
@@ -33,9 +35,15 @@ export const API_ENDPOINTS = {
     UPLOAD_SESSION_COMPLETE: (id: string) => `/files/upload-sessions/${id}/complete`,
     UPLOAD_SESSION_PRESIGN_PART: (id: string, partNumber: number) => `/files/upload-sessions/${id}/parts/${partNumber}/url`,
     UPLOAD_SESSION_ABORT: (id: string) => `/files/upload-sessions/${id}`,
+    UPLOAD_SESSION: (id: string) => `/files/upload-sessions/${id}`,
+    UPLOAD_SESSION_HEARTBEAT: (id: string) => `/files/upload-sessions/${id}/heartbeat`,
+    UPLOAD_SESSION_RESUME: (id: string) => `/files/upload-sessions/${id}/resume`,
+    UPLOAD_SESSIONS_PENDING: '/files/upload-sessions?status=Pending',
+    DOWNLOAD_LINK: (id: string) => `/files/${id}/download-link`,
     LIST: '/files',
     SHARED: '/files/shared',
     SHARE: (id: string) => `/files/${id}/share`,
+    DEPARTMENT_SHARE: (id: string) => `/files/${id}/department-share`,
     REVOKE_SHARE: (id: string, recipientId: string) => `/files/${id}/share/${recipientId}`,
     DOWNLOAD: (id: string) => `/files/${id}/download`,
     DELETE: (id: string) => `/files/${id}`,
@@ -54,6 +62,7 @@ export const API_ENDPOINTS = {
     FILES: (deptId: string) => `/department/${deptId}/files`,
     LOGS: (deptId: string) => `/department/${deptId}/logs`,
     SHARED_QUOTA: (deptId: string) => `/department/${deptId}/quota/shared`,
+    QUOTA_BREAKDOWN: (deptId: string) => `/department/${deptId}/quota/breakdown`,
   },
   QUOTA: {
     REQUESTS: '/quota/requests',
@@ -67,6 +76,9 @@ export const API_ENDPOINTS = {
     TOGGLE_FEATURE: (tenantId: string) => `/admin/tenants/${tenantId}/quota-request-feature`,
     METRICS: '/admin/quota-requests/metrics',
     RETRY_FOLDER_PROVISIONING: (userId: string) => `/admin/users/${userId}/retry-folder-provisioning`,
+  },
+  DRIVE: {
+    CHILDREN: '/drive/children',
   },
   FOLDERS: {
     CHILDREN: (folderId: string) => `/folders/${folderId}/children`,
@@ -82,6 +94,7 @@ export const API_ENDPOINTS = {
       `/folders/trash?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
     EMPTY_TRASH: (driveKind: string, driveOwnerId: string) =>
       `/folders/trash/empty?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
+    CONFIRM_HANDOVER: (id: string) => `/folders/${id}/confirm-handover`,
   },
   ADMIN_QUOTA_ALLOC: {
     GET: (tenantId: string) => `/admin/tenants/${tenantId}/quota`,

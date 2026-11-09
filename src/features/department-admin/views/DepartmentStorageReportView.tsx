@@ -36,8 +36,15 @@ import {
   getDepartmentFilesApi,
   downloadTenantFileApi,
   deleteTenantFileApi,
-  uploadTenantFilesApi,
 } from '@/features/tenants/api/fileApi';
+import { driveApi } from '@/features/user/api/driveApi';
+import { uploadSelection } from '@/services/upload/large/uploadSelection';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
+
+async function readFileHead(file: File): Promise<Uint8Array> {
+  const buffer = await file.slice(0, 65536).arrayBuffer();
+  return new Uint8Array(buffer);
+}
 
 interface DepartmentStorageReportViewProps {
   department: DepartmentInfo;
@@ -55,6 +62,7 @@ export const DepartmentStorageReportView: React.FC<DepartmentStorageReportViewPr
   onBackToHub,
   onAddToast,
 }) => {
+  const { enqueueLarge, reportPendingCount } = useUploadManager();
   // ---------------------------------------------------------------------------------------
   // 1. STATE DỮ LIỆU & BỘ LỌC
   // ---------------------------------------------------------------------------------------
@@ -362,13 +370,25 @@ export const DepartmentStorageReportView: React.FC<DepartmentStorageReportViewPr
 
     try {
       toast('info', `Đang tải lên ${filesToUpload.length} tệp tin với kiểm tra mã độc ClamAV...`);
-      await uploadTenantFilesApi(
+      const result = await uploadSelection(
         filesToUpload,
-        undefined,
-        undefined, // folderId
-        undefined, // providerId
-        department.id
+        [],
+        { folderId: null, departmentId: department.id },
+        {
+          uploadZip: (f, dirs, target) => driveApi.uploadFiles(f, target.folderId, dirs),
+          enqueueLarge,
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          reportPendingCount,
+          readHead: readFileHead,
+        }
       );
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      if (result.items.some((i) => !i.ok)) {
+        const errorDetail = result.items.filter((i) => !i.ok).map((i) => `${i.relativePath}: ${i.error?.message}`).join('; ');
+        throw new Error(errorDetail);
+      }
 
       toast('success', `Đã tải lên tệp tin thành công!`);
       setIsUploadModalOpen(false);
