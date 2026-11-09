@@ -15,15 +15,14 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: string;
+export interface MeResponse {
   userId: string;
   email: string;
-  fullName: string;
-  role: string;
-  tenantId?: string | null;
-  departmentId?: string | null;
+  firstName: string;
+  lastName: string;
+  role: string | null;
+  roles: string[];
+  tenantId: string | null;
+  departmentId: string | null;
   permissions: string[];
 }

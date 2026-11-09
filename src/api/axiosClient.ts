@@ -25,6 +25,7 @@ export function attachAuthAndIdempotency(config: InternalAxiosRequestConfig): In
   const token = getAuthClient().accessToken();
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
+    (config as any)._sentToken = token;
   }
 
   const method = config.method?.toLowerCase();

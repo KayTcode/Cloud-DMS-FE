@@ -16,7 +16,15 @@ import { LargeUploadPanel } from '@/components/upload/LargeUploadPanel';
  * AppContent: Handles authentication gate & role-based portal rendering
  */
 const AppContent: React.FC = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <span>Đang khởi động...</span>
+      </div>
+    );
+  }
 
   // If path is OneDrive OAuth callback
   if (window.location.pathname.startsWith('/oauth/onedrive/callback')) {
