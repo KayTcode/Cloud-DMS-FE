@@ -300,6 +300,20 @@ tests['acceptInvitation_postsTokenAndPassword'] = async () => {
   assert.equal(csrf, 'csrf-inv');
 };
 
+tests['bootstrap_callsRefreshNotProfile'] = async () => {
+  const { client, fetch: f } = makeClient([
+    csrfResp('csrf-bs'),
+    { status: 200, body: { accessToken: 'tok-b' } },
+  ]);
+  const result = await client.bootstrap();
+  assert.equal(result, true, 'bootstrap phải trả true');
+  assert.equal(client.accessToken(), 'tok-b', 'accessToken phải là tok-b');
+  const hasMe = f.calls.some(c => typeof c.url === 'string' && c.url.includes('/auth/me'));
+  assert.equal(hasMe, false, 'không được gọi /auth/me');
+  const hasRefresh = f.calls.some(c => typeof c.url === 'string' && c.url.includes('/auth/refresh'));
+  assert.equal(hasRefresh, true, 'phải gọi /auth/refresh');
+};
+
 // ============================================================
 // Runner
 // ============================================================

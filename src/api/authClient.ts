@@ -161,16 +161,11 @@ export function createAuthClient(deps: AuthClientDeps): AuthClient {
     return true;
   }
 
-  // --- bootstrap: kiểm tra session hiện tại (cookie còn hiệu lực?) ---
+  // --- bootstrap: kiểm tra session hiện tại bằng cách refresh cookie ---
   async function bootstrap(): Promise<boolean> {
     try {
-      const res = await fetchFn(`${BASE}/me`, {
-        method: 'GET',
-        credentials: 'include',
-        mode: 'same-origin' as RequestMode,
-        cache: 'no-store' as RequestCache,
-        redirect: 'error' as RequestRedirect,
-      });
+      const res = await cookieRequest('refresh', {});
+      if (res.status === 401) return false;
       if (!res.ok) return false;
       const data = await (res as any).json();
       _token = data.accessToken ?? null;
