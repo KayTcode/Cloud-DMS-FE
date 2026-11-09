@@ -12,3 +12,4 @@ export * from './ResetPasswordModal';
 export * from './ConnectProviderModal';
 export * from './AllocateQuotaModal';
 export * from './OffboardTenantAdminModal';
+export * from './AssignTenantAdminModal';

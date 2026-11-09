@@ -393,6 +393,7 @@ export const SystemAdminPortal: React.FC = () => {
           onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
           onToggleStatus={handleToggleUserStatus}
           onDeleteUser={handleDeleteUser}
+          onRefreshUsers={() => fetchUsers(currentPage, searchQuery)}
         />
       )}
 

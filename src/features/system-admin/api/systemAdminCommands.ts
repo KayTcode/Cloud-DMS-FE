@@ -262,3 +262,37 @@ export const offboardTenantAdminApi = async (
   const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/offboard-admin`, payload);
   return response?.value || response?.data || response;
 };
+
+/**
+ * 13. Mời Quản trị viên mới cho Doanh nghiệp khuyết Admin
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/assign-admin
+ */
+export const assignVacantTenantAdminApi = async (
+  tenantId: string,
+  payload: import('../types').AssignTenantAdminPayload
+): Promise<import('../types').AssignTenantAdminResultDto> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/assign-admin`, payload);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 14. Gửi lại lời mời Quản trị viên Doanh nghiệp
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/resend-admin-invitation
+ */
+export const resendVacantTenantAdminInvitationApi = async (
+  tenantId: string
+): Promise<import('../types').ResendTenantAdminInvitationResultDto> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/resend-admin-invitation`);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 15. Hủy lời mời Quản trị viên Doanh nghiệp kèm Smart Cleanup
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/cancel-admin-invitation
+ */
+export const cancelVacantTenantAdminInvitationApi = async (
+  tenantId: string
+): Promise<import('../types').CancelTenantAdminInvitationResultDto> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/cancel-admin-invitation`);
+  return response?.value || response?.data || response;
+};

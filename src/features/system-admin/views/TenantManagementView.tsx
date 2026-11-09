@@ -11,9 +11,17 @@ import {
   ShieldCheck,
   UserCheck,
   FolderSync,
+  Clock,
+  MailCheck,
+  UserX,
+  Loader2,
 } from 'lucide-react';
 import { AdminUserDto, PlanType, TenantStatus } from '../types';
 import { quotaApi } from '@/features/quota';
+import {
+  resendVacantTenantAdminInvitationApi,
+  cancelVacantTenantAdminInvitationApi
+} from '../api/systemAdminCommands';
 
 interface TenantManagementViewProps {
   users: AdminUserDto[];
@@ -26,9 +34,10 @@ interface TenantManagementViewProps {
   onOpenCreateModal: () => void;
   onSelectUser: (user: AdminUserDto) => void;
   onOpenEditModal: (user: AdminUserDto) => void;
-    onToggleStatus: (userId: string, currentStatus: boolean) => void;
+  onToggleStatus: (userId: string, currentStatus: boolean) => void;
   onDeleteUser: (userId: string, userEmail: string) => void;
   onOpenAllocateQuotaModal?: (user: AdminUserDto) => void;
+  onRefreshUsers?: () => void;
 }
 
 export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
@@ -41,14 +50,17 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   onOpenCreateModal,
   onSelectUser,
   onOpenEditModal,
-    onToggleStatus,
+  onToggleStatus,
   onDeleteUser,
   onOpenAllocateQuotaModal,
+  onRefreshUsers,
 }) => {
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [retryingUserId, setRetryingUserId] = useState<string | null>(null);
+  const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
+  const [cancellingTenantId, setCancellingTenantId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const handleRetryProvisioning = async (userId: string) => {
@@ -64,6 +76,54 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     } finally {
       setRetryingUserId(null);
       setTimeout(() => setActionNotice(null), 3500);
+    }
+  };
+
+  const handleResendAdminInvitation = async (tenantId: string, email: string) => {
+    try {
+      setResendingTenantId(tenantId);
+      const res = await resendVacantTenantAdminInvitationApi(tenantId);
+      setActionNotice({
+        type: 'success',
+        message: `Đã gửi lại thư mời Quản trị viên mới tới ${res.targetUserEmail || email}. Thời hạn kích hoạt được gia hạn 48 giờ!`,
+      });
+    } catch (err: any) {
+      setActionNotice({
+        type: 'error',
+        message: err?.response?.data?.message || err?.response?.data?.error || err.message || 'Lỗi khi gửi lại thư mời.',
+      });
+    } finally {
+      setResendingTenantId(null);
+      setTimeout(() => setActionNotice(null), 5000);
+    }
+  };
+
+  const handleCancelAdminInvitation = async (tenantId: string, email: string) => {
+    const confirmed = window.confirm(
+      `Bạn có chắc chắn muốn hủy lời mời Quản trị viên cho tài khoản "${email}"?\n\n` +
+      '• Nếu là tài khoản người ngoài được tạo mới do gửi nhầm, hệ thống sẽ XÓA HẲN tài khoản khỏi CSDL (Smart Cleanup) để giữ sạch hệ thống.\n' +
+      '• Nếu là cựu nhân sự cũ, tài khoản vẫn được bảo toàn danh tính và chỉ gỡ liên kết khỏi Doanh nghiệp.'
+    );
+    if (!confirmed) return;
+
+    try {
+      setCancellingTenantId(tenantId);
+      const res = await cancelVacantTenantAdminInvitationApi(tenantId);
+      setActionNotice({
+        type: 'success',
+        message: `Đã hủy lời mời thành công cho ${email}. ${res.smartCleanupApplied ? '(Đã xóa sạch tài khoản khỏi CSDL theo cơ chế Smart Cleanup)' : ''}`,
+      });
+      if (onRefreshUsers) {
+        onRefreshUsers();
+      }
+    } catch (err: any) {
+      setActionNotice({
+        type: 'error',
+        message: err?.response?.data?.message || err?.response?.data?.error || err.message || 'Lỗi khi hủy lời mời.',
+      });
+    } finally {
+      setCancellingTenantId(null);
+      setTimeout(() => setActionNotice(null), 5000);
     }
   };
 
@@ -212,7 +272,10 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u, index) => (
+                filteredUsers.map((u, index) => {
+                  const isPendingTenantAdmin = !u.isActive && u.roles.includes('TenantAdmin') && !!u.tenantId;
+
+                  return (
                   <tr
                     key={u.id}
                     className="hover:bg-slate-50/70 transition-colors group"
@@ -289,55 +352,102 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
 
                     {/* Status Badge */}
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${
-                          u.isActive
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-rose-50 text-rose-500 border border-rose-100'
-                        }`}
-                      >
-                        {u.isActive ? 'Active' : 'Suspended'}
-                      </span>
+                      {isPendingTenantAdmin ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide bg-amber-50 text-amber-700 border border-amber-200"
+                          title="Lời mời Quản trị viên đã phát hành qua Gmail, đang chờ người dùng kích hoạt mật khẩu (thời hạn 48 giờ)"
+                        >
+                          <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                          <span>Chờ kích hoạt (48h)</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${
+                            u.isActive
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                              : 'bg-rose-50 text-rose-500 border border-rose-100'
+                          }`}
+                        >
+                          {u.isActive ? 'Active' : 'Suspended'}
+                        </span>
+                      )}
                     </td>
 
                     {/* Actions: Direct action buttons instead of ... dropdown */}
                     <td className="py-3.5 px-5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Thử lại khởi tạo thư mục Cloud */}
-                        <button
-                          onClick={() => handleRetryProvisioning(u.id)}
-                          disabled={retryingUserId === u.id}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-50"
-                          title="Thử lại khởi tạo thư mục Cloud"
-                        >
-                          <FolderSync className={`w-4 h-4 ${retryingUserId === u.id ? 'animate-spin text-emerald-600' : ''}`} />
-                        </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {isPendingTenantAdmin ? (
+                          <>
+                            {/* Gửi lại lời mời Quản trị viên */}
+                            <button
+                              onClick={() => handleResendAdminInvitation(u.tenantId!, u.email)}
+                              disabled={resendingTenantId === u.tenantId || cancellingTenantId === u.tenantId}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                              title="Gửi lại thư mời kích hoạt Quản trị viên Doanh nghiệp qua Gmail (Gia hạn 48 giờ)"
+                            >
+                              {resendingTenantId === u.tenantId ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                              ) : (
+                                <MailCheck className="w-3.5 h-3.5 text-blue-600" />
+                              )}
+                              <span>Gửi lại</span>
+                            </button>
 
-                        {/* Suspend / Activate */}
-                        <button
-                          onClick={() => onToggleStatus(u.id, u.isActive)}
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            u.isActive
-                              ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                              : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                          title={u.isActive ? 'Tạm dừng tài khoản' : 'Kích hoạt tài khoản'}
-                        >
-                          <ShieldAlert className="w-4 h-4" />
-                        </button>
+                            {/* Hủy lời mời Quản trị viên (Smart Cleanup) */}
+                            <button
+                              onClick={() => handleCancelAdminInvitation(u.tenantId!, u.email)}
+                              disabled={resendingTenantId === u.tenantId || cancellingTenantId === u.tenantId}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                              title="Hủy lời mời và xóa sạch tài khoản người ngoài khỏi CSDL (Smart Cleanup)"
+                            >
+                              {cancellingTenantId === u.tenantId ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <UserX className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>Hủy lời mời</span>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {/* Thử lại khởi tạo thư mục Cloud */}
+                            <button
+                              onClick={() => handleRetryProvisioning(u.id)}
+                              disabled={retryingUserId === u.id}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-50"
+                              title="Thử lại khởi tạo thư mục Cloud"
+                            >
+                              <FolderSync className={`w-4 h-4 ${retryingUserId === u.id ? 'animate-spin text-emerald-600' : ''}`} />
+                            </button>
 
-                        {/* Delete User */}
-                        <button
-                          onClick={() => onDeleteUser(u.id, u.email)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Xóa tài khoản"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                            {/* Suspend / Activate */}
+                            <button
+                              onClick={() => onToggleStatus(u.id, u.isActive)}
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                u.isActive
+                                  ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                  : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                              }`}
+                              title={u.isActive ? 'Tạm dừng tài khoản' : 'Kích hoạt tài khoản'}
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                            </button>
+
+                            {/* Delete User */}
+                            <button
+                              onClick={() => onDeleteUser(u.id, u.email)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

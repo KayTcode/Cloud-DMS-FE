@@ -279,3 +279,43 @@ export interface AllocateTenantQuotaAddPayload {
 export interface ReduceTenantQuotaPayload {
   bytes: number;
 }
+
+// ==========================================
+// Bổ nhiệm Quản trị viên Doanh nghiệp mới (Assign Vacant Tenant Admin)
+// ==========================================
+
+export interface AssignTenantAdminPayload {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  note?: string;
+}
+
+export interface AssignTenantAdminResultDto {
+  tenantId: string;
+  tenantName: string;
+  newAdminUserId: string;
+  newAdminEmail: string;
+  status: string;
+  invitationExpiresAt: string;
+  note?: string;
+  assignedAt: string;
+}
+
+export interface ResendTenantAdminInvitationResultDto {
+  tenantId: string;
+  targetUserEmail: string;
+  status: string;
+  newExpiresAt: string;
+  resentAt: string;
+}
+
+export interface CancelTenantAdminInvitationResultDto {
+  tenantId: string;
+  cancelledUserEmail: string;
+  status: string;
+  cancelledAt: string;
+  smartCleanupApplied: boolean;
+}
+

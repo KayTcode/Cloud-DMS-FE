@@ -1,8 +1,8 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { ProblemDetails } from '@/types/common.types';
 
-//Lấy URL của backend từ biến môi trường của Vite
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7001/api';
+//Lấy URL của backend từ biến môi trường của Vite (mặc định kết nối tới ASP.NET Core port 5289)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5289/api';
 
 //Tạo instance của axios với base URL và headers mặc định
 export const apiClient = axios.create({

@@ -22,9 +22,14 @@ import {
   CheckCircle2,
   ArrowRight,
   Sparkles,
-  UserX
+  UserX,
+  UserPlus,
+  RefreshCw,
+  Trash2,
+  Clock
 } from 'lucide-react';
 import { OffboardTenantAdminModal } from './OffboardTenantAdminModal';
+import { AssignTenantAdminModal } from './AssignTenantAdminModal';
 import { SystemTenant, PlanType, StorageProviderItem } from '../types';
 import {
   getTenantStorageQuota,
@@ -33,7 +38,11 @@ import {
   TenantQuotaData
 } from '@/features/tenants/api';
 import { QuotaFeatureToggle } from '@/features/quota';
-import { allocateTenantStorageQuotaApi } from '../api/systemAdminCommands';
+import {
+  allocateTenantStorageQuotaApi,
+  resendVacantTenantAdminInvitationApi,
+  cancelVacantTenantAdminInvitationApi
+} from '../api/systemAdminCommands';
 import {
   getStorageProviderAvailableQuotaApi,
   getStorageProvidersApi
@@ -84,6 +93,13 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
   const [realDepartmentsCount, setRealDepartmentsCount] = useState<number | null>(null);
   const [tenantDepartments, setTenantDepartments] = useState<any[]>([]);
   const [isOffboardModalOpen, setIsOffboardModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isResendingInvitation, setIsResendingInvitation] = useState(false);
+  const [isCancellingInvitation, setIsCancellingInvitation] = useState(false);
+  const [invitationActionMessage, setInvitationActionMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   // Quota Adjustment States
   const [quotaValue, setQuotaValue] = useState<number>(10);
@@ -353,6 +369,60 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
     }
   };
 
+  // Tra cứu tài khoản Quản trị viên đang chờ kích hoạt (Pending) nếu có
+  const pendingAdminUser = tenantUsers.find(
+    (u: any) =>
+      (u.role?.includes('TenantAdmin') || (Array.isArray(u.roles) && u.roles.includes('TenantAdmin'))) &&
+      (u.status === 'Suspended' || u.isActive === false)
+  );
+
+  const handleResendInvitation = async () => {
+    if (!tenant?.id) return;
+    setIsResendingInvitation(true);
+    setInvitationActionMessage(null);
+    try {
+      const res = await resendVacantTenantAdminInvitationApi(tenant.id);
+      setInvitationActionMessage({
+        type: 'success',
+        text: `Đã phát hành lại thư mời mới thành công tới ${res.targetUserEmail}. Hạn kích hoạt được gia hạn 48 giờ.`,
+      });
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Lỗi khi gửi lại thư mời.';
+      setInvitationActionMessage({ type: 'error', text: msg });
+    } finally {
+      setIsResendingInvitation(false);
+    }
+  };
+
+  const handleCancelInvitation = async () => {
+    if (!tenant?.id) return;
+    const confirmed = window.confirm(
+      'Bạn có chắc chắn muốn hủy lời mời Quản trị viên này không?\n\n' +
+      '• Nếu tài khoản được tạo mới từ người ngoài hệ thống (chưa từng kích hoạt), hệ thống sẽ XÓA HẲN tài khoản khỏi CSDL để bảo vệ tính toàn vẹn và sạch sẽ dữ liệu (Smart Cleanup).\n' +
+      '• Nếu là cựu nhân sự cũ, tài khoản vẫn được bảo toàn danh tính và chỉ gỡ liên kết khỏi Doanh nghiệp.'
+    );
+    if (!confirmed) return;
+
+    setIsCancellingInvitation(true);
+    setInvitationActionMessage(null);
+    try {
+      const res = await cancelVacantTenantAdminInvitationApi(tenant.id);
+      setInvitationActionMessage({
+        type: 'success',
+        text: `Đã hủy lời mời thành công. ${res.smartCleanupApplied ? '(Đã xóa sạch tài khoản khỏi CSDL theo cơ chế Smart Cleanup)' : ''}`,
+      });
+      // Refresh danh sách users
+      const users = await getTenantUsers(tenant.id);
+      setTenantUsers(users);
+      setRealUsersCount(users.length);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Lỗi khi hủy lời mời.';
+      setInvitationActionMessage({ type: 'error', text: msg });
+    } finally {
+      setIsCancellingInvitation(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="w-full max-w-xl sm:max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
@@ -438,6 +508,119 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'overview' && (
             <div className="space-y-5 animate-in fade-in-50 duration-150">
+              {/* Alert thông báo sau thao tác gửi lại / hủy lời mời */}
+              {invitationActionMessage && (
+                <div
+                  className={`p-3.5 rounded-xl text-xs flex items-center justify-between border animate-in fade-in ${
+                    invitationActionMessage.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {invitationActionMessage.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{invitationActionMessage.text}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInvitationActionMessage(null)}
+                    className="p-0.5 hover:opacity-70 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* TÌNH TRẠNG TIẾP QUẢN LÂM THỜI & BỔ NHIỆM ADMIN */}
+              {tenant.isInterimManaged && (
+                <div className="rounded-2xl border overflow-hidden shadow-xs transition-all">
+                  {pendingAdminUser ? (
+                    /* Trạng thái 1: Đang có lời mời chờ kích hoạt (48 giờ) */
+                    <div className="p-4 bg-linear-to-r from-blue-50/90 to-indigo-50/80 border-blue-200/80 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="p-2 rounded-xl bg-blue-100 text-blue-600 mt-0.5">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs font-bold text-blue-950">
+                                Lời mời Quản trị viên Doanh nghiệp đang chờ kích hoạt
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                Thời hạn: 48h
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-blue-800/90 mt-0.5">
+                              Người nhận: <strong className="text-blue-950">{pendingAdminUser.name}</strong> ({pendingAdminUser.email})
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Thao tác Gửi lại & Hủy */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            disabled={isResendingInvitation || isCancellingInvitation}
+                            onClick={handleResendInvitation}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                            title="Vô hiệu token cũ, sinh token mới và gửi lại Gmail gia hạn 48 giờ"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isResendingInvitation ? 'animate-spin' : ''}`} />
+                            <span>Gửi lại lời mời</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isResendingInvitation || isCancellingInvitation}
+                            onClick={handleCancelInvitation}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 rounded-lg shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                            title="Hủy lời mời và xóa hẳn tài khoản người ngoài khỏi CSDL (Smart Cleanup)"
+                          >
+                            <Trash2 className={`w-3.5 h-3.5 ${isCancellingInvitation ? 'animate-spin' : ''}`} />
+                            <span>Hủy lời mời</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-blue-700/80 bg-blue-100/50 p-2.5 rounded-lg border border-blue-200/50">
+                        💡 <strong>Lưu ý:</strong> Khi người nhận kích hoạt mật khẩu thành công qua Gmail, hệ thống sẽ tự động gán toàn quyền điều hành doanh nghiệp và kết thúc trạng thái tiếp quản lâm thời.
+                      </div>
+                    </div>
+                  ) : (
+                    /* Trạng thái 2: Chưa mời Quản trị viên mới */
+                    <div className="p-4 bg-linear-to-r from-amber-50 to-orange-50/70 border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-2 rounded-xl bg-amber-100 text-amber-700 mt-0.5">
+                          <AlertCircle className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-950">
+                            Doanh nghiệp đang khuyết Quản trị viên (Tiếp quản Lâm thời)
+                          </h4>
+                          <p className="text-[11px] text-amber-800/90 mt-0.5 max-w-md">
+                            System Admin đang tạm thời nắm quyền điều phối. Hãy mời Quản trị viên mới để bàn giao quyền điều hành cho Doanh nghiệp.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsAssignModalOpen(true)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-md shadow-blue-500/20 transition-colors shrink-0 cursor-pointer"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Mời Quản trị viên mới (Gmail)</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Key Specs Grid - 100% Real Data from Database */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* Storage Quota */}
@@ -1101,9 +1284,22 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                 <span>Offboard Quản trị viên</span>
               </button>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
-                Đang tiếp quản lâm thời
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+                  Đang tiếp quản lâm thời
+                </span>
+                {!pendingAdminUser && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAssignModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                    title="Mời Quản trị viên mới qua Email"
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    <span>Mời Admin mới</span>
+                  </button>
+                )}
+              </div>
             )}
 
             {onOpenPortal && (
@@ -1223,6 +1419,25 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
           />
         );
       })()}
+
+      {/* Modal Bổ nhiệm Quản trị viên mới qua Email */}
+      {isAssignModalOpen && (
+        <AssignTenantAdminModal
+          isOpen={isAssignModalOpen}
+          onClose={() => setIsAssignModalOpen(false)}
+          tenant={tenant}
+          onSuccess={async (res) => {
+            setIsAssignModalOpen(false);
+            const users = await getTenantUsers(tenant.id);
+            setTenantUsers(users);
+            setRealUsersCount(users.length);
+            setInvitationActionMessage({
+              type: 'success',
+              text: `Đã phát hành thư mời bổ nhiệm tới ${res.newAdminEmail} thành công (thời hạn 48 giờ).`,
+            });
+          }}
+        />
+      )}
     </div>
   );
 };
