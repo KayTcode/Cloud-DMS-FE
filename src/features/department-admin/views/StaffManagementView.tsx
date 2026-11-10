@@ -3,11 +3,12 @@ import {
   UserPlus,
   Search,
   Sliders,
-  ArrowLeft,
   Database,
   HardDrive,
-  FolderLock,
-  ShieldCheck,
+  Users,
+  ShieldAlert,
+  UserX,
+  FileText,
 } from 'lucide-react';
 import { DepartmentMember, DepartmentInfo } from '../types';
 import { useDepartment } from '../context/DepartmentContext';
@@ -19,6 +20,7 @@ interface StaffManagementViewProps {
   onEditQuota: (member: DepartmentMember) => void;
   onAddMember: () => void;
   onToggleStatus: (memberId: string) => void;
+  onOffboardMember?: (member: DepartmentMember) => void;
   searchFilter: string;
   onSearchChange: (q: string) => void;
   onBackToHub?: () => void;
@@ -30,9 +32,9 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   onEditQuota,
   onAddMember,
   onToggleStatus,
+  onOffboardMember,
   searchFilter,
   onSearchChange,
-  onBackToHub,
 }) => {
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -47,7 +49,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
 
     const matchesTeam = selectedTeam === 'all' || m.subTeam === selectedTeam;
 
-    const percent = (m.usedSpaceGB / m.allocatedQuotaGB) * 100;
+    const percent = m.allocatedQuotaGB > 0 ? (m.usedSpaceGB / m.allocatedQuotaGB) * 100 : 0;
     const matchesStatus =
       selectedStatus === 'all' ||
       (selectedStatus === 'warning' && percent >= 80) ||
@@ -58,233 +60,195 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   });
 
   const warningCount = members.filter(
-    (m) => (m.usedSpaceGB / m.allocatedQuotaGB) * 100 >= 80
+    (m) => m.allocatedQuotaGB > 0 && (m.usedSpaceGB / m.allocatedQuotaGB) * 100 >= 80
   ).length;
 
   const totalUsedSpace = members.reduce((acc, m) => acc + m.usedSpaceGB, 0);
   const totalAllocated = members.reduce((acc, m) => acc + m.allocatedQuotaGB, 0);
+  const activeCount = members.filter((m) => m.status === 'active').length;
 
-  const { summary, isLoading } = useDepartment();
-
+  const { summary } = useDepartment();
   const quotaBytes = summary?.departmentQuotaBytes ?? (department.totalAllocatedGB * 1024 * 1024 * 1024);
-  const usedBytes = summary?.departmentUsedBytes ?? (department.usedSpaceGB * 1024 * 1024 * 1024);
-  const availableBytes = summary?.unallocatedDepartmentQuotaBytes ?? Math.max(0, quotaBytes - (totalAllocated * 1024 * 1024 * 1024));
-  const usagePercent = summary?.departmentUsagePercentage ?? 0;
-
-  const statusColor =
-    usagePercent >= 90
-      ? { text: 'text-rose-600', bg: 'bg-rose-600' }
-      : usagePercent >= 75
-      ? { text: 'text-amber-600', bg: 'bg-amber-500' }
-      : { text: 'text-blue-600', bg: 'bg-blue-600' };
+  const allocatedPercent = quotaBytes > 0
+    ? Math.min(100, Math.round(((totalAllocated * 1024 * 1024 * 1024) / quotaBytes) * 100))
+    : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          {onBackToHub && (
-            <button
-              onClick={onBackToHub}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer mb-3"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>← Quay lại Trung tâm điều khiển phòng ban</span>
-            </button>
-          )}
-
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Quản lý nhân viên phòng {department.name}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Theo dõi phân quyền, kiểm soát dung lượng lưu trữ cá nhân và hồ sơ nhân sự
-          </p>
-        </div>
-
-        <button
-          onClick={onAddMember}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Thêm nhân viên</span>
-        </button>
-      </div>
-
-      {/* 3 Metric Cards: Hạn mức phòng ban, Đã sử dụng, Còn khả dụng */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: Hạn mức phòng ban */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Hạn mức phòng ban</p>
-            <Database className="w-4 h-4 text-slate-400" />
+    <div className="space-y-5 animate-in fade-in duration-150">
+      {/* 1. HÀNG 4 THẺ KPI CHỈ SỐ NHÂN SỰ CỐT LÕI (Chuẩn Google Drive) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Tổng nhân sự */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-semibold text-slate-700">Tổng số nhân sự</span>
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-            {isLoading ? 'Đang tải...' : formatBytes(quotaBytes)}
-          </p>
-          <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Được phân bổ bởi Quản trị tổ chức (Tenant Admin)</span>
-          </p>
-        </div>
-
-        {/* Card 2: Đã sử dụng */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Đã sử dụng</p>
-            <HardDrive className={`w-4 h-4 ${statusColor.text}`} />
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
+            {members.length}
+            <span className="text-sm font-normal text-slate-400 ml-1.5 font-sans">người</span>
           </div>
-          <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-            {isLoading ? 'Đang tải...' : formatBytes(usedBytes)}
-          </p>
-          <p className={`text-xs font-semibold mt-2 ${statusColor.text}`}>
-            {usagePercent}% hạn mức phòng ban đã dùng
-          </p>
-        </div>
-
-        {/* Card 3: Còn khả dụng */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn khả dụng</p>
-            <FolderLock className="w-4 h-4 text-emerald-500" />
-          </div>
-          <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
-            {isLoading ? 'Đang tải...' : formatBytes(availableBytes)}
-          </p>
-          <p className="text-xs text-slate-400 mt-2">
-            Hạn mức phòng ban còn lại có thể phân bổ cho nhân viên
-          </p>
-        </div>
-      </div>
-
-      {/* Staff Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Tổng nhân sự
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 tabular-nums">
-              {members.length}
-            </span>
-            <span className="text-xs text-emerald-600 font-medium">
-              {members.filter((m) => m.status === 'active').length} đang hoạt động
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Đang làm việc:</span>
+            <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full text-[10px]">
+              {activeCount} tài khoản hoạt động
             </span>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Tổng cấp phát nhân viên
+        {/* Card 2: Quota đã cấp cho nhân viên */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-semibold text-slate-700">Đã cấp nhân viên</span>
+            <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <HardDrive className="w-4 h-4" />
+            </div>
           </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 tabular-nums font-mono">
-              {totalAllocated} GB
-            </span>
-            <span className="text-xs text-slate-400 font-medium">/ {department.totalAllocatedGB} GB trần</span>
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
+            {totalAllocated}
+            <span className="text-sm font-normal text-slate-400 ml-1 font-sans">/ {department.totalAllocatedGB} GB</span>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
+              <span>Tỷ lệ phân phối</span>
+              <span className="font-bold text-slate-700 tabular-nums">{allocatedPercent}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                style={{ width: `${allocatedPercent}%` }}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Đã tiêu thụ thực tế
+        {/* Card 3: Đã tiêu thụ thực tế */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-semibold text-slate-700">Tiêu thụ thực tế</span>
+            <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Database className="w-4 h-4" />
+            </div>
           </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 tabular-nums font-mono">
-              {totalUsedSpace} GB
-            </span>
-            <span className="text-xs text-blue-600 font-medium">
-              ~{Math.round(totalUsedSpace / (members.length || 1))} GB / người
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
+            {totalUsedSpace}
+            <span className="text-sm font-normal text-slate-400 ml-1.5 font-sans">GB</span>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Bình quân nhân sự:</span>
+            <span className="text-slate-700 font-semibold font-mono text-[10px]">
+              ~{members.length > 0 ? (totalUsedSpace / members.length).toFixed(1) : 0} GB / người
             </span>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Cảnh báo hạn mức
+        {/* Card 4: Cảnh báo hạn mức */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-semibold text-slate-700">Cảnh báo đầy kho</span>
+            <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
           </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span
-              className={`text-2xl font-bold tabular-nums ${
-                warningCount > 0 ? 'text-rose-600' : 'text-slate-900'
-              }`}
-            >
-              {warningCount}
+          <div className={`text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight ${warningCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+            {warningCount}
+            <span className="text-sm font-normal text-slate-400 ml-1.5 font-sans">nhân sự</span>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Tình trạng dung lượng:</span>
+            <span className={`font-semibold text-[10px] px-2 py-0.5 rounded-full ${
+              warningCount > 0 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {warningCount > 0 ? 'Cần nâng Quota' : 'Ổn định'}
             </span>
-            <span className="text-xs text-slate-500 font-medium">nhân sự &gt; 80%</span>
           </div>
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex flex-col md:flex-row items-center justify-between gap-3">
+      {/* 2. THANH TÌM KIẾM, BỘ LỌC & THÊM MỚI (GOOGLE DRIVE STYLE) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+        {/* Ô tìm kiếm viên thuốc */}
         <div className="flex-1 w-full md:w-auto relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Tìm theo tên, email, chức danh..."
+            placeholder="Tìm theo tên nhân viên, email, chức danh..."
             value={searchFilter}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50/70 border border-slate-200/80 rounded-full text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-2.5 w-full md:w-auto text-xs">
-          <span className="text-slate-500 font-medium whitespace-nowrap">Nhóm:</span>
-          <select
-            value={selectedTeam}
-            onChange={(e) => setSelectedTeam(e.target.value)}
-            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          >
-            <option value="all">Tất cả nhóm ({members.length})</option>
-            {subTeams.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+        {/* Bộ lọc dropdown & Nút thêm nhân viên */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full md:w-auto text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 font-medium whitespace-nowrap">Nhóm:</span>
+            <select
+              value={selectedTeam}
+              onChange={(e) => setSelectedTeam(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-full text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+            >
+              <option value="all">Tất cả ({members.length})</option>
+              {subTeams.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <span className="text-slate-500 font-medium whitespace-nowrap ml-2">Trạng thái:</span>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 font-medium whitespace-nowrap">Trạng thái:</span>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-full text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+            >
+              <option value="all">Tất cả</option>
+              <option value="warning">Cận hạn mức (&gt;80%)</option>
+              <option value="active">Đang hoạt động</option>
+              <option value="paused">Tạm dừng</option>
+            </select>
+          </div>
+
+          <button
+            onClick={onAddMember}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-full shadow-xs hover:shadow-sm transition-all cursor-pointer shrink-0 ml-auto md:ml-0"
           >
-            <option value="all">Tất cả</option>
-            <option value="warning">Cận hạn mức (&gt;80%)</option>
-            <option value="active">Đang hoạt động</option>
-            <option value="paused">Tạm dừng</option>
-          </select>
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Thêm nhân viên</span>
+          </button>
         </div>
       </div>
 
-      {/* Staff Table */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)] overflow-hidden">
+      {/* 3. BẢNG DANH SÁCH NHÂN VIÊN PHÒNG BAN */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50">
-                <th className="py-3.5 px-4 text-center w-14 font-semibold">STT</th>
-                <th className="py-3.5 px-6">Nhân viên</th>
-                <th className="py-3.5 px-6">Chức vụ & Nhóm</th>
-                <th className="py-3.5 px-6">Dung lượng / Hạn mức</th>
-                <th className="py-3.5 px-6">Số tệp tin</th>
-                <th className="py-3.5 px-6">Lần cuối hoạt động</th>
-                <th className="py-3.5 px-6">Trạng thái</th>
-                <th className="py-3.5 px-6 text-right">Thao tác</th>
+              <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                <th className="py-3 px-4 text-center w-12 font-semibold">STT</th>
+                <th className="py-3 px-4">Nhân viên</th>
+                <th className="py-3 px-4">Chức danh & Nhóm</th>
+                <th className="py-3 px-4 min-w-[200px]">Hạn mức Quota</th>
+                <th className="py-3 px-4 text-center">Tệp tin</th>
+                <th className="py-3 px-4">Trạng thái</th>
+                <th className="py-3 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
+            <tbody className="divide-y divide-slate-100">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     Không tìm thấy nhân viên phù hợp với điều kiện tìm kiếm.
                   </td>
                 </tr>
               ) : (
                 filteredMembers.map((member, index) => {
-                  const percent = Math.round(
-                    (member.usedSpaceGB / member.allocatedQuotaGB) * 100
-                  );
+                  const percent = member.allocatedQuotaGB > 0
+                    ? Math.round((member.usedSpaceGB / member.allocatedQuotaGB) * 100)
+                    : 0;
                   const isHigh = percent >= 90;
                   const isMedium = percent >= 80 && percent < 90;
 
@@ -294,27 +258,27 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
                       className="hover:bg-slate-50/70 transition-colors group"
                     >
                       {/* STT */}
-                      <td className="py-3.5 px-4 text-center font-mono text-slate-500 font-medium text-xs">
+                      <td className="py-3.5 px-4 text-center font-mono text-slate-400 font-medium">
                         {index + 1}
                       </td>
 
-                      {/* Name & Email (Hyperlink) */}
-                      <td className="py-3.5 px-6">
+                      {/* Name & Email */}
+                      <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-full ${member.avatarColor} text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm`}
+                            className={`w-8 h-8 rounded-full ${member.avatarColor || 'bg-blue-600'} text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs`}
                           >
                             {member.avatarInitials}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <button
                               onClick={() => onEditQuota(member)}
-                              className="font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left cursor-pointer inline-flex items-center gap-1"
-                              title="Bấm để xem và điều chỉnh hạn mức nhân viên"
+                              className="font-bold text-slate-800 hover:text-blue-600 transition-colors text-left cursor-pointer truncate block"
+                              title="Bấm để điều chỉnh hạn mức Quota"
                             >
-                              <span>{member.name}</span>
+                              {member.name}
                             </button>
-                            <div className="text-[11px] text-slate-400 font-mono">
+                            <div className="text-[11px] text-slate-400 font-mono truncate">
                               {member.email}
                             </div>
                           </div>
@@ -322,8 +286,8 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
                       </td>
 
                       {/* Role & Team */}
-                      <td className="py-3.5 px-6">
-                        <div className="font-semibold text-slate-800">
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-slate-700">
                           {member.role}
                         </div>
                         <div className="text-[11px] text-slate-400">
@@ -331,8 +295,8 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Quota Progress */}
-                      <td className="py-3.5 px-6 min-w-[200px]">
+                      {/* Quota Progress Bar */}
+                      <td className="py-3.5 px-4">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-[11px] font-mono">
                             <span className="font-semibold text-slate-700">
@@ -366,48 +330,53 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
                       </td>
 
                       {/* File Count */}
-                      <td className="py-3.5 px-6 font-semibold text-slate-700 tabular-nums font-mono">
-                        {member.fileCount.toLocaleString()} tệp
-                      </td>
-
-                      {/* Last Active */}
-                      <td className="py-3.5 px-6 text-slate-500 text-[11px]">
-                        {member.lastActive}
+                      <td className="py-3.5 px-4 text-center font-semibold text-slate-700 tabular-nums">
+                        {member.fileCount.toLocaleString()}
+                        <span className="text-[10px] text-slate-400 ml-1 font-normal">tệp</span>
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-6">
+                      <td className="py-3.5 px-4">
                         {member.status === 'paused' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
-                            Tạm ngưng
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
+                            Tạm dừng
                           </span>
                         ) : isHigh ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                            Cận hạn mức
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80">
+                            Đầy bộ nhớ
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                             Hoạt động
                           </span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onEditQuota(member)}
-                            className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50/60 hover:bg-blue-100/80 rounded-md transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50/60 hover:bg-blue-100/80 rounded-full transition-colors cursor-pointer"
                           >
                             Hạn mức
                           </button>
                           <button
                             onClick={() => onToggleStatus(member.id)}
                             title={member.status === 'paused' ? 'Kích hoạt lại' : 'Tạm dừng đồng bộ'}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors"
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
                           >
                             <Sliders className="w-3.5 h-3.5" />
                           </button>
+                          {onOffboardMember && member.role !== 'Trưởng phòng' && (
+                            <button
+                              onClick={() => onOffboardMember(member)}
+                              title="Vô hiệu hóa & Bàn giao tài sản số"
+                              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

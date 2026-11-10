@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import {
   ActiveTab,
   NavItem,
@@ -6,7 +6,7 @@ import {
   TenantEvent,
   TenantUser,
 } from '@/features/tenants/types';
-import { initialTenant, initialEvents } from '@/data/tenantMockData';
+import { initialTenant } from '@/data/tenantMockData';
 import { ToastMessage } from '@/types/common.types';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -17,11 +17,14 @@ import {
   getTenantDepartments,
   getTenantUsers,
   getTenantStorageQuota,
+  getTenantOverviewSummary,
+  getTenantAuditLogs,
   TenantQuotaData,
   exportTenantBackup,
   updateTenantSettings,
 } from '@/features/tenants/api';
 import { CreateDepartmentAdminPayload, Department } from '@/features/tenants/types';
+import { notificationApi, NotificationDto } from '@/features/notifications';
 
 interface TenantContextType {
   // Navigation & Tabs
@@ -42,7 +45,13 @@ interface TenantContextType {
   isNotificationOpen: boolean;
   setIsNotificationOpen: (open: boolean) => void;
   notificationCount: number;
-  clearNotifications: () => void;
+  notifications: NotificationDto[];
+  notificationsLoading: boolean;
+  notificationsHasMore: boolean;
+  refreshNotifications: () => Promise<void>;
+  loadMoreNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 
   // Modals & Impersonation
   isSubscriptionModalOpen: boolean;
@@ -76,12 +85,27 @@ interface TenantContextType {
   handleOpenCreateDepartmentUser: (deptName?: string) => void;
   handleUserCreated: (newUser: TenantUser) => Promise<void>;
   handleCreateDepartmentAdmin: (payload: CreateDepartmentAdminPayload) => Promise<boolean>;
-  handleAllocateDepartmentQuota: (departmentId: string, quotaGB: number) => Promise<boolean>;
+  handleAllocateDepartmentQuota: (departmentId: string, quotaGBOrBytes: number, isBytes?: boolean) => Promise<boolean>;
   handleUpdateTenant: (updated: Partial<TenantInfo>) => Promise<void>;
   handleSelectNav: (nav: NavItem) => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
+
+function formatTimeAgoVi(dateStr?: string): string {
+  if (!dateStr) return 'Vừa xong';
+  try {
+    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+    if (isNaN(diff) || diff < 60) return 'Vừa xong';
+    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+    const days = Math.floor(diff / 86400);
+    if (days < 30) return `${days} ngày trước`;
+    return new Date(dateStr).toLocaleDateString('vi-VN');
+  } catch {
+    return dateStr;
+  }
+}
 
 export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user: authUser } = useAuth();
@@ -117,7 +141,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     authUser?.role === 'TenantAdmin' ? 'hub' : 'overview'
   );
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
-  const [events, setEvents] = useState<TenantEvent[]>(initialEvents);
+  const [events, setEvents] = useState<TenantEvent[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [quotaData, setQuotaData] = useState<TenantQuotaData | null>(null);
@@ -127,7 +151,11 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(1);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsHasMore, setNotificationsHasMore] = useState(false);
+  const notificationsPageRef = useRef(1);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isImpersonateModalOpen, setIsImpersonateModalOpen] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -165,7 +193,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   /**
-   * Fetches real Quota, Departments, and Users for a Tenant from Database
+   * Fetches real Quota, Departments, and Users for a Tenant from Database.
+   * Leverages the single composite BFF Overview Summary API if available.
    */
   const refreshTenantData = useCallback(async (targetIdOverride?: string) => {
     const targetId = targetIdOverride || authUser?.tenantId || tenant.id;
@@ -177,16 +206,65 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsLoadingDepartments(true);
 
     try {
-      const [quotaRes, deptsRes, usersRes] = await Promise.allSettled([
-        getTenantStorageQuota(targetId),
+      // 1. Fetch single composite Overview Summary BFF API
+      const summary = await getTenantOverviewSummary(targetId);
+
+      if (summary) {
+        setQuotaData({
+          tenantId: summary.tenantId,
+          tenantName: summary.tenantName,
+          tenantCode: summary.tenantCode,
+          isActive: summary.isActive,
+          storageProviderId: summary.storageProviderId,
+          storageProviderName: summary.storageProviderName,
+          storageQuotaBytes: summary.storageQuotaBytes,
+          storageUsedBytes: summary.unallocatedBytes,
+          allocatedToDepartmentsBytes: summary.allocatedToDepartmentsBytes,
+          unallocatedBytes: summary.unallocatedBytes,
+          actualStorageUsedBytes: summary.actualStorageUsedBytes,
+          availableBytes: summary.availableBytes,
+          usagePercentage: summary.usagePercentage,
+          allocations: summary.allocations,
+        });
+
+        const qBytes = summary.storageQuotaBytes;
+        const effectiveAllocatedBytes = summary.allocatedToDepartmentsBytes;
+        const availBytes = summary.availableBytes;
+        const usagePct = summary.usagePercentage;
+        const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
+        const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
+
+        setTenant((prev) => ({
+          ...prev,
+          id: targetId,
+          name: summary.tenantName || prev.name,
+          licenseUsed: summary.usersCount,
+          departmentsCount: summary.departmentsCount,
+          totalFilesCount: summary.totalFilesCount,
+          fileCategories: summary.fileCategories,
+          diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
+          diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
+          storageQuotaBytes: qBytes,
+          storageUsedBytes: summary.actualStorageUsedBytes,
+          allocatedToDepartmentsBytes: effectiveAllocatedBytes,
+          unallocatedBytes: summary.unallocatedBytes,
+          availableBytes: availBytes,
+          storageProviderName: summary.storageProviderName,
+          usagePercentage: usagePct,
+          allocations: summary.allocations,
+        }));
+      }
+
+      // 2. Concurrently fetch Departments, Users lists, and Recent Audit Logs for real activity trail
+      const [quotaFallbackRes, deptsRes, usersRes, logsRes] = await Promise.allSettled([
+        summary ? Promise.resolve(null) : getTenantStorageQuota(targetId),
         getTenantDepartments(targetId),
         getTenantUsers(targetId),
+        getTenantAuditLogs(targetId, 1, 6),
       ]);
 
-      let loadedQuota: TenantQuotaData | null = null;
-      if (quotaRes.status === 'fulfilled' && quotaRes.value) {
-        loadedQuota = quotaRes.value;
-        setQuotaData(loadedQuota);
+      if (!summary && quotaFallbackRes.status === 'fulfilled' && quotaFallbackRes.value) {
+        setQuotaData(quotaFallbackRes.value);
       }
 
       let loadedDepts: Department[] = [];
@@ -201,6 +279,28 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setUsers(loadedUsers);
       }
 
+      if (logsRes.status === 'fulfilled' && logsRes.value) {
+        const rawLogs = (logsRes.value as any)?.items || (Array.isArray(logsRes.value) ? logsRes.value : []);
+        if (Array.isArray(rawLogs) && rawLogs.length > 0) {
+          const mappedEvents: TenantEvent[] = rawLogs.map((log: any) => ({
+            id: log.id || `evt-${Date.now()}-${Math.random()}`,
+            text: log.details || `${log.actor || 'Hệ thống'}: ${log.action}`,
+            timeAgo: formatTimeAgoVi(log.timestamp),
+            timestamp: log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            type: (log.action || '').toLowerCase().includes('user')
+              ? 'user'
+              : (log.action || '').toLowerCase().includes('quota')
+              ? 'storage'
+              : 'system',
+          }));
+          setEvents(mappedEvents);
+        } else {
+          setEvents([]);
+        }
+      } else {
+        setEvents([]);
+      }
+
       // Sync headcount in departments from real users list
       if (loadedDepts.length > 0 && loadedUsers.length > 0) {
         const syncedDepts = loadedDepts.map((d) => {
@@ -213,35 +313,40 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setDepartments(syncedDepts);
       }
 
-      // Update tenant info state
-      setTenant((prev) => {
-        const qBytes = loadedQuota?.storageQuotaBytes ?? prev.storageQuotaBytes ?? 0;
-        const uBytes = loadedQuota?.storageUsedBytes ?? prev.storageUsedBytes ?? 0;
-        const allocDeptsBytes = loadedQuota?.allocatedToDepartmentsBytes
-          ?? loadedDepts.reduce((acc, d) => acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3))), 0);
-        const effectiveAllocatedBytes = Math.max(allocDeptsBytes, uBytes);
-        const availBytes = Math.max(0, qBytes - effectiveAllocatedBytes);
-        const usagePct = qBytes > 0 ? Math.round((effectiveAllocatedBytes / qBytes) * 100) : 0;
+      // Fallback: If overview summary was null, calculate tenant metrics from individual endpoints
+      if (!summary) {
+        const loadedQuota = quotaFallbackRes.status === 'fulfilled' ? quotaFallbackRes.value : null;
+        setTenant((prev) => {
+          const qBytes = loadedQuota?.storageQuotaBytes ?? prev.storageQuotaBytes ?? 0;
+          const uBytes = loadedQuota?.storageUsedBytes ?? prev.storageUsedBytes ?? 0;
+          const allocDeptsBytes = loadedQuota?.allocatedToDepartmentsBytes
+            ?? loadedDepts.reduce((acc, d) => acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3))), 0);
+          const effectiveAllocatedBytes = Math.max(allocDeptsBytes, uBytes);
+          const availBytes = Math.max(0, qBytes - effectiveAllocatedBytes);
+          const usagePct = qBytes > 0 ? Math.round((effectiveAllocatedBytes / qBytes) * 100) : 0;
 
-        const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
-        const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
+          const allocatedTB = Number((qBytes / (1024 ** 4)).toFixed(3));
+          const usedTB = Number((effectiveAllocatedBytes / (1024 ** 4)).toFixed(3));
 
-        return {
-          ...prev,
-          id: targetId,
-          name: loadedQuota?.tenantName || prev.name,
-          licenseUsed: loadedUsers.length,
-          departmentsCount: loadedDepts.length,
-          diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
-          diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
-          storageQuotaBytes: qBytes,
-          storageUsedBytes: uBytes,
-          allocatedToDepartmentsBytes: effectiveAllocatedBytes,
-          availableBytes: availBytes,
-          storageProviderName: loadedQuota?.storageProviderName,
-          usagePercentage: usagePct,
-        };
-      });
+          return {
+            ...prev,
+            id: targetId,
+            name: loadedQuota?.tenantName || prev.name,
+            licenseUsed: loadedUsers.length,
+            departmentsCount: loadedDepts.length,
+            diskAllocatedTB: allocatedTB > 0 ? allocatedTB : prev.diskAllocatedTB,
+            diskUsedTB: usedTB > 0 ? usedTB : prev.diskUsedTB,
+            storageQuotaBytes: qBytes,
+            storageUsedBytes: uBytes,
+            allocatedToDepartmentsBytes: effectiveAllocatedBytes,
+            unallocatedBytes: availBytes,
+            availableBytes: availBytes,
+            storageProviderName: loadedQuota?.storageProviderName,
+            usagePercentage: usagePct,
+            allocations: loadedQuota?.allocations,
+          };
+        });
+      }
     } catch (err) {
       console.error('[TenantContext] Error refreshing real tenant data:', err);
     } finally {
@@ -335,7 +440,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       'success',
       `Đã tạo tài khoản thành công cho ${created.name} thuộc phòng ban ${created.department}!`
     );
-    setActiveTab('users');
+    setActiveTab('departments');
   };
 
   const handleCreateDepartmentAdmin = async (payload: CreateDepartmentAdminPayload): Promise<boolean> => {
@@ -386,23 +491,24 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const handleAllocateDepartmentQuota = async (departmentId: string, quotaGB: number): Promise<boolean> => {
+  const handleAllocateDepartmentQuota = async (departmentId: string, quotaGBOrBytes: number, isBytes = false): Promise<boolean> => {
     try {
-      const quotaBytes = Math.round(quotaGB * 1024 * 1024 * 1024);
+      const quotaBytes = isBytes ? Math.round(quotaGBOrBytes) : Math.round(quotaGBOrBytes * 1024 * 1024 * 1024);
       await allocateDepartmentQuotaApi(tenant.id, departmentId, quotaBytes);
 
+      const displayGB = Number((quotaBytes / (1024 ** 3)).toFixed(1));
       setDepartments((prev) =>
-        prev.map((d) => (d.id === departmentId ? { ...d, allocatedStorageGB: quotaGB } : d))
+        prev.map((d) => (d.id === departmentId ? { ...d, allocatedStorageGB: displayGB } : d))
       );
 
       const targetDept = departments.find((d) => d.id === departmentId);
       const deptName = targetDept?.name || 'Phòng ban';
 
-      addToast('success', `Đã cập nhật Quota lưu trữ cho phòng ban ${deptName}: ${quotaGB} GB thành công!`);
+      addToast('success', `Đã cập nhật Quota lưu trữ cho phòng ban ${deptName}: ${displayGB} GB thành công!`);
 
       const newEvent: TenantEvent = {
         id: `evt-${Date.now()}`,
-        text: `Điều chỉnh hạn mức lưu trữ phòng ban ${deptName} lên ${quotaGB} GB`,
+        text: `Điều chỉnh hạn mức lưu trữ phòng ban ${deptName} lên ${displayGB} GB`,
         timeAgo: 'Just now',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: 'storage',
@@ -446,10 +552,84 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const clearNotifications = () => {
-    setNotificationCount(0);
-    addToast('info', 'All notifications marked as read.');
-  };
+  // Polling số chưa đọc mỗi 60 giây khi đã đăng nhập
+  useEffect(() => {
+    if (!authUser) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const count = await notificationApi.unreadCount();
+        setNotificationCount(count);
+      } catch {
+        // Giữ số cũ, không toast
+      }
+    };
+
+    fetchUnreadCount();
+    const intervalId = setInterval(fetchUnreadCount, 60_000);
+    return () => clearInterval(intervalId);
+  }, [authUser]);
+
+  const refreshNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const [page, count] = await Promise.all([
+        notificationApi.list(1, 20),
+        notificationApi.unreadCount(),
+      ]);
+      notificationsPageRef.current = 1;
+      setNotifications(page.items);
+      setNotificationsHasMore(page.hasNextPage);
+      setNotificationCount(count);
+    } catch {
+      // Giữ nguyên
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const loadMoreNotifications = useCallback(async () => {
+    const nextPage = notificationsPageRef.current + 1;
+    setNotificationsLoading(true);
+    try {
+      const page = await notificationApi.list(nextPage, 20);
+      notificationsPageRef.current = nextPage;
+      setNotifications((prev) => [...prev, ...page.items]);
+      setNotificationsHasMore(page.hasNextPage);
+    } catch {
+      // Giữ nguyên
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    // Cập nhật lạc quan
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id && !n.isRead ? { ...n, isRead: true } : n))
+    );
+    setNotificationCount((prev) => Math.max(0, prev - 1));
+    try {
+      await notificationApi.markRead(id);
+    } catch {
+      // Rollback nếu lỗi
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: false } : n))
+      );
+      setNotificationCount((prev) => prev + 1);
+    }
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      await notificationApi.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setNotificationCount(0);
+      addToast('success', 'Đã đánh dấu tất cả là đã đọc.');
+    } catch {
+      addToast('error', 'Không thể đánh dấu tất cả đã đọc.');
+    }
+  }, [addToast]);
 
   return (
     <TenantContext.Provider
@@ -467,7 +647,13 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         isNotificationOpen,
         setIsNotificationOpen,
         notificationCount,
-        clearNotifications,
+        notifications,
+        notificationsLoading,
+        notificationsHasMore,
+        refreshNotifications,
+        loadMoreNotifications,
+        markNotificationRead,
+        markAllNotificationsRead,
         isSubscriptionModalOpen,
         setIsSubscriptionModalOpen,
         isImpersonateModalOpen,

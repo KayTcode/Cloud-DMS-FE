@@ -16,6 +16,7 @@ import {
 import { Department, TenantUser, AssignVacantDepartmentLeadResultDto } from '@/features/tenants/types';
 import { assignVacantDepartmentLeadApi } from '@/features/tenants/api/tenantCommands';
 import apiClient from '@/api/axiosClient';
+import { formatBytes } from '@/features/department-admin/utils/quotaUtils';
 
 interface AssignVacantDepartmentLeadModalProps {
   isOpen: boolean;
@@ -59,7 +60,7 @@ export const AssignVacantDepartmentLeadModal: React.FC<AssignVacantDepartmentLea
     setIsLoadingEmployees(true);
 
     apiClient
-      .get('/admin/users', {
+      .get(`/tenants/${tenantId}/users`, {
         params: {
           TenantId: tenantId,
           DepartmentId: department.id,
@@ -264,6 +265,12 @@ export const AssignVacantDepartmentLeadModal: React.FC<AssignVacantDepartmentLea
                       {(result.newAdminTotalQuotaBytes / (1024 * 1024 * 1024)).toFixed(1)} GB
                     </strong>
                     <span className="text-[10px] text-slate-500">Kế thừa nguyên trạng</span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-100">
+                    <span className="text-[11px] text-slate-400 block">Quota bàn giao cho Lead mới:</span>
+                    <strong className="text-blue-700 block">{result.quotaToNewLeadBytes != null ? formatBytes(result.quotaToNewLeadBytes) : '—'}</strong>
+                    <span className="text-[10px] text-slate-500">Từ kho tạm giữ</span>
                   </div>
                 </div>
               </div>

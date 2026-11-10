@@ -27,9 +27,9 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
   const [files, setFiles] = useState<FileItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch real files from database for dynamic categorization
+  // Fetch real files from database for dynamic categorization only if fileCategories is not yet provided
   useEffect(() => {
-    if (tenant.id) {
+    if (tenant.id && !tenant.fileCategories) {
       let isMounted = true;
       setIsLoading(true);
       getTenantFilesApi(tenant.id)
@@ -49,7 +49,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
         isMounted = false;
       };
     }
-  }, [tenant.id, tenant.storageUsedBytes]);
+  }, [tenant.id, tenant.storageUsedBytes, tenant.fileCategories]);
 
   // Real Quota from DB (storageQuotaBytes) with fallback to TB conversion
   const totalAllocatedGB = tenant.storageQuotaBytes
@@ -61,7 +61,10 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
     return acc + (d.storageQuotaBytes ?? ((d.allocatedStorageGB || 0) * (1024 ** 3)));
   }, 0);
 
-  const realFilesUsedBytes = files.reduce((acc, f) => acc + f.sizeBytes, 0);
+  const realFilesUsedBytes = tenant.storageUsedBytes
+    ?? (tenant.fileCategories
+      ? (tenant.fileCategories.documentsBytes + tenant.fileCategories.mediaBytes + tenant.fileCategories.archivesBytes + tenant.fileCategories.othersBytes)
+      : files.reduce((acc, f) => acc + f.sizeBytes, 0));
 
   // Dung lượng Tenant đã cấp / sử dụng: ưu tiên tổng dung lượng đã cấp cho các phòng ban
   const effectiveAllocatedBytes = (tenant.allocatedToDepartmentsBytes && tenant.allocatedToDepartmentsBytes > 0)
@@ -73,48 +76,62 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
   const percentUsed = totalAllocatedGB > 0 ? Math.min(100, Math.round((totalUsedGB / totalAllocatedGB) * 100)) : 0;
   const percentFree = Math.max(0, 100 - percentUsed);
 
-  // Dynamically calculate category storage usage from real files in database
+  // Total files count from overview summary or fallback to files list
+  const totalFilesCount = tenant.totalFilesCount ?? files.length;
+
+  // Dynamically calculate category storage usage from BE aggregated breakdown or fallback to client file list
   const categories = useMemo(() => {
     let docsBytes = 0, docsCount = 0;
     let mediaBytes = 0, mediaCount = 0;
     let dataBytes = 0, dataCount = 0;
     let archiveBytes = 0, archiveCount = 0;
 
-    files.forEach((file) => {
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const mime = (file.contentType || '').toLowerCase();
+    if (tenant.fileCategories) {
+      docsBytes = tenant.fileCategories.documentsBytes || 0;
+      docsCount = tenant.fileCategories.documentsCount || 0;
+      mediaBytes = tenant.fileCategories.mediaBytes || 0;
+      mediaCount = tenant.fileCategories.mediaCount || 0;
+      archiveBytes = tenant.fileCategories.archivesBytes || 0;
+      archiveCount = tenant.fileCategories.archivesCount || 0;
+      dataBytes = tenant.fileCategories.othersBytes || 0;
+      dataCount = tenant.fileCategories.othersCount || 0;
+    } else {
+      files.forEach((file) => {
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const mime = (file.contentType || '').toLowerCase();
 
-      if (
-        mime.includes('pdf') ||
-        mime.includes('word') ||
-        mime.includes('text') ||
-        ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext)
-      ) {
-        docsBytes += file.sizeBytes;
-        docsCount++;
-      } else if (
-        mime.includes('image') ||
-        mime.includes('video') ||
-        mime.includes('audio') ||
-        ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'mp4', 'mov', 'avi', 'mp3'].includes(ext)
-      ) {
-        mediaBytes += file.sizeBytes;
-        mediaCount++;
-      } else if (
-        mime.includes('excel') ||
-        mime.includes('spreadsheet') ||
-        mime.includes('csv') ||
-        mime.includes('json') ||
-        mime.includes('sql') ||
-        ['xls', 'xlsx', 'csv', 'json', 'sql', 'db'].includes(ext)
-      ) {
-        dataBytes += file.sizeBytes;
-        dataCount++;
-      } else {
-        archiveBytes += file.sizeBytes;
-        archiveCount++;
-      }
-    });
+        if (
+          mime.includes('pdf') ||
+          mime.includes('word') ||
+          mime.includes('text') ||
+          ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext)
+        ) {
+          docsBytes += file.sizeBytes;
+          docsCount++;
+        } else if (
+          mime.includes('image') ||
+          mime.includes('video') ||
+          mime.includes('audio') ||
+          ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'mp4', 'mov', 'avi', 'mp3'].includes(ext)
+        ) {
+          mediaBytes += file.sizeBytes;
+          mediaCount++;
+        } else if (
+          mime.includes('excel') ||
+          mime.includes('spreadsheet') ||
+          mime.includes('csv') ||
+          mime.includes('json') ||
+          mime.includes('sql') ||
+          ['xls', 'xlsx', 'csv', 'json', 'sql', 'db'].includes(ext)
+        ) {
+          dataBytes += file.sizeBytes;
+          dataCount++;
+        } else {
+          archiveBytes += file.sizeBytes;
+          archiveCount++;
+        }
+      });
+    }
 
     const formatAdaptiveSize = (bytes: number, targetUnit: 'GB' | 'TB') => {
       if (!bytes || bytes <= 0) return '0 B';
@@ -180,7 +197,7 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
         filesCount: `${archiveCount.toLocaleString()} tệp`,
       },
     ];
-  }, [files, unit]);
+  }, [tenant.fileCategories, files, unit]);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs hover:shadow-xs transition-shadow">
@@ -284,35 +301,40 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
           </div>
         </div>
 
-        {/* Card 3: Growth velocity */}
+        {/* Card 3: Real File Data Used */}
         <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Trạng thái bảo vệ</span>
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Dữ liệu tệp thực tế</span>
+            <FileText className="w-3.5 h-3.5 text-blue-600" />
           </div>
           <div className="mt-2">
-            <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>ClamAV & SHA-256</span>
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
+              {realFilesUsedBytes > 0
+                ? (unit === 'GB'
+                    ? `${(realFilesUsedBytes / (1024 ** 3)).toFixed(2)} GB`
+                    : `${(realFilesUsedBytes / (1024 ** 4)).toFixed(3)} TB`)
+                : '0 B'}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">
-              {files.length > 0 ? `${files.length} tệp tin an toàn` : 'Chưa có tệp tin'}
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              {totalFilesCount > 0 ? `${totalFilesCount.toLocaleString()} tệp tin đã lưu` : 'Chưa có tệp tin'}
             </div>
           </div>
         </div>
 
-        {/* Card 4: Total Files & Inodes */}
+        {/* Card 4: Unallocated Pool Capacity */}
         <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Tổng tệp tin đã lưu</span>
+            <span>Chưa phân bổ (Pool)</span>
             <Layers className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
-              {files.length.toLocaleString()}
+              {unit === 'GB'
+                ? `${freeGB.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} GB`
+                : `${(freeGB / 1024).toFixed(3)} TB`}
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">
-              đã đồng bộ trên Cloud
+              Khả dụng để cấp phòng ban
             </div>
           </div>
         </div>
@@ -382,58 +404,67 @@ export const StorageStatsCard: React.FC<StorageStatsCardProps> = ({
         </div>
       </div>
 
-      {/* Categories Legend Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-100">
-        {categories.map((cat) => {
-          const totalAllocatedBytes = totalAllocatedGB * (1024 ** 3);
-          const rawPct = totalAllocatedBytes > 0 ? (cat.bytes / totalAllocatedBytes) * 100 : 0;
-          const isHovered = activeCategory === cat.id;
+      {/* Categories Legend Grid or Clean Empty State */}
+      {categories.some((c) => c.bytes > 0) ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-100">
+          {categories.map((cat) => {
+            const totalAllocatedBytes = totalAllocatedGB * (1024 ** 3);
+            const rawPct = totalAllocatedBytes > 0 ? (cat.bytes / totalAllocatedBytes) * 100 : 0;
+            const isHovered = activeCategory === cat.id;
+            const displayPct = cat.bytes > 0 && rawPct < 0.1 ? '< 0.1%' : `${rawPct.toFixed(1)}%`;
 
-          const displayPct = cat.bytes > 0 && rawPct < 0.1 ? '< 0.1%' : `${rawPct.toFixed(1)}%`;
-
-          return (
-            <div
-              key={cat.id}
-              onMouseEnter={() => setActiveCategory(cat.id)}
-              onMouseLeave={() => setActiveCategory(null)}
-              className={`p-2.5 rounded-lg border transition-all cursor-pointer ${
-                isHovered
-                  ? `${cat.borderColor} ${cat.lightBg} shadow-2xs`
-                  : 'border-slate-100 hover:border-slate-200 bg-slate-50/40'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${cat.color} shrink-0`} />
-                <span className="text-xs font-semibold text-slate-800 truncate" title={cat.name}>
-                  {cat.name}
-                </span>
+            return (
+              <div
+                key={cat.id}
+                onMouseEnter={() => setActiveCategory(cat.id)}
+                onMouseLeave={() => setActiveCategory(null)}
+                className={`p-2.5 rounded-lg border transition-all cursor-pointer ${
+                  isHovered
+                    ? `${cat.borderColor} ${cat.lightBg} shadow-2xs`
+                    : 'border-slate-100 hover:border-slate-200 bg-slate-50/40'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${cat.color} shrink-0`} />
+                  <span className="text-xs font-semibold text-slate-800 truncate" title={cat.name}>
+                    {cat.name}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex items-baseline justify-between">
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
+                    {cat.formattedSize}
+                  </span>
+                  <span className="text-[10px] text-slate-400 tabular-nums font-mono">
+                    {displayPct}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  {cat.filesCount}
+                </div>
               </div>
-              <div className="mt-1.5 flex items-baseline justify-between">
-                <span className="text-sm font-bold text-slate-900 tabular-nums">
-                  {cat.formattedSize}
-                </span>
-                <span className="text-[10px] text-slate-400 tabular-nums font-mono">
-                  {displayPct}
-                </span>
-              </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                {cat.filesCount}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/60 rounded-xl p-3 border border-slate-200/60">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-slate-400" />
+            <span>Chưa có tệp tin nào được tải lên hệ thống. Dung lượng phân bổ theo loại tệp sẽ hiển thị tự động khi có dữ liệu.</span>
+          </div>
+          <span className="text-[11px] font-semibold text-slate-500 shrink-0">0 tệp tin</span>
+        </div>
+      )}
 
       {/* Quick Footer Action / Storage Node status */}
       <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-4 text-slate-500">
+        <div className="flex items-center gap-3 text-slate-500">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Đồng bộ 3 vùng sẵn sàng (Multi-AZ HA)</span>
+            <span className="font-medium text-slate-700">Hệ thống lưu trữ hoạt động ổn định</span>
           </span>
           <span className="hidden sm:inline text-slate-300">•</span>
           <span className="text-slate-500 font-mono text-[11px]">
-            Cloud Provider: {tenant.storageProviderName || 'Google Drive / Local'}
+            Cloud Provider: {tenant.storageProviderName || 'Default Local Storage'}
           </span>
         </div>
       </div>

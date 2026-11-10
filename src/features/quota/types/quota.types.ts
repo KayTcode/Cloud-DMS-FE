@@ -16,10 +16,11 @@ export interface QuotaRequestDto {
   requesterId: string;
   requesterName: string;
   requesterEmail: string;
+  requesterRole?: string;
   approverId: string;
   approverName: string;
   quotaType: string;
-  currentQuotaBytes: number;
+  currentQuotaBytes: number | null;
   requestedAdditionalBytes: number;
   approvedAdditionalBytes?: number | null;
   isTemporary: boolean;
@@ -30,6 +31,14 @@ export interface QuotaRequestDto {
   decidedAt?: string | null;
   rejectionReason?: string | null;
   escalatedForOverdue: boolean;
+}
+
+export interface PendingQuotaRequestDto extends QuotaRequestDto {
+  requesterDepartmentId?: string | null;
+  requesterDepartmentName?: string | null;
+  sourceRemainingBytes: number | null;
+  viewerOwnsSource: boolean;
+  viewerHasPendingRequest: boolean;
 }
 
 export interface QuotaHistoryDto {
@@ -81,4 +90,9 @@ export interface GetQuotaHistoryFilter {
   toDate?: string;
   page?: number;
   pageSize?: number;
+}
+
+export interface DecideQuotaRequestPayload {
+  approvedAdditionalBytes: number;
+  storageProviderId?: string;
 }

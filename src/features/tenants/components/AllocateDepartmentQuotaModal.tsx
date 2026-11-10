@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, HardDrive, AlertCircle, Loader2, Check, Sparkles } from 'lucide-react';
+import { X, HardDrive, AlertCircle, Loader2, Check, Sparkles, Layers } from 'lucide-react';
 import { Department } from '@/features/tenants/types';
 import { useTenantContext } from '@/context/TenantContext';
+import { QuotaUnitInput } from '@/components/common';
+import { QuotaUnit, unitToBytes, formatQuotaAuto, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
 
 interface AllocateDepartmentQuotaModalProps {
   isOpen: boolean;
@@ -15,37 +17,63 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
   department,
 }) => {
   const { tenant, handleAllocateDepartmentQuota } = useTenantContext();
-  const [quotaGB, setQuotaGB] = useState<number>(50);
+  const [quotaValue, setQuotaValue] = useState<number>(50);
+  const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (department) {
-      setQuotaGB(department.allocatedStorageGB || 50);
+      setQuotaValue(department.allocatedStorageGB || 50);
+      setQuotaUnit('GB');
       setErrorMsg(null);
     }
   }, [department]);
 
   if (!isOpen || !department) return null;
 
-  // Tính dung lượng khả dụng của Tenant để cảnh báo nếu cấp vượt quá
-  const tenantQuotaGB = tenant.storageQuotaBytes
-    ? Math.round(tenant.storageQuotaBytes / (1024 ** 3))
-    : (tenant.diskAllocatedTB ? tenant.diskAllocatedTB * 1024 : 1024);
+  // Quota còn trống (chưa phân bổ cho các phòng ban) của Tenant
+  const unallocatedBytes = tenant.unallocatedBytes !== undefined
+    ? tenant.unallocatedBytes
+    : (tenant.availableBytes !== undefined
+      ? tenant.availableBytes
+      : Math.max(0, (tenant.storageQuotaBytes || 0) - (tenant.allocatedToDepartmentsBytes || 0)));
 
-  const presets = [10, 25, 50, 100, 250, 500];
+  const currentDeptBytes = department.storageQuotaBytes !== undefined && department.storageQuotaBytes > 0
+    ? department.storageQuotaBytes
+    : (department.allocatedStorageGB || 0) * (1024 ** 3);
+  const currentDeptQuotaGB = department.allocatedStorageGB || Math.round(currentDeptBytes / (1024 ** 3));
+  const unallocatedQuotaGB = Number((unallocatedBytes / (1024 ** 3)).toFixed(1));
+  // Hạn mức tối đa có thể cấp cho phòng ban này = hạn mức hiện tại + quota còn trống chưa phân bổ
+  const maxPossibleBytes = currentDeptBytes + unallocatedBytes;
+
+  const currentQuotaBytes = unitToBytes(quotaValue, quotaUnit);
+
+  const presets: Array<{ val: number; unit: QuotaUnit }> = [
+    { val: 10, unit: 'GB' },
+    { val: 25, unit: 'GB' },
+    { val: 50, unit: 'GB' },
+    { val: 100, unit: 'GB' },
+    { val: 500, unit: 'GB' },
+    { val: 1, unit: 'TB' },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (quotaGB <= 0) {
-      setErrorMsg('Hạn mức Quota phải lớn hơn 0 GB.');
+    if (currentQuotaBytes <= 0) {
+      setErrorMsg('Hạn mức Quota phải lớn hơn 0.');
+      return;
+    }
+
+    if (currentQuotaBytes > maxPossibleBytes) {
+      setErrorMsg(`Không đủ Quota khả dụng. Tối đa có thể cấp cho phòng ban này là ${formatQuotaAuto(maxPossibleBytes)}.`);
       return;
     }
 
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const success = await handleAllocateDepartmentQuota(department.id, quotaGB);
+      const success = await handleAllocateDepartmentQuota(department.id, currentQuotaBytes, true);
       if (success) {
         onClose();
       }
@@ -92,60 +120,87 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500">Hạn mức hiện tại:</span>
-              <span className="font-semibold text-slate-900">{department.allocatedStorageGB} GB</span>
+              <span className="font-semibold text-slate-900">{formatQuotaAuto(currentDeptBytes)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500">Tổng Quota Tenant:</span>
-              <span className="font-semibold text-blue-600">{tenantQuotaGB} GB</span>
+              <span className="text-slate-500">Quota chưa phân bổ (Unallocated):</span>
+              <span className="font-semibold text-emerald-600">{formatQuotaAuto(unallocatedBytes)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500">Trưởng phòng phụ trách:</span>
               <span className="font-medium text-slate-700">{department.lead}</span>
             </div>
+
+            {/* Multi-Drive Breakdown */}
+            {tenant.allocations && tenant.allocations.length > 0 && (
+              <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                  <span className="flex items-center gap-1 font-semibold text-slate-700">
+                    <Layers className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Nguồn Drive khả dụng ({tenant.allocations.length}):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Tự động trích theo FIFO</span>
+                </div>
+                <div className="space-y-1 max-h-32 overflow-y-auto pr-0.5">
+                  {tenant.allocations.map((alloc) => {
+                    const freeBytes = Math.max(0, alloc.grantedBytes - alloc.allocatedToChildrenBytes);
+                    const freeGB = Number((freeBytes / (1024 ** 3)).toFixed(1));
+                    return (
+                      <div key={alloc.allocationId} className="flex items-center justify-between text-[11px] bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/70 font-mono">
+                        <span className="text-slate-700 font-sans truncate mr-2" title={alloc.storageProviderName}>
+                          {alloc.storageProviderName}
+                        </span>
+                        <span className="text-emerald-700 font-semibold shrink-0">
+                          còn {freeGB} GB
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Input Quota */}
+          {/* Input Quota with Unit */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Hạn mức Quota mới (GB) <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={quotaGB}
-                onChange={(e) => setQuotaGB(Math.max(1, parseInt(e.target.value) || 0))}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
-                GB
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Dung lượng này sẽ được cấp cho phòng ban để lưu trữ tài liệu chung và phân bổ cho nhân viên.
-            </p>
+            <QuotaUnitInput
+              value={quotaValue}
+              unit={quotaUnit}
+              onChange={(val, u) => {
+                setQuotaValue(val);
+                setQuotaUnit(u);
+              }}
+              maxBytes={maxPossibleBytes}
+              label="Hạn mức Quota mới"
+              required
+              helperText={`Dung lượng này sẽ được cấp cho phòng ban. Tối đa có thể cấp: ${formatQuotaAuto(maxPossibleBytes)}.`}
+            />
           </div>
 
           {/* Preset Buttons */}
           <div>
             <span className="text-[11px] font-medium text-slate-500 block mb-1.5">Chọn nhanh hạn mức:</span>
             <div className="flex flex-wrap gap-1.5">
-              {presets.map((preset) => (
-                <button
-                  type="button"
-                  key={preset}
-                  onClick={() => setQuotaGB(preset)}
-                  className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors cursor-pointer ${
-                    quotaGB === preset
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {preset} GB
-                </button>
-              ))}
+              {presets.map((preset) => {
+                const isSelected = quotaValue === preset.val && quotaUnit === preset.unit;
+                return (
+                  <button
+                    type="button"
+                    key={`${preset.val}-${preset.unit}`}
+                    onClick={() => {
+                      setQuotaValue(preset.val);
+                      setQuotaUnit(preset.unit);
+                    }}
+                    className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {preset.val} {preset.unit}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

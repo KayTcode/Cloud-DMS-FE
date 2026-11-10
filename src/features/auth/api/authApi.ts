@@ -1,82 +1,21 @@
 import apiClient from '@/api/axiosClient';
-import { LoginPayload, LoginResponse } from '@/types/auth.types';
+import { MeResponse } from '@/types/auth.types';
+import { BASE_URL } from '@/api/axiosClient';
 
-export interface InvitationValidationResponse {
-  isValid: boolean;
-  message: string;
-  email?: string;
-  fullName?: string;
-  tenantName?: string;
-  role?: string;
-  departmentName?: string;
-  tokenType?: string;
-}
-
-export interface AcceptInvitationPayload {
-  token: string;
-  email: string;
-  newPassword?: string;
-}
-
-export interface RefreshTokenPayload {
-  refreshToken: string;
-}
-
-export const loginApi = async (payload: LoginPayload): Promise<LoginResponse> => {
-  const response = await apiClient.post<any, LoginResponse>('/auth/login', payload);
+export const getMeApi = async (): Promise<MeResponse> => {
+  const response = await apiClient.get<any, MeResponse>('/me');
   return response;
 };
 
-export const refreshTokenApi = async (payload: RefreshTokenPayload): Promise<LoginResponse> => {
-  const response = await apiClient.post<any, LoginResponse>('/auth/refresh', payload);
-  return response;
-};
-
-export const validateInvitationApi = async (token: string, email: string): Promise<InvitationValidationResponse> => {
-  const response = await apiClient.get<any, InvitationValidationResponse>(
-    `/auth/validate-invitation?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
-  );
-  return response;
-};
-
-export const acceptInvitationApi = async (payload: AcceptInvitationPayload): Promise<LoginResponse> => {
-  const response = await apiClient.post<any, LoginResponse>('/auth/accept-invitation', payload);
-  return response;
-};
-
-export interface GoogleAuthStatusResponse {
-  isConfigured: boolean;
-  issuer?: string;
-  redirectUri?: string;
-  allowedDomains: string[];
-  hasClientId: boolean;
-  hasClientSecret: boolean;
-  hasRedirectUri: boolean;
-}
-
-export const getGoogleAuthStatusApi = async (): Promise<GoogleAuthStatusResponse> => {
-  const response = await apiClient.get<any, GoogleAuthStatusResponse>('/auth/google/status');
-  return response;
-};
-
-export const getGoogleLoginUrl = (returnUrl?: string): string => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5289/api';
-  const target = `${baseUrl}/auth/google/login`;
-  return returnUrl ? `${target}?returnUrl=${encodeURIComponent(returnUrl)}` : target;
-};
-
-export interface ExchangeGoogleTicketResponse {
-  accessToken: string;
-  expiresAt: string;
-  userId: string;
-  email: string;
-  fullName: string;
-  role: string;
-  tenantId: string | null;
-  permissions: string[];
-}
-
-export const exchangeGoogleTicketApi = async (ticket: string): Promise<ExchangeGoogleTicketResponse> => {
-  const response = await apiClient.post<any, ExchangeGoogleTicketResponse>('/auth/google/exchange', { ticket });
-  return response;
+/**
+ * Trả về URL để điều hướng trình duyệt đến bắt đầu luồng Google OAuth.
+ * mode='login': đăng nhập thông thường.
+ * mode='invitation': nhận lời mời với token kèm theo.
+ */
+export const googleStartUrl = (mode: 'login' | 'invitation', invitationToken?: string): string => {
+  let url = `${BASE_URL}/auth/google/start?mode=${mode}`;
+  if (mode === 'invitation' && invitationToken) {
+    url += `&invitation=${encodeURIComponent(invitationToken)}`;
+  }
+  return url;
 };

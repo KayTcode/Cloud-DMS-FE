@@ -4,6 +4,7 @@ export interface PersonalStorageQuotaDto {
   quotaBytes: number;
   usedBytes: number;
   availableBytes: number;
+  uploadableBytes?: number;
   usagePercent: number;
   departmentName?: string;
 }
@@ -47,4 +48,4 @@ export interface UserActivity {
   device: string;
 }
 
-export type UserNavTab = 'documents' | 'shared' | 'trash' | 'storage' | 'profile';
+export type UserNavTab = 'documents' | 'shared' | 'shared-store' | 'trash' | 'storage' | 'profile';

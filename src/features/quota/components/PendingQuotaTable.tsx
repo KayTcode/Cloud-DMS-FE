@@ -11,12 +11,14 @@ import {
   Inbox
 } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
-import { QuotaRequestDto } from '../types/quota.types';
+import { PendingQuotaRequestDto, QuotaRequestDto } from '../types/quota.types';
 import { DecideQuotaModal } from './DecideQuotaModal';
 
 interface PendingQuotaTableProps {
   onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
   onCountChange?: (count: number) => void;
+  onDecisionSuccess?: () => void;
+  onRequestTopUp?: (shortfallBytes: number) => void;
 }
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
@@ -24,10 +26,12 @@ const GB_IN_BYTES = 1024 * 1024 * 1024;
 export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
   onShowToast,
   onCountChange,
+  onDecisionSuccess,
+  onRequestTopUp,
 }) => {
-  const [requests, setRequests] = useState<QuotaRequestDto[]>([]);
+  const [requests, setRequests] = useState<PendingQuotaRequestDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [selectedRequest, setSelectedRequest] = useState<QuotaRequestDto | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<PendingQuotaRequestDto | null>(null);
   const [isDecideModalOpen, setIsDecideModalOpen] = useState<boolean>(false);
 
   const fetchPending = useCallback(async () => {
@@ -48,14 +52,16 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
     fetchPending();
   }, [fetchPending]);
 
-  const handleOpenDecide = (req: QuotaRequestDto) => {
+  const handleOpenDecide = (req: PendingQuotaRequestDto) => {
     setSelectedRequest(req);
     setIsDecideModalOpen(true);
   };
 
   const handleDecideSuccess = (_updated: QuotaRequestDto, message: string) => {
     onShowToast?.(message, 'success');
+    onDecisionSuccess?.();
     fetchPending();
+    onDecisionSuccess?.();
   };
 
   return (
@@ -77,9 +83,9 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
         <button
           onClick={fetchPending}
           disabled={isLoading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-full shadow-2xs transition-all cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
           <span>Làm mới</span>
         </button>
       </div>
@@ -116,7 +122,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {requests.map((req) => {
-                const curGB = parseFloat((req.currentQuotaBytes / GB_IN_BYTES).toFixed(2));
+                const curGB = typeof req.currentQuotaBytes === 'number' ? parseFloat((req.currentQuotaBytes / GB_IN_BYTES).toFixed(2)) : null;
                 const addGB = parseFloat((req.requestedAdditionalBytes / GB_IN_BYTES).toFixed(2));
                 const formattedDate = new Date(req.createdAt).toLocaleDateString('vi-VN', {
                   day: '2-digit',
@@ -141,6 +147,11 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
                           <span className="text-[11px] text-slate-400 truncate block">
                             {req.requesterEmail}
                           </span>
+                          {req.requesterDepartmentName && (
+                            <span className="text-[11px] text-slate-500 truncate block">
+                              Phòng ban: {req.requesterDepartmentName}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {/* Cảnh báo leo thang nếu có */}
@@ -154,12 +165,12 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
 
                     {/* Hiện tại */}
                     <td className="py-3.5 px-4 font-medium text-slate-600">
-                      {curGB} GB
+                      {curGB !== null ? `${curGB} GB` : '—'}
                     </td>
 
                     {/* Xin tăng thêm */}
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                      <span className="inline-flex items-center gap-1 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
                         +{addGB} GB
                       </span>
                     </td>
@@ -194,7 +205,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <button
                         onClick={() => handleOpenDecide(req)}
-                        className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition-colors cursor-pointer inline-flex items-center gap-1"
+                        className="px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1"
                       >
                         <span>Xử lý</span>
                       </button>
@@ -216,6 +227,7 @@ export const PendingQuotaTable: React.FC<PendingQuotaTableProps> = ({
           setSelectedRequest(null);
         }}
         onSuccess={handleDecideSuccess}
+        onRequestTopUp={onRequestTopUp}
       />
     </div>
   );

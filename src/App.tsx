@@ -9,12 +9,22 @@ import { UserPortal } from '@/features/user';
 import { LoginPage, AcceptInvitationPage, GoogleOAuthCallback } from '@/features/auth';
 
 import { OneDriveOAuthCallback } from '@/features/system-admin/components/OneDriveOAuthCallback';
+import { UploadManagerProvider } from '@/services/upload/large/UploadManagerContext';
+import { LargeUploadPanel } from '@/components/upload/LargeUploadPanel';
 
 /**
  * AppContent: Handles authentication gate & role-based portal rendering
  */
 const AppContent: React.FC = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <span>Đang khởi động...</span>
+      </div>
+    );
+  }
 
   // If path is OneDrive OAuth callback
   if (window.location.pathname.startsWith('/oauth/onedrive/callback')) {
@@ -56,11 +66,14 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <TenantProvider>
-      <MainLayout>
-        {renderPortalByRole()}
-      </MainLayout>
-    </TenantProvider>
+    <UploadManagerProvider>
+      <TenantProvider>
+        <MainLayout>
+          {renderPortalByRole()}
+        </MainLayout>
+      </TenantProvider>
+      <LargeUploadPanel />
+    </UploadManagerProvider>
   );
 };
 

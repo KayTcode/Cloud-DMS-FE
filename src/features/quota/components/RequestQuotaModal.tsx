@@ -1,23 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, HardDrive, Calendar, AlertCircle, Info, Sparkles } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
 import { QuotaRequestDto } from '../types/quota.types';
+import { GB_IN_BYTES, bytesToGB, checkAvailability } from '../utils/quotaAvailability';
 
 interface RequestQuotaModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentQuotaBytes?: number;
+  maxAvailableBytes?: number | null;
   onSuccess: (request: QuotaRequestDto) => void;
+  initialRequestedBytes?: number;
 }
 
-const GB_IN_BYTES = 1024 * 1024 * 1024;
 const MAX_GB = 500;
 const MAX_TEMPORARY_DAYS = 90;
 
 export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   isOpen,
   onClose,
+  maxAvailableBytes,
   onSuccess,
+  initialRequestedBytes,
 }) => {
   const [requestedGB, setRequestedGB] = useState<number>(5);
   const [isTemporary, setIsTemporary] = useState<boolean>(false);
@@ -29,6 +33,12 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   const [reason, setReason] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialRequestedBytes && initialRequestedBytes > 0) {
+      setRequestedGB(Math.ceil(initialRequestedBytes / GB_IN_BYTES));
+    }
+  }, [isOpen, initialRequestedBytes]);
 
   if (!isOpen) return null;
 
@@ -49,6 +59,12 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
 
     if (requestedGB > MAX_GB) {
       setErrorMessage(`Dung lượng yêu cầu tối đa là ${MAX_GB} GB.`);
+      return;
+    }
+
+    const availability = checkAvailability(Math.round(requestedGB * GB_IN_BYTES), maxAvailableBytes);
+    if (!availability.ok) {
+      setErrorMessage(availability.message!);
       return;
     }
 
@@ -122,7 +138,7 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -159,17 +175,18 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
               </span>
             </div>
 
-            {/* Quick buttons */}
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className="text-[11px] text-slate-400 mr-1 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" /> Chọn nhanh:
+            {/* Quick choice chips */}
+            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+              <span className="text-[11px] text-slate-500 mr-1 flex items-center gap-1 font-medium">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Chọn nhanh:
               </span>
               {[2, 5, 10, 20, 50].map((gb) => (
                 <button
                   type="button"
                   key={gb}
                   onClick={() => handleQuickAdd(gb)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all ${
+                  disabled={maxAvailableBytes != null && gb * GB_IN_BYTES > maxAvailableBytes}
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     requestedGB === gb
                       ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
@@ -179,11 +196,27 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
                 </button>
               ))}
             </div>
+
+            {maxAvailableBytes != null ? (
+              <div className="mt-2.5 p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-start gap-2.5 text-xs text-blue-800">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <span>
+                  Hạn mức còn trống của cấp trên: <strong>{bytesToGB(maxAvailableBytes)} GB</strong>.
+                </span>
+              </div>
+            ) : (
+              <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start gap-2.5 text-xs text-slate-600">
+                <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <span>
+                  Yêu cầu của bạn sẽ được chuyển đến người quản lý trực tiếp để xem xét dựa trên quỹ dung lượng hiện có.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Loại yêu cầu: Vĩnh viễn hay Tạm thời */}
-          <div className="border border-slate-200 rounded-xl p-3 bg-white space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="border border-slate-200/90 rounded-2xl p-3.5 bg-slate-50/50 space-y-3">
+            <div className="flex items-center justify-between gap-2">
               <div>
                 <label className="text-xs font-semibold text-slate-800 block">
                   Thời hạn dung lượng
@@ -192,11 +225,11 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
                   {isTemporary ? 'Cấp tạm thời có ngày hết hạn' : 'Cấp vĩnh viễn không hết hạn'}
                 </span>
               </div>
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200/80">
                 <button
                   type="button"
                   onClick={() => setIsTemporary(false)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                  className={`px-3.5 py-1 text-xs font-medium rounded-full transition-all cursor-pointer ${
                     !isTemporary
                       ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -207,7 +240,7 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsTemporary(true)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                  className={`px-3.5 py-1 text-xs font-medium rounded-full transition-all cursor-pointer ${
                     isTemporary
                       ? 'bg-blue-600 text-white shadow-2xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -220,8 +253,8 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
 
             {/* Chọn ngày hết hạn nếu là tạm thời */}
             {isTemporary && (
-              <div className="pt-2 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-150">
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+              <div className="pt-2.5 border-t border-slate-200/60 animate-in fade-in slide-in-from-top-1 duration-150">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-blue-600" />
                   Ngày hết hạn (tối đa 90 ngày)
                 </label>
@@ -232,10 +265,10 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
                   required={isTemporary}
                   value={expiresDate}
                   onChange={(e) => setExpiresDate(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                  className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
                 />
-                <span className="text-[11px] text-amber-600 mt-1 block">
-                  * Hết ngày này, phần dung lượng được cấp tạm thời sẽ tự động thu hồi.
+                <span className="text-[11px] text-amber-700 mt-1.5 block font-medium">
+                  * Sau ngày này, phần dung lượng được cấp tạm thời sẽ tự động thu hồi.
                 </span>
               </div>
             )}
@@ -264,23 +297,23 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
           </div>
 
           {/* Footer buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
             <button
               type="button"
               disabled={isLoading}
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+              className="px-5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              className="px-6 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
               {isLoading ? (
                 <>
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   <span>Đang gửi...</span>
                 </>
               ) : (

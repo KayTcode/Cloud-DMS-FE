@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Database,
@@ -10,13 +10,160 @@ import {
   Clock,
   Sparkles,
   Info,
+  Save,
+  FolderOpen,
+  Pencil,
 } from 'lucide-react';
 import { DepartmentInfo } from '../types';
+import { departmentApi } from '../api';
 import {
   PendingQuotaTable,
   QuotaHistoryTable,
   RequestQuotaModal,
 } from '@/features/quota';
+import { getSharedStoreQuotaApi, setSharedStoreQuotaApi, getQuotaBreakdown, DepartmentQuotaBreakdownDto } from '../api/departmentApi';
+import { useDepartment } from '../context/DepartmentContext';
+import { formatBytes } from '../utils/quotaUtils';
+
+const formatBytesSimple = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const gb = bytes / (1024 ** 3);
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  const mb = bytes / (1024 ** 2);
+  if (mb >= 1) return `${mb.toFixed(2)} MB`;
+  return `${(bytes / 1024).toFixed(2)} KB`;
+};
+
+interface SharedQuotaRowProps {
+  departmentId: string;
+  onShowToast?: (type: 'success' | 'error' | 'info', message: string) => void;
+}
+
+const SharedQuotaRow: React.FC<SharedQuotaRowProps> = ({ departmentId, onShowToast }) => {
+  const [sharedQuota, setSharedQuota] = useState<{ quotaBytes: number; usedBytes: number; uploadableBytes?: number } | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [newQuotaGB, setNewQuotaGB] = useState<number>(0);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadSharedQuota = async () => {
+    try {
+      const data = await getSharedStoreQuotaApi(departmentId);
+      setSharedQuota(data);
+    } catch {
+      setSharedQuota({ quotaBytes: 0, usedBytes: 0 });
+    }
+  };
+
+  useEffect(() => {
+    loadSharedQuota();
+  }, [departmentId]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await setSharedStoreQuotaApi(departmentId, newQuotaGB * 1024 * 1024 * 1024);
+      onShowToast?.('success', `Đã cập nhật hạn mức Kho chung phòng lên ${newQuotaGB} GB.`);
+      setIsEditOpen(false);
+      await loadSharedQuota();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Không thể cập nhật hạn mức kho chung.';
+      onShowToast?.('error', msg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openEdit = () => {
+    setNewQuotaGB(sharedQuota ? Math.round(sharedQuota.quotaBytes / (1024 ** 3)) : 0);
+    setIsEditOpen(true);
+  };
+
+  if (!sharedQuota) return null;
+
+  return (
+    <>
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+              <FolderOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900">Kho chung phòng</p>
+              <p className="text-xs text-slate-500">Lưu trữ dùng chung cho toàn bộ phòng ban</p>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center gap-8 text-xs">
+            <div className="text-center">
+              <p className="text-slate-500 mb-0.5">Hạn mức</p>
+              <p className="font-bold text-slate-900">{formatBytesSimple(sharedQuota.quotaBytes)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-slate-500 mb-0.5">Đã dùng</p>
+              <p className="font-bold text-slate-900">{formatBytesSimple(sharedQuota.usedBytes)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-slate-500 mb-0.5">Còn có thể tải lên</p>
+              <p className="font-bold text-slate-900">
+                {formatBytesSimple(sharedQuota.uploadableBytes !== undefined ? sharedQuota.uploadableBytes : Math.max(0, sharedQuota.quotaBytes - sharedQuota.usedBytes))}
+              </p>
+              {sharedQuota.uploadableBytes === 0 && sharedQuota.usedBytes >= sharedQuota.quotaBytes && (
+                <p className="text-[10px] text-rose-600 mt-0.5 font-semibold">Đã vượt hạn mức</p>
+              )}
+              {sharedQuota.uploadableBytes === 0 && sharedQuota.usedBytes < sharedQuota.quotaBytes && (
+                <p className="text-[10px] text-amber-600 mt-0.5 font-semibold">Kho đang đầy</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={openEdit}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-blue-600 text-xs font-semibold border border-slate-200/80 transition-colors cursor-pointer"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            <span>Sửa</span>
+          </button>
+        </div>
+      </div>
+
+      {isEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <FolderOpen className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-base">Hạn mức Kho chung phòng</h3>
+              </div>
+              <button onClick={() => setIsEditOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <span className="text-base">✕</span>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-700">Hạn mức mới (GB)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={newQuotaGB}
+                  onChange={(e) => setNewQuotaGB(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                <button onClick={() => setIsEditOpen(false)} disabled={isSaving} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50">Huỷ</button>
+                <button onClick={handleSave} disabled={isSaving} className="px-4 py-2 text-xs font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                  {isSaving ? 'Đang lưu...' : 'Cập nhật'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 interface DepartmentQuotaViewProps {
   department: DepartmentInfo;
@@ -34,7 +181,26 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
   onShowToast,
 }) => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
+  const [topUpBytes, setTopUpBytes] = useState<number | undefined>(undefined);
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history' | 'retention'>('pending');
+  const [breakdown, setBreakdown] = useState<DepartmentQuotaBreakdownDto | null>(null);
+  const [retentionDays, setRetentionDays] = useState<number>(department.retentionDays || 30);
+  const [isUpdatingRetention, setIsUpdatingRetention] = useState<boolean>(false);
+  const { departmentId } = useDepartment();
+
+  const loadBreakdown = async () => {
+    if (!departmentId) return;
+    try {
+      const data = await getQuotaBreakdown(departmentId);
+      setBreakdown(data);
+    } catch {
+      // non-critical: leave breakdown null
+    }
+  };
+
+  useEffect(() => {
+    loadBreakdown();
+  }, [departmentId]);
 
   const percentUsed =
     department.totalAllocatedGB > 0
@@ -45,49 +211,60 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
     setIsRequestModalOpen(false);
     onShowToast?.('success', 'Đã gửi yêu cầu tăng hạn mức phòng ban thành công!');
     onQuotaUpdated?.();
+    loadBreakdown();
+  };
+
+  const handleUpdateRetention = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (retentionDays <= 0) {
+      onShowToast?.('error', 'Thời hạn lưu trữ tệp tin phòng ban phải lớn hơn 0 ngày.');
+      return;
+    }
+    setIsUpdatingRetention(true);
+    try {
+      await departmentApi.setRetentionPolicy(retentionDays);
+      onShowToast?.('success', `Đã cập nhật thời hạn lưu trữ phòng ban thành công: ${retentionDays} ngày.`);
+      onQuotaUpdated?.();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể cập nhật chính sách lưu trữ.';
+      onShowToast?.('error', msg);
+    } finally {
+      setIsUpdatingRetention(false);
+    }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-5 animate-in fade-in duration-150">
       {/* 1. Header Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBackToHub}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
-            title="Quay lại Trung tâm điều khiển"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Quản lý Hạn mức & Phê duyệt Quota
-              </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                Department Approver
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Phê duyệt các yêu cầu tăng dung lượng của nhân viên và yêu cầu nâng tổng hạn ngạch phòng ban {department.name}
-            </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+              Quản lý Hạn mức & Chính sách Phòng ban
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              Department Approver
+            </span>
           </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Phê duyệt Quota nhân viên, quản lý hạn ngạch tổng và thiết lập thời hạn lưu trữ dữ liệu
+          </p>
         </div>
 
         {/* Nút yêu cầu xin thêm hạn ngạch phòng ban */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
           <button
-            onClick={() => setIsRequestModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+            onClick={() => { setTopUpBytes(undefined); setIsRequestModalOpen(true); }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-3.5 h-3.5" />
             <span>Xin thêm dung lượng phòng ban</span>
           </button>
         </div>
       </div>
 
       {/* 2. Overview Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {/* Card 1: Tổng hạn mức được cấp */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
@@ -102,7 +279,7 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
           </p>
           <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-purple-500" />
-            <span>Hạn mức từ Quản trị viên Doanh nghiệp</span>
+            <span>Hạn mức từ Doanh nghiệp</span>
           </div>
         </div>
 
@@ -143,37 +320,137 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
           </p>
           <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Có thể cấp phát cho nhân viên hoặc dùng chung</span>
+            <span>Có thể cấp phát cho nhân viên</span>
+          </div>
+        </div>
+
+        {/* Card 4: Thời hạn lưu trữ tệp tin */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-medium">Thời hạn lưu trữ tệp</span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-indigo-600">
+            {retentionDays}{' '}
+            <span className="text-xs font-semibold text-slate-500">ngày</span>
+          </p>
+          <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-500" />
+            <span>Tự động gán cho tệp mới</span>
           </div>
         </div>
       </div>
 
-      {/* 3. Sub Tabs & Content */}
+      {/* 3. Phân bổ quota phòng — 4 phần */}
+      {breakdown !== null && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs space-y-3">
+          <p className="text-sm font-bold text-slate-900">Phân bổ quota phòng</p>
+          {breakdown.totalBytes === 0 ? (
+            <p className="text-xs text-slate-500">Phòng chưa được cấp hạn mức.</p>
+          ) : (
+            <>
+              {/* Stacked bar */}
+              <div className="flex rounded-full overflow-hidden h-4 w-full">
+                {breakdown.leadBytes > 0 && (
+                  <div
+                    className="bg-purple-500 h-full"
+                    style={{ width: `${(breakdown.leadBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Trưởng phòng: ${formatBytes(breakdown.leadBytes)}`}
+                  />
+                )}
+                {breakdown.employeesBytes > 0 && (
+                  <div
+                    className="bg-blue-500 h-full"
+                    style={{ width: `${(breakdown.employeesBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Nhân viên: ${formatBytes(breakdown.employeesBytes)}`}
+                  />
+                )}
+                {breakdown.sharedBytes > 0 && (
+                  <div
+                    className="bg-indigo-400 h-full"
+                    style={{ width: `${(breakdown.sharedBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Kho chung: ${formatBytes(breakdown.sharedBytes)}`}
+                  />
+                )}
+                {breakdown.freeBytes > 0 && (
+                  <div
+                    className="bg-slate-100 h-full"
+                    style={{ width: `${(breakdown.freeBytes / breakdown.totalBytes) * 100}%` }}
+                    title={`Còn trống: ${formatBytes(breakdown.freeBytes)}`}
+                  />
+                )}
+              </div>
+              {/* Legend */}
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
+                  <span>Trưởng phòng</span>
+                  <span className="font-semibold text-slate-800">{formatBytes(breakdown.leadBytes)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 shrink-0" />
+                  <span>Nhân viên</span>
+                  <span className="font-semibold text-slate-800">{formatBytes(breakdown.employeesBytes)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-indigo-400 shrink-0" />
+                  <span>Kho chung</span>
+                  <span className="font-semibold text-slate-800">{formatBytes(breakdown.sharedBytes)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-slate-200 border border-slate-300 shrink-0" />
+                  <span>Còn trống</span>
+                  <span className="font-semibold text-emerald-700">{formatBytes(breakdown.freeBytes)}</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 4. Kho chung phòng row */}
+      {departmentId && (
+        <SharedQuotaRow departmentId={departmentId} onShowToast={(type, msg) => { onShowToast?.(type, msg); loadBreakdown(); }} />
+      )}
+
+      {/* 5. Sub Tabs & Content */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
           <button
             onClick={() => setActiveSubTab('pending')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer border ${
               activeSubTab === 'pending'
-                ? 'text-purple-600 border-b-2 border-purple-600'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-blue-50 text-blue-700 border-blue-200/80 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
             }`}
           >
             <span>Yêu cầu chờ phê duyệt</span>
           </button>
           <button
             onClick={() => setActiveSubTab('history')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer border ${
               activeSubTab === 'history'
-                ? 'text-purple-600 border-b-2 border-purple-600'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-blue-50 text-blue-700 border-blue-200/80 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
             }`}
           >
             <span>Lịch sử cấp phát Quota</span>
           </button>
+          <button
+            onClick={() => setActiveSubTab('retention')}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer border ${
+              activeSubTab === 'retention'
+                ? 'bg-blue-50 text-blue-700 border-blue-200/80 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+            }`}
+          >
+            <span>Chính sách Lưu trữ (Retention)</span>
+          </button>
         </div>
 
-        {activeSubTab === 'pending' ? (
+        {activeSubTab === 'pending' && (
           <div>
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -184,20 +461,71 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
               </div>
             </div>
             <PendingQuotaTable
+              onRequestTopUp={(bytes) => { setTopUpBytes(bytes); setIsRequestModalOpen(true); }}
               onDecisionSuccess={() => {
                 onShowToast?.('success', 'Đã ghi nhận quyết định phê duyệt thành công.');
                 onQuotaUpdated?.();
+                loadBreakdown();
               }}
             />
           </div>
-        ) : (
-          <QuotaHistoryTable />
+        )}
+
+        {activeSubTab === 'history' && <QuotaHistoryTable />}
+
+        {activeSubTab === 'retention' && (
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-2xs space-y-5">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                Chính sách Vòng đời Lưu trữ Tệp tin Phòng ban
+              </h3>
+              <p className="text-xs text-slate-500">
+                Quyền tự quyết độc quyền của Trưởng phòng: Cấu hình số ngày lưu trữ mặc định cho toàn bộ tệp tin do nhân viên tải lên phòng ban.
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateRetention} className="space-y-4 max-w-lg">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Thời hạn lưu trữ (ngày)</span>
+                  <span className="font-mono text-indigo-600 font-bold">{retentionDays} ngày</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  required
+                  value={retentionDays}
+                  onChange={(e) => setRetentionDays(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-800 text-xs flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-[11px] leading-relaxed">
+                  <p><strong>Hiệu lực chính sách:</strong> Khi bạn thay đổi số ngày, chỉ các tệp tin được tải lên <em>sau thời điểm này</em> mới áp dụng thời hạn mới.</p>
+                  <p>Các tệp tin đã lưu trước đó vẫn giữ nguyên ngày hết hạn ban đầu để bảo toàn tính toàn vẹn dữ liệu.</p>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isUpdatingRetention}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isUpdatingRetention ? 'Đang lưu...' : 'Lưu thay đổi chính sách'}</span>
+              </button>
+            </form>
+          </div>
         )}
       </div>
 
       {/* Request Quota Modal */}
       <RequestQuotaModal
         isOpen={isRequestModalOpen}
+        initialRequestedBytes={topUpBytes}
         onClose={() => setIsRequestModalOpen(false)}
         onSuccess={handleRequestCreated}
       />

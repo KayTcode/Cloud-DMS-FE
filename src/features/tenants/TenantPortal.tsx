@@ -1,22 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
-import {
-  TenantBanner,
-  TenantTabs,
-  ImpersonateModal,
-  SubscriptionModal,
-} from '@/features/tenants/components';
+import { TenantBanner, TenantTabs, ImpersonateModal, SubscriptionModal } from '@/features/tenants/components';
 import {
   TenantOverviewView,
-  TenantUsersView,
   CreateDepartmentUserView,
   TenantDepartmentsView,
-  TenantActivityView,
+  TenantDepartmentDetailView,
   TenantSettingsView,
   TenantHubView,
   TenantQuotaView,
 } from '@/features/tenants/views';
+import { ActiveTab } from '@/features/tenants/types';
 import { ArrowLeft } from 'lucide-react';
 
 // =========================================================================================
@@ -33,39 +28,51 @@ import { ArrowLeft } from 'lucide-react';
 
 interface TenantPortalProps {
   tenantId?: string; // ID của Tenant truyền vào khi SysAdmin soi dữ liệu của 1 Tenant cụ thể
+  initialTab?: ActiveTab;
 }
 
-export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenantId }) => {
+export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenantId, initialTab }) => {
   // ---------------------------------------------------------------------------------------
-  // 1. RESOLVER TENANT ID HIỆU LỰC (Tương tự Tenant Identification Middleware trong BE)
-  // ---------------------------------------------------------------------------------------
-  const { user } = useAuth();
-  // Ưu tiên propTenantId (nếu SysAdmin truyền vào), nếu không có thì lấy tenantId của User đang đăng nhập
-  const effectiveTenantId = propTenantId || user?.tenantId;
-
-  // ---------------------------------------------------------------------------------------
-  // 2. LẤY STATE VÀ SERVICE METHODS TỪ GLOBAL TENANT CONTEXT
+  // 1. LẤY STATE VÀ SERVICE METHODS TỪ GLOBAL TENANT CONTEXT
   // ---------------------------------------------------------------------------------------
   const {
-    activeTab,                    // Tab con nội bộ đang chọn ('overview', 'users', 'departments', ...)
-    setActiveTab,                 // Hàm chuyển đổi tab con
-    tenant,                       // Thông tin DTO chi tiết của Tenant hiện hành
-    events,                       // Danh sách sự kiện / Activity logs nội bộ
-    users,                        // Danh sách nhân viên thuộc Tenant
-    targetDeptForCreate,          // Phòng ban được chọn khi bấm nút "Thêm nhân viên vào phòng này"
-    isSubscriptionModalOpen,      // Trạng thái mở modal Gói cước (Subscription)
+    activeTab, // Tab con nội bộ đang chọn ('overview', 'departments', ...)
+    setActiveTab, // Hàm chuyển đổi tab con
+    tenant, // Thông tin DTO chi tiết của Tenant hiện hành
+    events, // Danh sách sự kiện / Activity logs nội bộ
+    users, // Danh sách nhân viên thuộc Tenant
+    targetDeptForCreate, // Phòng ban được chọn khi bấm nút "Thêm nhân viên vào phòng này"
+    isSubscriptionModalOpen, // Trạng thái mở modal Gói cước (Subscription)
     setIsSubscriptionModalOpen,
-    isImpersonateModalOpen,       // Trạng thái mở modal Mạo danh (Impersonate)
+    isImpersonateModalOpen, // Trạng thái mở modal Mạo danh (Impersonate)
     setIsImpersonateModalOpen,
-    handleSuspendToggle,          // Service khóa/mở khóa Tenant
-    handleDownloadBackup,         // Service tải tệp tin sao lưu dữ liệu
-    handleConfirmImpersonate,     // Service xác nhận đăng nhập hộ vào Tenant
-    handleOpenCreateDepartmentUser,// Service mở form tạo tài khoản nhân viên theo phòng ban
-    handleUserCreated,            // Callback sau khi tạo nhân viên thành công
-    handleUpdateTenant,           // Service cập nhật cấu hình Tenant
-    setCurrentTenantId,           // Hàm set ID Tenant hiện hành vào Context
-    refreshTenantData,            // Service nạp lại toàn bộ dữ liệu Tenant từ API Backend
+    handleSuspendToggle, // Service khóa/mở khóa Tenant
+    handleDownloadBackup, // Service tải tệp tin sao lưu dữ liệu
+    handleConfirmImpersonate, // Service xác nhận đăng nhập hộ vào Tenant
+    handleOpenCreateDepartmentUser, // Service mở form tạo tài khoản nhân viên theo phòng ban
+    handleUserCreated, // Callback sau khi tạo nhân viên thành công
+    handleUpdateTenant, // Service cập nhật cấu hình Tenant
+    setCurrentTenantId, // Hàm set ID Tenant hiện hành vào Context
+    refreshTenantData, // Service nạp lại toàn bộ dữ liệu Tenant từ API Backend
   } = useTenantContext();
+
+  const { user } = useAuth();
+  const [openedDepartmentId, setOpenedDepartmentId] = useState<string | null>(null);
+  const effectiveTenantId = propTenantId || user?.tenantId;
+
+  // Tự động chuyển tab ban đầu nếu có prop initialTab (ví dụ SysAdmin bấm vào Quản lý Phòng ban)
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, setActiveTab]);
+
+  // Tenant Admin chỉ quản lý theo Phòng ban (Department), tự động chuyển hướng nếu activeTab là users
+  useEffect(() => {
+    if (activeTab === 'users' || activeTab === 'activity') {
+      setActiveTab('departments');
+    }
+  }, [activeTab, setActiveTab]);
 
   // ---------------------------------------------------------------------------------------
   // 3. EFFECT ĐỒNG BỘ DỮ LIỆU TENANT (Tương tự Data Binding / Load Entity by ID)
@@ -73,6 +80,9 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
   // - Khi người dùng chuyển sang các tab nghiệp vụ: Tự động nạp thông tin Tenant tương ứng từ BE.
   // ---------------------------------------------------------------------------------------
   useEffect(() => {
+    if (activeTab !== 'departments') {
+      setOpenedDepartmentId(null);
+    }
     if (activeTab === 'hub') {
       return;
     }
@@ -104,15 +114,15 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
       {/* 4.1. CÁC MÀN HÌNH CHI TIẾT KHI ĐÃ CHỌN CHỨC NĂNG */}
       {activeTab !== 'hub' && (
-        <>
+        <div className="space-y-3 mb-4">
           {/* Nút quay lại Menu chức năng chính */}
-          <div className="mb-4">
+          <div className="flex items-center justify-between">
             <button
               onClick={() => setActiveTab('hub')}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-lg shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-all cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>← Quay lại Trung tâm điều khiển Doanh nghiệp</span>
+              <span>Trung tâm điều khiển Doanh nghiệp</span>
             </button>
           </div>
 
@@ -123,7 +133,10 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             onManageSubscriptions={() => setIsSubscriptionModalOpen(true)}
             onNavigateToTenants={() => setActiveTab('hub')}
           />
-        </>
+
+          {/* Thanh chuyển Tab điều hướng nhanh giữa các chức năng con */}
+          <TenantTabs activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
+        </div>
       )}
 
       {/* 4.3. Khu vực hiển thị nội dung của Tab con đang active */}
@@ -141,21 +154,22 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             />
           )}
 
-          {/* Tab 2: Quản lý danh sách nhân viên thuộc Tenant */}
-          {activeTab === 'users' && (
-            <TenantUsersView
-              users={users}
-              onBackToOverview={() => setActiveTab('overview')}
-              onCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
-            />
-          )}
-
           {/* Tab 3: Quản lý cơ cấu các phòng ban (Departments) */}
-          {activeTab === 'departments' && (
-            <TenantDepartmentsView
-              onBackToOverview={() => setActiveTab('overview')}
-              onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
-            />
+          {(activeTab === 'departments' || activeTab === 'users') && (
+            openedDepartmentId ? (
+              <TenantDepartmentDetailView
+                tenantId={effectiveTenantId ?? undefined}
+                departmentId={openedDepartmentId}
+                onBack={() => setOpenedDepartmentId(null)}
+                onCreateUser={() => handleOpenCreateDepartmentUser(openedDepartmentId)}
+              />
+            ) : (
+              <TenantDepartmentsView
+                onBackToOverview={() => setActiveTab('overview')}
+                onCreateDepartmentUser={(dept) => handleOpenCreateDepartmentUser(dept)}
+                onOpenDepartment={(deptId) => setOpenedDepartmentId(deptId)}
+              />
+            )
           )}
 
           {/* Tab 3B: Form tạo mới nhân viên cho một phòng ban cụ thể */}
@@ -168,28 +182,11 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
           )}
 
           {/* Tab 4B: Quản lý Hạn mức & Phê duyệt Quota */}
-          {activeTab === 'quota' && (
-            <TenantQuotaView
-              tenant={tenant}
-              onBackToOverview={() => setActiveTab('overview')}
-            />
-          )}
-
-          {/* Tab 5: Nhật ký thao tác của người dùng trong Tenant */}
-          {activeTab === 'activity' && (
-            <TenantActivityView
-              events={events}
-              onBackToOverview={() => setActiveTab('overview')}
-            />
-          )}
+          {activeTab === 'quota' && <TenantQuotaView tenant={tenant} onBackToOverview={() => setActiveTab('overview')} />}
 
           {/* Tab 6: Cài đặt cấu hình riêng của Tenant (Tên, logo, liên hệ) */}
           {activeTab === 'settings' && (
-            <TenantSettingsView
-              tenant={tenant}
-              onUpdateTenant={handleUpdateTenant}
-              onBackToOverview={() => setActiveTab('overview')}
-            />
+            <TenantSettingsView tenant={tenant} onUpdateTenant={handleUpdateTenant} onBackToOverview={() => setActiveTab('overview')} />
           )}
         </div>
       )}
@@ -198,11 +195,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
       {/* 4.4. CÁC MODAL HỘP THOẠI CỦA TENANT                                                */}
       {/* --------------------------------------------------------------------------------- */}
       {/* Modal nâng cấp gói cước dịch vụ (Starter, Business, Enterprise) */}
-      <SubscriptionModal
-        isOpen={isSubscriptionModalOpen}
-        onClose={() => setIsSubscriptionModalOpen(false)}
-        tenant={tenant}
-      />
+      <SubscriptionModal isOpen={isSubscriptionModalOpen} onClose={() => setIsSubscriptionModalOpen(false)} tenant={tenant} />
 
       {/* Modal xác nhận đăng nhập ẩn danh (Impersonate) */}
       <ImpersonateModal

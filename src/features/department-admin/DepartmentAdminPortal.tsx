@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import {
   DepartmentHubView,
   DepartmentFilesView,
@@ -7,10 +8,14 @@ import {
   SetupDepartmentView,
   DepartmentStorageReportView,
   DepartmentQuotaView,
+  SharedStoreView,
 } from './views';
 import {
   AddMemberModal,
   EditQuotaModal,
+  OffboardEmployeeModal,
+  DepartmentBanner,
+  DepartmentTabs,
 } from './components';
 import {
   DepartmentMember,
@@ -22,10 +27,11 @@ import { DepartmentProvider, useDepartment } from './context/DepartmentContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantContext } from '@/context/TenantContext';
 import { bytesToGB, gbToBytes } from './utils/quotaUtils';
+import { formatQuotaAuto } from '@/utils/quotaUnitUtils';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
-  const { activeNav, setActiveNav } = useTenantContext();
+  const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const {
     hasDepartment,
     summary,
@@ -37,10 +43,10 @@ const DepartmentAdminPortalContent: React.FC = () => {
   } = useDepartment();
 
   const [activeTab, setActiveTab] = useState<DepartmentNavTab>('hub');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [selectedMemberForQuota, setSelectedMemberForQuota] = useState<DepartmentMember | null>(null);
+  const [selectedMemberForOffboard, setSelectedMemberForOffboard] = useState<DepartmentMember | null>(null);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
   // Toast / Status notification
@@ -67,6 +73,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('logs');
     } else if (activeNav === 'storage-providers') {
       setActiveTab('quota');
+    } else if (activeNav === 'shared-store') {
+      setActiveTab('shared-store');
     }
   }, [activeNav]);
 
@@ -84,6 +92,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('audit-logs');
     } else if (tab === 'quota') {
       setActiveNav('storage-providers');
+    } else if (tab === 'shared-store') {
+      setActiveNav('shared-store');
     }
   };
 
@@ -97,6 +107,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
     id: user?.departmentId || summary?.departmentId || '',
     name: summary?.departmentName || 'Phòng ban',
     tenantName: 'Tổ chức Doanh nghiệp',
+    adminId: user?.id || '',
     adminName: user?.fullName || 'Trưởng phòng',
     adminRole: 'Department Admin',
     adminEmail: user?.email || '',
@@ -130,6 +141,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
 
     const matchingEmp = employees.find((e) => e.id === u.userId || e.email.toLowerCase() === u.email.toLowerCase());
     const role = matchingEmp?.roles?.[0] || 'Employee';
+    const isUserActive = u.isActive !== undefined ? u.isActive : (matchingEmp?.isActive ?? true);
 
     return {
       id: u.userId,
@@ -140,22 +152,22 @@ const DepartmentAdminPortalContent: React.FC = () => {
       allocatedQuotaGB: bytesToGB(u.quotaBytes),
       usedSpaceGB: bytesToGB(u.usedBytes),
       fileCount: u.fileCount || (u as any).FileCount || 0,
-
-      lastActive: matchingEmp?.isActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
-      status: u.usagePercentage >= 90 ? 'warning' : 'active',
+      lastActive: isUserActive ? 'Đang hoạt động' : 'Chờ kích hoạt',
+      status: !isUserActive ? 'paused' : (u.usagePercentage >= 90 ? 'warning' : 'active'),
       avatarInitials: initials,
       avatarColor: colors[idx % colors.length],
     };
   });
 
   // Handlers
-  const handleSaveMemberQuota = async (memberId: string, newQuotaGB: number) => {
+  const handleSaveMemberQuota = async (memberId: string, newQuotaBytes: number) => {
     try {
-      await allocateQuota(memberId, gbToBytes(newQuotaGB));
+      await allocateQuota(memberId, newQuotaBytes);
       const targetMember = members.find((m) => m.id === memberId);
+      const displayStr = formatQuotaAuto(newQuotaBytes);
       showNotification(
         'success',
-        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${newQuotaGB} GB.`
+        `Đã cập nhật hạn mức cho ${targetMember?.name || 'thành viên'} lên ${displayStr}.`
       );
     } catch (err: any) {
       const msg =
@@ -191,13 +203,12 @@ const DepartmentAdminPortalContent: React.FC = () => {
       {/* Toast alert notice */}
       {notification && (
         <div
-          className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in zoom-in-95 ${
-            notification.type === 'success'
+          className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in zoom-in-95 ${notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : notification.type === 'error'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200'
-          }`}
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200'
+            }`}
         >
           <span>{notification.message}</span>
           <button
@@ -206,6 +217,30 @@ const DepartmentAdminPortalContent: React.FC = () => {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Top Banner & Tabs Navigation (Khi đã vào chức năng con) */}
+      {activeTab !== 'hub' && (
+        <div className="space-y-3 mb-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => handleNavigateTab('hub')}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Trung tâm điều khiển phòng ban</span>
+            </button>
+          </div>
+
+          <DepartmentBanner
+            department={departmentInfo}
+            membersCount={members.length}
+            onOpenAddMember={() => setIsAddMemberOpen(true)}
+            onNavigateToHub={() => handleNavigateTab('hub')}
+          />
+
+          <DepartmentTabs activeTab={activeTab} onTabChange={handleNavigateTab} />
         </div>
       )}
 
@@ -238,6 +273,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
               else setActiveNav('dashboard');
             }}
             onNavigateToReport={() => handleNavigateTab('report')}
+            searchFilter={searchQuery}
+            onSearchChange={setSearchQuery}
           />
         )}
 
@@ -248,7 +285,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
             department={departmentInfo}
             onEditQuota={(m) => setSelectedMemberForQuota(m)}
             onAddMember={() => setIsAddMemberOpen(true)}
-            onToggleStatus={() => {}}
+            onToggleStatus={() => { }}
+            onOffboardMember={(m) => setSelectedMemberForOffboard(m)}
             searchFilter={searchQuery}
             onSearchChange={setSearchQuery}
             onBackToHub={() => handleNavigateTab('hub')}
@@ -284,6 +322,11 @@ const DepartmentAdminPortalContent: React.FC = () => {
             onShowToast={showNotification}
           />
         )}
+
+        {/* 7. CHỨC NĂNG 6: KHO CHUNG PHÒNG BAN */}
+        {activeTab === 'shared-store' && (
+          <SharedStoreView />
+        )}
       </div>
 
       {/* Modals */}
@@ -302,6 +345,23 @@ const DepartmentAdminPortalContent: React.FC = () => {
         deptAvailableGB={availableDeptGB}
         onClose={() => setSelectedMemberForQuota(null)}
         onSave={handleSaveMemberQuota}
+      />
+
+      <OffboardEmployeeModal
+        isOpen={!!selectedMemberForOffboard}
+        onClose={() => setSelectedMemberForOffboard(null)}
+        employee={selectedMemberForOffboard}
+        department={departmentInfo}
+        departmentMembers={members}
+        custodianUserId={user?.id || ''}
+        onSuccess={async (result) => {
+          const empName = selectedMemberForOffboard?.name || 'nhân viên';
+          await refreshData();
+          showNotification(
+            'success',
+            `Đã vô hiệu hóa và bàn giao thành công tài sản số của ${empName} vào Thư mục Bàn giao (${result.handoverFolderName}) tại Kho chung phòng ban.`
+          );
+        }}
       />
     </div>
   );

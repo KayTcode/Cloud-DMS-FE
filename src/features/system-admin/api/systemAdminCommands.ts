@@ -1,9 +1,8 @@
 import axiosClient from '@/api/axiosClient';
-import { 
+import { API_ENDPOINTS } from '@/api/endpoints';
+import {
   CreateAdminUserPayload, 
   UpdateAdminUserPayload, 
-  AssignUserRolesPayload, 
-  ResetPasswordPayload, 
   ChangeUserStatusPayload, 
   AdminUserDto,
   CreateSystemTenantPayload, 
@@ -59,30 +58,6 @@ export const updateAdminUserApi = async (
   if (response?.value) return response.value;
   if (response?.data) return response.data;
   return response;
-};
-
-/**
- * 3. Assign or update user roles and organizational scope (PUT /api/admin/users/{id}/roles)
- */
-export const assignUserRolesApi = async (
-  id: string,
-  payload: AssignUserRolesPayload
-): Promise<AdminUserDto> => {
-  const response: any = await axiosClient.put(`/admin/users/${id}/roles`, payload);
-  if (response?.value) return response.value;
-  if (response?.data) return response.data;
-  return response;
-};
-
-/**
- * 4. Reset user password (POST /api/admin/users/{id}/reset-password)
- */
-export const resetUserPasswordApi = async (
-  id: string,
-  payload: ResetPasswordPayload
-): Promise<boolean> => {
-  await axiosClient.post(`/admin/users/${id}/reset-password`, payload);
-  return true;
 };
 
 /**
@@ -261,3 +236,63 @@ export const exchangeOneDriveCodeApi = async (payload: {
   return response?.value || response?.data || response;
 };
 
+
+/**
+ * Thêm phân bổ quota cho tenant từ một nhà cung cấp lưu trữ cụ thể
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/quota-allocations
+ */
+export const addTenantQuotaApi = (tenantId: string, payload: import('../types').AllocateTenantQuotaAddPayload) =>
+  axiosClient.post(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.GRANT(tenantId), payload);
+
+/**
+ * Giảm quota đã phân bổ cho tenant
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/quota/reduce
+ */
+export const reduceTenantQuotaApi = (tenantId: string, payload: import('../types').ReduceTenantQuotaPayload) =>
+  axiosClient.post(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.REDUCE(tenantId), payload);
+
+/**
+ * 12. Vô hiệu hóa Quản trị viên Doanh nghiệp (TenantAdmin) và chuyển giao quyền lực
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/offboard-admin
+ */
+export const offboardTenantAdminApi = async (
+  tenantId: string,
+  payload: import('../types').OffboardTenantAdminPayload
+): Promise<import('../types').OffboardTenantAdminResult> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/offboard-admin`, payload);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 13. Mời Quản trị viên mới cho Doanh nghiệp khuyết Admin
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/assign-admin
+ */
+export const assignVacantTenantAdminApi = async (
+  tenantId: string,
+  payload: import('../types').AssignTenantAdminPayload
+): Promise<import('../types').AssignTenantAdminResultDto> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/assign-admin`, payload);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 14. Gửi lại lời mời Quản trị viên Doanh nghiệp
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/resend-admin-invitation
+ */
+export const resendVacantTenantAdminInvitationApi = async (
+  tenantId: string
+): Promise<import('../types').ResendTenantAdminInvitationResultDto> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/resend-admin-invitation`);
+  return response?.value || response?.data || response;
+};
+
+/**
+ * 15. Hủy lời mời Quản trị viên Doanh nghiệp kèm Smart Cleanup
+ * Backend Endpoint: POST /api/admin/tenants/{tenantId}/cancel-admin-invitation
+ */
+export const cancelVacantTenantAdminInvitationApi = async (
+  tenantId: string
+): Promise<import('../types').CancelTenantAdminInvitationResultDto> => {
+  const response: any = await axiosClient.post(`/admin/tenants/${tenantId}/cancel-admin-invitation`);
+  return response?.value || response?.data || response;
+};

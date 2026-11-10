@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Building2, Mail, User, ShieldCheck, HardDrive, Database, Sparkles } from 'lucide-react';
 import { CreateAdminUserPayload, StorageProviderItem } from '../types';
+import { QuotaUnitInput } from '@/components/common';
+import { QuotaUnit, unitToBytes, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
 
 interface CreateTenantModalProps {
   isOpen: boolean;
@@ -21,7 +23,8 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-  const [quotaGB, setQuotaGB] = useState<number>(50);
+  const [quotaValue, setQuotaValue] = useState<number>(50);
+  const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const resetForm = () => {
@@ -31,7 +34,8 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
     setEmail('');
     setPhoneNumber('');
     setSelectedProviderId('');
-    setQuotaGB(50);
+    setQuotaValue(50);
+    setQuotaUnit('GB');
   };
 
   if (!isOpen) return null;
@@ -42,6 +46,7 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const quotaBytes = selectedProviderId && quotaValue > 0 ? unitToBytes(quotaValue, quotaUnit) : undefined;
       const payload: CreateAdminUserPayload = {
         tenantName: tenantName.trim(),
         email: email.trim(),
@@ -49,7 +54,7 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
         lastName: lastName.trim(),
         phoneNumber: phoneNumber.trim() || undefined,
         storageProviderId: selectedProviderId ? selectedProviderId : undefined,
-        storageQuotaBytes: selectedProviderId && quotaGB > 0 ? quotaGB * 1024 * 1024 * 1024 : undefined,
+        storageQuotaBytes: quotaBytes,
       };
 
       await onCreate(payload);
@@ -140,20 +145,17 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Hạn mức Quota (GB)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    disabled={!selectedProviderId}
-                    value={quotaGB}
-                    onChange={(e) => setQuotaGB(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 disabled:bg-slate-100 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                  <span className="absolute right-3 top-1.5 text-xs text-slate-400">GB</span>
-                </div>
+                <QuotaUnitInput
+                  value={quotaValue}
+                  unit={quotaUnit}
+                  onChange={(val, u) => {
+                    setQuotaValue(val);
+                    setQuotaUnit(u);
+                  }}
+                  disabled={!selectedProviderId}
+                  label="Hạn mức Quota"
+                  placeholder="50"
+                />
               </div>
             </div>
 
@@ -164,7 +166,7 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
             ) : (
               <p className="text-[11px] text-emerald-600 flex items-center gap-1 font-medium">
                 <Sparkles className="w-3 h-3" />
-                Sẽ cấp phát ngay {quotaGB} GB từ kho lưu trữ đã chọn cho Tenant này.
+                Sẽ cấp phát ngay {quotaValue} {quotaUnit} từ kho lưu trữ đã chọn cho Tenant này.
               </p>
             )}
           </div>
@@ -266,14 +268,14 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors cursor-pointer disabled:opacity-50"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-xs hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer disabled:opacity-50"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Đang tạo & Gửi email...' : 'Khởi tạo Tenant & Gửi thư mời'}</span>

@@ -1,164 +1,120 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthUser, LoginPayload, UserRole } from '@/types/auth.types';
-import { loginApi } from '@/features/auth/api/authApi';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { AuthUser, LoginPayload } from '@/types/auth.types';
+import { getAuthClient } from '@/api/authClient';
+import { setSessionExpiredHandler } from '@/api/axiosClient';
+import { getMeApi } from '@/features/auth/api/authApi';
+import { mapMe } from '@/features/auth/mapMe';
 
 interface AuthContextType {
   user: AuthUser | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (payload: LoginPayload) => Promise<AuthUser>;
-  setSession: (response: any) => AuthUser;
+  completeExternalLogin: () => Promise<AuthUser | null>;
   updateUser: (partial: Partial<AuthUser>) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-const USER_KEY = 'auth_user';
-
-const extractDepartmentIdFromToken = (jwtToken: string | null): string | null => {
-  if (!jwtToken) return null;
-  try {
-    const parts = jwtToken.split('.');
-    if (parts.length === 3) {
-      const base64Url = parts[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const parsed = JSON.parse(jsonPayload);
-      return parsed.departmentId || parsed.DepartmentId || null;
-    }
-  } catch {
-    // ignore decode error
-  }
-  return null;
-};
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const savedUser = localStorage.getItem(USER_KEY);
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser) as AuthUser;
-        if (!parsed.departmentId && savedToken) {
-          const deptFromToken = extractDepartmentIdFromToken(savedToken);
-          if (deptFromToken) {
-            parsed.departmentId = deptFromToken;
-            localStorage.setItem(USER_KEY, JSON.stringify(parsed));
-          }
-        }
-        return parsed;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // If token exists but user doesn't or vice versa, sync or clean up
-    if (!token) {
-      setUser(null);
-      localStorage.removeItem(USER_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-    }
-  }, [token]);
+    // Xoá các key localStorage cũ từ phiên bản trước
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('auth_user');
 
-  const login = async (payload: LoginPayload): Promise<AuthUser> => {
-    setIsLoading(true);
-    try {
-      const response = await loginApi(payload);
-      
-      const tokenDeptId = response.accessToken ? extractDepartmentIdFromToken(response.accessToken) : null;
-      const resolvedDeptId = response.departmentId || (response as any).DepartmentId || tokenDeptId || null;
+    const authClient = getAuthClient();
 
-      const authUser: AuthUser = {
-        id: response.userId,
-        email: response.email,
-        fullName: response.fullName || response.email,
-        role: (response.role as UserRole) || 'Employee',
-        tenantId: response.tenantId,
-        departmentId: resolvedDeptId,
-        permissions: response.permissions || [],
-      };
+    // Đăng ký xử lý hết phiên
+    setSessionExpiredHandler(() => setUser(null));
 
-      setToken(response.accessToken);
-      setUser(authUser);
-
-      localStorage.setItem(TOKEN_KEY, response.accessToken);
-      if (response.refreshToken) {
-        localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
+    // Lắng nghe sự kiện từ tab khác
+    const unsubscribe = authClient.onSessionEvent(async (type) => {
+      if (type === 'logout') {
+        setUser(null);
+      } else if (type === 'login') {
+        // Tab khác đăng nhập → lấy hồ sơ mới
+        try {
+          const me = await getMeApi();
+          setUser(mapMe(me));
+        } catch {
+          // Bỏ qua lỗi
+        }
       }
-      localStorage.setItem(USER_KEY, JSON.stringify(authUser));
+    });
 
-      return authUser;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const setSession = (response: any): AuthUser => {
-    const tokenDeptId = response.accessToken ? extractDepartmentIdFromToken(response.accessToken) : null;
-    const resolvedDeptId = response.departmentId || response.DepartmentId || tokenDeptId || null;
-
-    const authUser: AuthUser = {
-      id: response.userId,
-      email: response.email,
-      fullName: response.fullName || response.email,
-      role: (response.role as UserRole) || 'TenantAdmin',
-      tenantId: response.tenantId,
-      departmentId: resolvedDeptId,
-      permissions: response.permissions || [],
+    // Bootstrap: kiểm tra cookie phiên hiện tại
+    const init = async () => {
+      try {
+        const hasSession = await authClient.bootstrap();
+        if (hasSession) {
+          const me = await getMeApi();
+          setUser(mapMe(me));
+        }
+      } catch {
+        // Không có phiên hợp lệ
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    setToken(response.accessToken);
+    init();
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const login = useCallback(async (payload: LoginPayload): Promise<AuthUser> => {
+    const authClient = getAuthClient();
+    await authClient.login(payload.email, payload.password);
+    const me = await getMeApi();
+    const authUser = mapMe(me);
     setUser(authUser);
-
-    localStorage.setItem(TOKEN_KEY, response.accessToken);
-    if (response.refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
-    }
-    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
-
     return authUser;
-  };
+  }, []);
 
-  const updateUser = (partial: Partial<AuthUser>) => {
+  const completeExternalLogin = useCallback(async (): Promise<AuthUser | null> => {
+    const authClient = getAuthClient();
+    // Nếu chưa có token, thử bootstrap
+    if (!authClient.accessToken()) {
+      const ok = await authClient.bootstrap();
+      if (!ok) return null;
+    }
+    try {
+      const me = await getMeApi();
+      const authUser = mapMe(me);
+      setUser(authUser);
+      return authUser;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const updateUser = useCallback((partial: Partial<AuthUser>) => {
     setUser((prev) => {
       if (!prev) return null;
-      const updated = { ...prev, ...partial };
-      localStorage.setItem(USER_KEY, JSON.stringify(updated));
-      return updated;
+      return { ...prev, ...partial };
     });
-  };
+  }, []);
 
-  const logout = () => {
-    setToken(null);
+  const logout = useCallback(async () => {
+    await getAuthClient().logout();
     setUser(null);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
-        isAuthenticated: !!token && !!user,
+        isAuthenticated: user !== null,
         isLoading,
         login,
-        setSession,
+        completeExternalLogin,
         updateUser,
         logout,
       }}
@@ -171,7 +127,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth phải được dùng bên trong AuthProvider');
   }
   return context;
 };

@@ -1,8 +1,12 @@
+import { driveApi } from '@/features/user/api/driveApi';
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
+import { LARGE_FILE_THRESHOLD_BYTES } from '@/services/upload/large/uploadRouting';
 
 export interface FileItemDto {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
   id: string;
   tenantId: string;
   ownerId: string;
@@ -20,6 +24,7 @@ export interface FileItemDto {
   createdAt: string;
   departmentId?: string | null;
   departmentName?: string | null;
+  expiresAt?: string | null;
 }
 
 export interface FolderItemDto {
@@ -50,6 +55,9 @@ export interface TenantStorageSummaryDto {
   pageNumber?: number;
   pageSize?: number;
   hasMore?: boolean;
+  sharedFolderName?: string;
+  personalFolderName?: string;
+  currentUserId?: string;
 }
 
 export interface FileUploadFailureDto {
@@ -65,6 +73,33 @@ export interface MultipleFileUploadResultDto {
   totalFiles: number;
 }
 
+export interface ExpiringFileItemDto {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
+  id: string;
+  name: string;
+  sizeBytes: number;
+  formattedSize: string;
+  contentType: string;
+  createdAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+  ownerId: string;
+  ownerName: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
+}
+
+export interface ExpiringFilesSummaryDto {
+  totalCount: number;
+  totalSizeBytes: number;
+  formattedTotalSize: string;
+  items: ExpiringFileItemDto[];
+  pageNumber: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
 export async function uploadTenantFilesApi(
   files: FileList | File[],
   _tenantId?: string,
@@ -72,11 +107,20 @@ export async function uploadTenantFilesApi(
   _storageProviderId?: string,
   _userId?: string
 ): Promise<MultipleFileUploadResultDto> {
+  const selection = Array.from(files);
+  const oversized = selection.find((file) => file.size > LARGE_FILE_THRESHOLD_BYTES);
+  if (oversized) {
+    throw new Error(
+      `Tệp "${oversized.name}" vượt ngưỡng ${LARGE_FILE_THRESHOLD_BYTES} byte, vui lòng dùng luồng tải file lớn (uploadSelection) thay vì gọi uploadTenantFilesApi trực tiếp.`
+    );
+  }
+  if (selection.length > 1 || selection.some((file) => !!file.webkitRelativePath))
+    return driveApi.uploadFiles(selection, folderId);
   const formData = new FormData();
   Array.from(files).forEach((f) => formData.append('files', f));
   if (folderId) formData.append('folderId', folderId);
 
-  const response = await apiClient.post<any, any>(API_ENDPOINTS.FILES.UPLOAD, formData);
+  const response = await apiClient.post<any, any>(API_ENDPOINTS.FILES.UPLOAD, formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 });
 
   const data = response?.value || response?.data || response;
   if (data?.uploaded) return data;
@@ -95,46 +139,14 @@ export async function uploadDirectTenantFilesApi(
   _userId?: string,
   onProgress?: (fileName: string, progress: DirectUploadProgress) => void
 ): Promise<MultipleFileUploadResultDto> {
-  const fileArray = Array.from(files);
-  const uploaded: FileItemDto[] = [];
-  const failed: FileUploadFailureDto[] = [];
-
-  for (const file of fileArray) {
-    try {
-      const result = await CloudDirectUploader.upload({
-        file,
-        folderId: folderId || null,
-        onProgress: (p) => onProgress?.(file.name, p),
-      });
-
-      uploaded.push({
-        id: result.fileId,
-        tenantId: tenantId || '',
-        ownerId: '',
-        ownerName: 'Tôi',
-        folderId: folderId || null,
-        name: file.name,
-        storageKey: result.fileId,
-        contentType: file.type || 'application/octet-stream',
-        sizeBytes: file.size,
-        scanStatus: 'Pending',
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err: any) {
-      failed.push({
-        fileName: file.name,
-        fileSize: file.size,
-        error: err?.message || 'Tải trực tiếp lên Cloud thất bại',
-      });
-    }
+  const selection = Array.from(files);
+  const oversized = selection.find((file) => file.size > LARGE_FILE_THRESHOLD_BYTES);
+  if (oversized) {
+    throw new Error(
+      `Tệp "${oversized.name}" vượt ngưỡng ${LARGE_FILE_THRESHOLD_BYTES} byte, vui lòng dùng luồng tải file lớn (uploadSelection) thay vì gọi uploadDirectTenantFilesApi trực tiếp.`
+    );
   }
-
-  return {
-    uploaded,
-    failed,
-    allSucceeded: failed.length === 0,
-    totalFiles: fileArray.length,
-  };
+  return driveApi.uploadDirectFiles(files, folderId, onProgress);
 }
 
 export interface GetTenantFilesParams {
@@ -220,20 +232,13 @@ export async function getDepartmentFilesApi(
   return response?.data || response;
 }
 
-export async function downloadTenantFileApi(fileId: string, fileName: string): Promise<void> {
-  const response = await apiClient.get(API_ENDPOINTS.FILES.DOWNLOAD(fileId), {
-    responseType: 'blob',
-  });
-
-  const blob = new Blob([response as any]);
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', fileName);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
+export async function downloadTenantFileApi(
+  fileId: string,
+  fileName: string,
+  archiveKind?: string | null,
+  confirmUnscanned?: () => Promise<boolean>
+): Promise<void> {
+  return driveApi.downloadFile(fileId, fileName, archiveKind, confirmUnscanned);
 }
 
 export async function deleteTenantFileApi(fileId: string): Promise<boolean> {
@@ -244,4 +249,53 @@ export async function deleteTenantFileApi(fileId: string): Promise<boolean> {
     headers: { 'Idempotency-Key': key },
   });
   return response?.value ?? true;
+}
+
+/**
+ * Xóa vĩnh viễn tệp tin (Hard Delete) để giải phóng ngay lập tức Quota lưu trữ
+ * Khớp BE: DELETE /api/files/{id}/permanent
+ */
+export async function permanentDeleteFileApi(fileId: string): Promise<boolean> {
+  const key = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const response = await apiClient.delete<any, any>(API_ENDPOINTS.FILES.PERMANENT_DELETE(fileId), {
+    headers: { 'Idempotency-Key': key },
+  });
+  return response?.value ?? true;
+}
+
+/**
+ * Lấy danh sách tệp tin sắp hết hạn lưu trữ của toàn Tenant (dành cho TenantAdmin)
+ * Khớp BE: GET /api/files/expiring
+ */
+export async function getExpiringFilesApi(
+  days: number = 7,
+  pageNumber: number = 1,
+  pageSize: number = 20,
+  departmentId?: string
+): Promise<ExpiringFilesSummaryDto> {
+  const params: any = { days, pageNumber, pageSize };
+  if (departmentId && departmentId !== 'all') {
+    params.departmentId = departmentId;
+  }
+  const response = await apiClient.get<any, any>(API_ENDPOINTS.FILES.EXPIRING, {
+    params,
+  });
+  return response?.value ?? response?.data ?? response;
+}
+
+/**
+ * Lấy danh sách tệp tin sắp hết hạn lưu trữ của chính User hiện tại
+ * Khớp BE: GET /api/files/my-expiring
+ */
+export async function getMyExpiringFilesApi(
+  days: number = 7,
+  pageNumber: number = 1,
+  pageSize: number = 20
+): Promise<ExpiringFilesSummaryDto> {
+  const response = await apiClient.get<any, any>(API_ENDPOINTS.FILES.MY_EXPIRING, {
+    params: { days, pageNumber, pageSize },
+  });
+  return response?.value ?? response?.data ?? response;
 }

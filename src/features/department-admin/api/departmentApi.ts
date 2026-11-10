@@ -11,6 +11,8 @@ import {
   DepartmentDto,
   DepartmentSetupInfoDto,
   DepartmentAuditLogDto,
+  OffboardEmployeePayload,
+  OffboardEmployeeResultDto,
 } from '../types';
 
 export const departmentApi = {
@@ -96,6 +98,21 @@ export const departmentApi = {
   },
 
   /**
+   * Vô hiệu hóa tài khoản Nhân viên và Bàn giao Tài sản số về Kho chung phòng ban (Phương án A: Read-Only Snapshot)
+   * Khớp BE: POST /api/department/{departmentId}/employees/offboard
+   */
+  offboardEmployee: async (
+    departmentId: string,
+    payload: OffboardEmployeePayload
+  ): Promise<OffboardEmployeeResultDto> => {
+    const res: any = await apiClient.post(
+      API_ENDPOINTS.DEPARTMENT.EMPLOYEES_OFFBOARD(departmentId),
+      payload
+    );
+    return res?.value ?? res?.data ?? res;
+  },
+
+  /**
    * Lấy thông tin ví Quota ban đầu của Trưởng phòng trước khi khởi tạo phòng ban
    * Khớp BE: GET /api/department/setup-info
    */
@@ -112,4 +129,37 @@ export const departmentApi = {
     const res: any = await apiClient.post(API_ENDPOINTS.DEPARTMENT.SETUP, payload);
     return res?.value ?? res?.data ?? res;
   },
+
+  /**
+   * Trưởng phòng cập nhật thời hạn lưu trữ tệp tin mặc định cho phòng ban của mình
+   * Khớp BE: PUT /api/department/retention-policy
+   */
+  setRetentionPolicy: async (retentionDays: number): Promise<string> => {
+    const res: any = await apiClient.put(API_ENDPOINTS.DEPARTMENT.RETENTION_POLICY, { retentionDays });
+    return res?.value ?? res?.data ?? res;
+  },
 };
+
+// GET /department/{deptId}/quota/breakdown
+export interface DepartmentQuotaBreakdownDto {
+  totalBytes: number;
+  leadBytes: number;
+  employeesBytes: number;
+  sharedBytes: number;
+  freeBytes: number;
+}
+export const getQuotaBreakdown = (deptId: string): Promise<DepartmentQuotaBreakdownDto> =>
+  apiClient.get(API_ENDPOINTS.DEPARTMENT.QUOTA_BREAKDOWN(deptId))
+    .then((r: any) => r?.value ?? r?.data ?? r);
+
+// GET /department/{deptId}/quota/shared
+export const getSharedStoreQuotaApi = (deptId: string): Promise<{
+  quotaBytes: number;
+  usedBytes: number;
+  uploadableBytes?: number;
+}> =>
+  apiClient.get(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId));
+
+// PUT /department/{deptId}/quota/shared
+export const setSharedStoreQuotaApi = (deptId: string, quotaBytes: number): Promise<void> =>
+  apiClient.put(API_ENDPOINTS.DEPARTMENT.SHARED_QUOTA(deptId), { quotaBytes });

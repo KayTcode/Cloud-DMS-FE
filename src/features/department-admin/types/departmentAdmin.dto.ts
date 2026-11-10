@@ -13,8 +13,8 @@ export interface UserStorageQuotaDto {
   fileCount?: number;
   availableBytes: number;
   usagePercentage: number;
+  isActive?: boolean;
 }
-
 
 export interface DepartmentUsersQuotaSummaryDto {
   departmentId: string;
@@ -45,8 +45,13 @@ export interface SetupDepartmentPayload {
   name: string;
   code: string;
   description?: string;
+  retentionDays: number;
   adminPersonalQuotaGB?: number;
   adminPersonalQuotaBytes?: number;
+}
+
+export interface SetDepartmentRetentionPolicyPayload {
+  retentionDays: number;
 }
 
 export interface DepartmentSetupInfoDto {
@@ -66,6 +71,7 @@ export interface DepartmentDto {
   description?: string;
   storageQuotaBytes: number;
   storageUsedBytes: number;
+  retentionDays?: number;
   isActive: boolean;
   departmentAdminName?: string;
   departmentAdminEmail?: string;
@@ -84,6 +90,7 @@ export interface DepartmentEmployeeDto {
   roles: string[];
   departmentId?: string;
   createdAt: string;
+  storageQuotaBytes?: number;
 }
 
 export interface PaginatedResult<T> {
@@ -108,3 +115,32 @@ export interface DepartmentAuditLogDto {
   tenantName?: string;
 }
 
+export type EmployeeHandoverScenario =
+  | 'DESIGNATED_PEER'
+  | 'DEPARTMENT_HEAD_CUSTODY'
+  | 'INVITE_NEW_EMPLOYEE';
+
+export interface OffboardEmployeePayload {
+  employeeId: string;
+  targetUserId?: string | null;
+  newEmployeeEmail?: string | null;
+  newEmployeeFirstName?: string | null;
+  newEmployeeLastName?: string | null;
+  newEmployeePhoneNumber?: string | null;
+  handoverReason?: string | null;
+}
+
+export interface OffboardEmployeeResultDto {
+  offboardedUserId: string;
+  handoverFolderId: string;
+  targetUserName: string;
+  offboardedAt: string;
+  abortedUploadSessionsCount: number;
+  transferredFilesCount: number;
+  transferredFoldersCount: number;
+  reclaimedQuotaBytes: number;
+  handoverFolderName: string;
+  scenario: 1 | 2 | 3 | 'DesignatedColleague' | 'DepartmentAdminCustody' | 'InviteNewEmployee';
+  targetUserId: string;
+  transferredBytes: number;
+}

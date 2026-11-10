@@ -1,46 +1,45 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
-import { 
-  SystemTenant, 
-  SystemActivityItem, 
-  StorageProviderItem, 
-  AuditLogEntry, 
+import {
+  SystemTenant,
+  SystemActivityItem,
+  StorageProviderItem,
+  AuditLogEntry,
   PlanType,
   AdminUserDto,
   CreateAdminUserPayload,
   UpdateAdminUserPayload
 } from './types';
-import { 
+import {
   getAdminUsersApi,
-  getSystemTenantsApi, 
-  getSystemActivitiesApi, 
-  getStorageProvidersApi, 
-  getAuditLogsApi 
+  getSystemTenantsApi,
+  getSystemActivitiesApi,
+  getStorageProvidersApi,
+  getAuditLogsApi
 } from './api/systemAdminQueries';
-import { 
+import {
   createAdminUserApi,
   updateAdminUserApi,
-  resetUserPasswordApi,
   changeUserStatusApi,
   deleteAdminUserApi,
-  createSystemTenantApi, 
-  toggleTenantStatusApi, 
-  changeTenantPlanApi, 
-  deleteSystemTenantApi 
+  createSystemTenantApi,
+  toggleTenantStatusApi,
+  changeTenantPlanApi,
+  deleteSystemTenantApi
 } from './api/systemAdminCommands';
-import { 
-  DashboardView, 
-  TenantManagementView, 
-  StorageProvidersView, 
-  AuditLogsView, 
+import {
+  DashboardView,
+  TenantManagementView,
+  StorageProvidersView,
+  AuditLogsView,
   SettingsView,
-  AdminHubView 
+  AdminHubView,
+  QuotaRequestsView
 } from './views';
-import { 
-  CreateTenantModal, 
+import {
+  CreateTenantModal,
   TenantDetailsModal,
   EditUserModal,
-  ResetPasswordModal,
   AllocateQuotaModal
 } from './components';
 import { TenantPortal } from '@/features/tenants/TenantPortal';
@@ -89,9 +88,9 @@ export const SystemAdminPortal: React.FC = () => {
   // State quản lý Trạng thái bật/tắt của các Dialog / Pop-up (Modals)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserDto | null>(null);
-  const [resettingUser, setResettingUser] = useState<AdminUserDto | null>(null);
   const [selectedQuickTenant, setSelectedQuickTenant] = useState<SystemTenant | null>(null);
   const [deepDetailTenantId, setDeepDetailTenantId] = useState<string | null>(null);
+  const [deepPortalTab, setDeepPortalTab] = useState<string | undefined>(undefined);
   const [quotaUser, setQuotaUser] = useState<AdminUserDto | null>(null);
 
   // ---------------------------------------------------------------------------------------
@@ -182,7 +181,7 @@ export const SystemAdminPortal: React.FC = () => {
   // Trigger 4: Chỉ khi bấm vào Tab 'audit-logs' thì mới fetch lịch sử kiểm toán hệ thống
   useEffect(() => {
     if (activeNav === 'audit-logs') {
-      getAuditLogsApi().then(setAuditLogs).catch(() => {});
+      getAuditLogsApi().then(setAuditLogs).catch(() => { });
     }
   }, [activeNav]);
 
@@ -203,7 +202,7 @@ export const SystemAdminPortal: React.FC = () => {
     try {
       const newUser = await createAdminUserApi(payload);
       addToast('success', `Đã tạo thành công tài khoản cho ${newUser.fullName} (${newUser.email})!`);
-      
+
       // Ghi log hoạt động phía client để hiển thị tức thời (Optimistic UI Update)
       const newActivity: SystemActivityItem = {
         id: `act-${Date.now()}`,
@@ -235,15 +234,7 @@ export const SystemAdminPortal: React.FC = () => {
     }
   };
 
-  // [POST API] Đặt lại mật khẩu người dùng -> POST /api/admin/users/{id}/reset-password
-  const handleResetPassword = async (id: string, newPassword: string) => {
-    try {
-      await resetUserPasswordApi(id, { newPassword });
-      addToast('success', 'Đã đặt lại mật khẩu thành công!');
-    } catch (err: any) {
-      addToast('error', err.message || 'Lỗi khi đặt lại mật khẩu.');
-    }
-  };
+
 
   // [PATCH/POST API] Khóa / Mở khóa tài khoản người dùng -> POST /api/admin/users/{id}/status
   const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
@@ -278,8 +269,24 @@ export const SystemAdminPortal: React.FC = () => {
   };
 
   // Mở màn hình quản trị sâu (Deep Portal) của một Tenant cụ thể
-  const handleOpenDeepPortal = (user: AdminUserDto | SystemTenant) => {
-    setDeepDetailTenantId(user.id);
+  const handleOpenDeepPortal = (userOrTenant: AdminUserDto | SystemTenant, targetTab?: string) => {
+    let resolvedTenantId = userOrTenant.id;
+    if ('tenantId' in userOrTenant && userOrTenant.tenantId) {
+      resolvedTenantId = userOrTenant.tenantId;
+    } else {
+      const matched = tenants.find(
+        (t) =>
+          t.id === userOrTenant.id ||
+          t.vacantAdminUserId === userOrTenant.id ||
+          (t.adminEmail && (userOrTenant as any).email && t.adminEmail.toLowerCase() === (userOrTenant as any).email.toLowerCase())
+      );
+      if (matched) {
+        resolvedTenantId = matched.id;
+      }
+    }
+
+    setDeepDetailTenantId(resolvedTenantId);
+    setDeepPortalTab(targetTab || 'departments');
     setActiveNav('tenants');
   };
 
@@ -292,16 +299,17 @@ export const SystemAdminPortal: React.FC = () => {
   return (
     <div className="system-admin-portal">
       {/* --------------------------------------------------------------------------------- */}
-      {/* THANH ĐIỀU HƯỚNG QUAY LẠI HUB KHI ĐANG Ở CÁC PHÂN HỆ CHI TIẾT                     */}
+      {/* THANH ĐIỀU HƯỚNG QUAY LẠI HUB (Google Drive Breadcrumb style)                    */}
       {/* --------------------------------------------------------------------------------- */}
       {activeNav !== 'hub' && !deepDetailTenantId && (
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => setActiveNav('hub')}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full transition-all cursor-pointer shadow-2xs"
+            title="Quay về bảng chọn chức năng chính"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>← Quay lại Trung tâm điều khiển</span>
+            <span>Trung tâm điều khiển</span>
           </button>
         </div>
       )}
@@ -345,29 +353,47 @@ export const SystemAdminPortal: React.FC = () => {
           onPageChange={(page) => setCurrentPage(page)}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
           onSelectUser={(u) => {
-            // Chuyển đổi dữ liệu user sang định dạng Tenant DTO để mở Modal xem nhanh
+            // 1. Tìm Tenant thật tương ứng từ danh sách Doanh nghiệp
+            const matchedTenant = tenants.find(
+              (t) =>
+                (u.tenantId && t.id === u.tenantId) ||
+                (t.vacantAdminUserId && t.vacantAdminUserId === u.id) ||
+                (t.adminEmail && u.email && t.adminEmail.toLowerCase() === u.email.toLowerCase()) ||
+                (u.tenantName && t.name.toLowerCase() === u.tenantName.toLowerCase())
+            );
+
+            // 2. Phân giải Tenant ID thật: Không lấy u.id nếu u.tenantId rỗng do cựu admin đã bị offboard
+            const resolvedTenantId = u.tenantId || matchedTenant?.id || u.id;
+            const resolvedTenantName = matchedTenant?.name || u.tenantName || u.fullName;
+            const resolvedStatus = matchedTenant?.status || (u.isActive ? 'Active' : 'Suspended');
+            const resolvedIsInterim = matchedTenant?.isInterimManaged || (!u.tenantId && !u.isActive) || false;
+
             setSelectedQuickTenant({
-              id: u.tenantId || u.id,
-              name: u.tenantName || u.fullName,
-              plan: 'Enterprise',
-              usersAssigned: 1,
-              storageUsed: '0 B',
-              storageAllocated: '0 B',
-              storageDisplay: 'Đang tải...',
-              createdDate: u.createdAt,
-              status: u.isActive ? 'Active' : 'Suspended',
-              adminEmail: u.email,
-              region: 'Cloud Storage Pool',
-              tenantCode: u.tenantCode,
+              id: resolvedTenantId,
+              name: resolvedTenantName,
+              plan: matchedTenant?.plan || 'Enterprise',
+              usersAssigned: matchedTenant?.usersAssigned || 1,
+              storageUsed: matchedTenant?.storageUsed || '0 B',
+              storageAllocated: matchedTenant?.storageAllocated || '0 B',
+              storageDisplay: matchedTenant?.storageDisplay || 'Đang tải...',
+              createdDate: matchedTenant?.createdDate || u.createdAt,
+              status: resolvedStatus,
+              adminEmail: matchedTenant?.adminEmail || u.email,
+              adminId: u.id,
+              adminFullName: u.fullName,
+              region: matchedTenant?.region || 'Cloud Storage Pool',
+              tenantCode: matchedTenant?.tenantCode || u.tenantCode,
               phoneNumber: u.phoneNumber,
               departmentName: u.departmentName,
+              isInterimManaged: resolvedIsInterim,
+              vacantAdminUserId: matchedTenant?.vacantAdminUserId || (!u.isActive ? u.id : null),
             });
           }}
           onOpenEditModal={(u) => setEditingUser(u)}
-          onOpenResetPasswordModal={(u) => setResettingUser(u)}
           onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
           onToggleStatus={handleToggleUserStatus}
           onDeleteUser={handleDeleteUser}
+          onRefreshUsers={() => fetchUsers(currentPage, searchQuery)}
         />
       )}
 
@@ -385,7 +411,7 @@ export const SystemAdminPortal: React.FC = () => {
             <span>Quay lại danh sách tài khoản</span>
           </button>
 
-          <TenantPortal tenantId={deepDetailTenantId} />
+          <TenantPortal tenantId={deepDetailTenantId} initialTab={deepPortalTab as any} />
         </div>
       )}
 
@@ -398,6 +424,13 @@ export const SystemAdminPortal: React.FC = () => {
           onAddToast={addToast}
           onProvidersChange={refreshProviders}
         />
+      )}
+
+      {/* --------------------------------------------------------------------------------- */}
+      {/* SUB-VIEW 3b: Màn hình Phê duyệt Yêu cầu Quota của Tenant (Quota Requests)          */}
+      {/* --------------------------------------------------------------------------------- */}
+      {(activeNav === 'quota-requests' || activeNav === 'quota-approvals') && (
+        <QuotaRequestsView />
       )}
 
       {/* --------------------------------------------------------------------------------- */}
@@ -432,19 +465,17 @@ export const SystemAdminPortal: React.FC = () => {
         onUpdate={handleUpdateUser}
       />
 
-      <ResetPasswordModal
-        user={resettingUser}
-        isOpen={!!resettingUser}
-        onClose={() => setResettingUser(null)}
-        onReset={handleResetPassword}
-      />
-
       <TenantDetailsModal
         tenant={selectedQuickTenant}
         onClose={() => setSelectedQuickTenant(null)}
         onToggleStatus={(tenantId) => toggleTenantStatusApi(tenantId, selectedQuickTenant?.status || 'Active')}
         onChangePlan={(tenantId, plan) => changeTenantPlanApi(tenantId, plan)}
         onOpenPortal={handleOpenDeepPortal}
+        onQuotaUpdated={() => {
+          loadDashboardData();
+          getStorageProvidersApi().then(setProviders).catch(() => { });
+          addToast('success', 'Hạn mức Quota của Tenant đã được cập nhật!');
+        }}
       />
 
       <AllocateQuotaModal
@@ -455,7 +486,7 @@ export const SystemAdminPortal: React.FC = () => {
         onSuccess={(msg) => {
           addToast('success', msg);
           fetchUsers(currentPage, searchQuery);
-          getStorageProvidersApi().then(setProviders).catch(() => {});
+          getStorageProvidersApi().then(setProviders).catch(() => { });
         }}
       />
     </div>

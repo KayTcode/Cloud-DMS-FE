@@ -12,7 +12,10 @@ import {
   FolderTree,
   Layers,
   Trash2,
-  Share2
+  Share2,
+  ClipboardCheck,
+  FolderOpen,
+  Inbox,
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
 import { useAuth } from '@/context/AuthContext';
@@ -93,7 +96,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
         { id: 'tenants', label: 'Tenants', icon: Database },
+        { id: 'quota-requests', label: 'Duyệt Quota', icon: ClipboardCheck },
         { id: 'storage-providers', label: 'Storage Providers', icon: HardDrive },
+        { id: 'quota-approvals', label: 'Duyệt quota', icon: Inbox },
         { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
         { id: 'settings', label: 'Settings', icon: Settings },
       ];
@@ -103,7 +108,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tenant Overview', icon: LayoutGrid },
-        { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'tenants', label: 'Phòng ban & Nhân viên', icon: Building2 },
         { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },
         { id: 'settings', label: 'Cài đặt Tenant', icon: Settings },
@@ -114,6 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { id: 'hub', label: 'Trung tâm điều khiển', icon: Layers },
         { id: 'dashboard', label: 'Tài liệu & Upload', icon: FolderTree },
+        { id: 'shared-store', label: 'Kho chung', icon: FolderOpen },
         { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
         { id: 'trash', label: 'Thùng rác phòng ban', icon: Trash2 },
         { id: 'tenants', label: 'Quản lý nhân viên', icon: Users },
@@ -122,14 +127,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ];
     }
     // Menu cho Nhân viên thông thường (End User / Employee)
-    return [
+    const employeeItems: { id: NavItem; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
       { id: 'dashboard', label: 'Tài liệu & My Drive', icon: FolderTree },
+    ];
+    if (user?.departmentId) {
+      employeeItems.push({ id: 'shared-store', label: 'Kho chung', icon: FolderOpen });
+    }
+    employeeItems.push(
       { id: 'shared', label: 'Được chia sẻ', icon: Share2 },
       { id: 'trash', label: 'Thùng rác', icon: Trash2 },
       { id: 'storage-providers', label: 'Dung lượng lưu trữ', icon: HardDrive },
       { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileText },
       { id: 'settings', label: 'Hồ sơ & Cài đặt', icon: Settings },
-    ];
+    );
+    return employeeItems;
   };
 
   const navItems = getNavItems();

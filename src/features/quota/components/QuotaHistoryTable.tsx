@@ -9,7 +9,8 @@ import {
   TrendingUp,
   TrendingDown,
   Sparkles,
-  Inbox
+  Inbox,
+  RotateCcw,
 } from 'lucide-react';
 import { quotaApi } from '../api/quotaApi';
 import { QuotaHistoryDto, QuotaHistoryEventType } from '../types/quota.types';
@@ -115,9 +116,9 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
 
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap text-xs">
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-2xs">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-slate-400 text-[10px]">Từ:</span>
+            <span className="text-slate-400 text-[11px] font-medium">Từ:</span>
             <input
               type="date"
               value={fromDate}
@@ -125,13 +126,13 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
                 setFromDate(e.target.value);
                 setPage(1);
               }}
-              className="bg-transparent border-0 text-slate-700 focus:outline-none text-xs"
+              className="bg-transparent border-0 text-slate-700 focus:outline-none text-xs cursor-pointer"
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-2xs">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-slate-400 text-[10px]">Đến:</span>
+            <span className="text-slate-400 text-[11px] font-medium">Đến:</span>
             <input
               type="date"
               value={toDate}
@@ -139,17 +140,32 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
                 setToDate(e.target.value);
                 setPage(1);
               }}
-              className="bg-transparent border-0 text-slate-700 focus:outline-none text-xs"
+              className="bg-transparent border-0 text-slate-700 focus:outline-none text-xs cursor-pointer"
             />
           </div>
+
+          {(fromDate || toDate) && (
+            <button
+              onClick={() => {
+                setFromDate('');
+                setToDate('');
+                setPage(1);
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 bg-white hover:bg-rose-50 border border-slate-200 rounded-full shadow-2xs transition-all cursor-pointer"
+              title="Xóa bộ lọc ngày"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Đặt lại</span>
+            </button>
+          )}
 
           <button
             onClick={fetchHistory}
             disabled={isLoading}
-            className="p-1.5 text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+            className="p-2 text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-full shadow-2xs transition-all cursor-pointer"
             title="Tải lại"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
           </button>
         </div>
       </div>
@@ -188,8 +204,11 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
               {items.map((row) => {
                 const oldGB = parseFloat((row.oldQuotaBytes / GB_IN_BYTES).toFixed(2));
                 const newGB = parseFloat((row.newQuotaBytes / GB_IN_BYTES).toFixed(2));
-                const deltaGB = parseFloat((row.deltaBytes / GB_IN_BYTES).toFixed(2));
-                const isPositive = row.deltaBytes >= 0;
+                const rawDelta = row.deltaBytes !== undefined && !isNaN(row.deltaBytes)
+                  ? row.deltaBytes
+                  : ((row.newQuotaBytes || 0) - (row.oldQuotaBytes || 0));
+                const deltaGB = parseFloat((rawDelta / GB_IN_BYTES).toFixed(2));
+                const isPositive = rawDelta >= 0;
 
                 const formattedTime = new Date(row.occurredAt).toLocaleDateString('vi-VN', {
                   day: '2-digit',
@@ -228,10 +247,10 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
 
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span
-                        className={`font-bold inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs ${
+                        className={`font-bold inline-flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-xs ${
                           isPositive
-                            ? 'text-emerald-700 bg-emerald-50'
-                            : 'text-rose-700 bg-rose-50'
+                            ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
+                            : 'text-rose-700 bg-rose-50 border border-rose-100'
                         }`}
                       >
                         {isPositive ? `+${deltaGB}` : `${deltaGB}`} GB
@@ -260,14 +279,14 @@ export const QuotaHistoryTable: React.FC<QuotaHistoryTableProps> = ({
             <button
               disabled={!hasPrevious || isLoading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer"
+              className="p-1.5 border border-slate-200 rounded-full hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               disabled={!hasNext || isLoading}
               onClick={() => setPage((p) => p + 1)}
-              className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer"
+              className="p-1.5 border border-slate-200 rounded-full hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

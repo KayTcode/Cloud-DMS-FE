@@ -1,3 +1,5 @@
+import type { TenantQuotaAllocationItem } from '../api/tenantQueries';
+
 export type ActiveTab =
   | 'hub'
   | 'overview'
@@ -11,6 +13,17 @@ export type ActiveTab =
 export type TenantStatus = 'ACTIVE' | 'SUSPENDED' | 'PROVISIONING';
 
 export type TenantPlan = 'ENTERPRISE PLAN' | 'PRO PLAN' | 'STARTER';
+
+export interface FileCategoryBreakdown {
+  documentsBytes: number;
+  documentsCount: number;
+  mediaBytes: number;
+  mediaCount: number;
+  archivesBytes: number;
+  archivesCount: number;
+  othersBytes: number;
+  othersCount: number;
+}
 
 export interface TenantInfo {
   id: string;
@@ -29,10 +42,15 @@ export interface TenantInfo {
   storageQuotaBytes?: number;
   storageUsedBytes?: number;
   allocatedToDepartmentsBytes?: number;
+  unallocatedBytes?: number;
   availableBytes?: number;
   storageProviderId?: string;
   storageProviderName?: string;
   usagePercentage?: number;
+  totalFilesCount?: number;
+  fileCategories?: FileCategoryBreakdown;
+  allocations?: TenantQuotaAllocationItem[];
+  isInterimManaged?: boolean;
 }
 
 export interface TenantEvent {

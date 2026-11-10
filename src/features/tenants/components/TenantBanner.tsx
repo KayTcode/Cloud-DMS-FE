@@ -1,106 +1,95 @@
 import React from 'react';
+import { ShieldAlert, UserPlus, Building2 } from 'lucide-react';
 import { TenantInfo } from '@/features/tenants/types';
 
 interface TenantBannerProps {
   tenant: TenantInfo;
-  onSuspendToggle: () => void;
-  onManageSubscriptions: () => void;
+  onSuspendToggle?: () => void;
+  onManageSubscriptions?: () => void;
   onNavigateToTenants?: () => void;
+  onAssignNewAdmin?: () => void;
 }
 
 export const TenantBanner: React.FC<TenantBannerProps> = ({
   tenant,
-  onSuspendToggle,
-  onManageSubscriptions,
   onNavigateToTenants,
+  onAssignNewAdmin,
 }) => {
+  const isActive = tenant.status === 'ACTIVE';
+
   return (
-    <div>
-      {/* Breadcrumb line */}
-      <div className="flex items-center gap-2 text-xs mb-1">
-        <button
-          onClick={onNavigateToTenants}
-          className="text-blue-600 hover:text-blue-700 hover:underline font-medium cursor-pointer"
-        >
-          Tenants
-        </button>
-        <span className="text-slate-400">/</span>
-        <span className="text-slate-500 font-medium">{tenant.name}</span>
-      </div>
-
-      {/* Title & Action Buttons Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-1">
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-          {tenant.name}
-        </h2>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onSuspendToggle}
-            className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-          >
-            {tenant.status === 'ACTIVE' ? 'Suspend Tenant' : 'Activate Tenant'}
-          </button>
-
-          <button
-            onClick={onManageSubscriptions}
-            className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs cursor-pointer"
-          >
-            Manage Subscriptions
-          </button>
-        </div>
-      </div>
-
-      {/* Tenant Meta Profile Card */}
-      <div className="mt-5 p-5 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center gap-4">
-        {/* Organization Avatar Letter */}
-        <div className="w-14 h-14 rounded-xl bg-blue-50/80 text-blue-600 font-bold text-2xl flex items-center justify-center shrink-0 select-none">
-          {tenant.name.charAt(0)}
-        </div>
-
-        {/* Organization Details */}
-        <div className="min-w-0 flex-1">
-          {/* Name & Badges */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h3 className="text-base font-bold text-slate-900">
-              {tenant.name}
-            </h3>
-
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded tracking-wide border ${
-                tenant.status === 'ACTIVE'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}
-            >
-              {tenant.status}
-            </span>
-
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded tracking-wide bg-blue-50 text-blue-600 border border-blue-200">
-              {tenant.plan}
-            </span>
+    <div className="space-y-3">
+      {/* 1. COMPACT SURFACE HEADER (GOOGLE WORKSPACE STYLE) */}
+      <div className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        {/* Left: Identity & Badges */}
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 font-bold text-lg flex items-center justify-center shrink-0 border border-blue-100">
+            {tenant.name ? tenant.name.charAt(0).toUpperCase() : <Building2 className="w-5 h-5" />}
           </div>
 
-          {/* Contact, Creation Date, Tenant ID */}
-          <div className="mt-1.5 flex flex-wrap items-center gap-y-1 text-xs text-slate-500">
-            <span>
-              Contact:{' '}
-              <a
-                href={`mailto:${tenant.contactEmail}`}
-                className="text-slate-600 hover:text-blue-600 hover:underline"
+          <div className="min-w-0">
+            {/* Breadcrumb line */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
+              <button
+                onClick={onNavigateToTenants}
+                className="hover:text-blue-600 transition-colors font-medium cursor-pointer"
               >
-                {tenant.contactEmail}
-              </a>
-            </span>
-            <span className="mx-2 text-slate-300">•</span>
-            <span>Created: {tenant.createdAt}</span>
-            <span className="mx-2 text-slate-300">•</span>
-            <span>
-              ID: <span className="font-mono text-slate-600">{tenant.id}</span>
-            </span>
+                Doanh nghiệp
+              </button>
+              <span>/</span>
+              <span className="text-slate-600 font-medium truncate">{tenant.name || 'Hồ sơ'}</span>
+            </div>
+
+            {/* Title & Badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate">
+                {tenant.name}
+              </h2>
+
+              <span
+                className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                  isActive
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                    : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                }`}
+              >
+                {isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+              </span>
+
+              <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60">
+                Gói {tenant.plan || 'Doanh nghiệp'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* 2. BANNER TIẾP QUẢN LÂM THỜI (KHI KHUYẾT ADMIN) */}
+      {tenant.isInterimManaged && (
+        <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/80 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-full bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                Chế độ tiếp quản lâm thời bởi System Admin
+              </div>
+              <div className="text-xs text-amber-800/90 mt-0.5 leading-relaxed">
+                Doanh nghiệp đang khuyết Quản trị viên Tenant. Toàn bộ quyền điều phối Phòng ban và Quota đang được System Admin tiếp quản trực tiếp.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => (onAssignNewAdmin ? onAssignNewAdmin() : undefined)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-full bg-amber-600 hover:bg-amber-700 text-white transition-colors shrink-0 shadow-xs cursor-pointer self-start sm:self-auto"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Bổ nhiệm Quản trị viên mới</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

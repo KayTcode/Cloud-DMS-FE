@@ -1,5 +1,8 @@
 import apiClient from '@/api/axiosClient';
+import { API_ENDPOINTS } from '@/api/endpoints';
+import { packageForStorage, extractStorageZip } from '@/services/upload/storageZip';
 import { CloudDirectUploader, DirectUploadProgress } from '@/services/upload/CloudDirectUploader';
+import { downloadViaLink } from '@/services/download/linkDownload';
 import {
   DriveItem,
   FileType,
@@ -38,13 +41,15 @@ export const detectFileType = (fileName: string, mimeType?: string): { type: Fil
 export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem => {
   const name = dto.name || dto.fileName || 'Tệp không tên';
   const { type: fileType, ext } = detectFileType(name, dto.contentType);
-  const sizeBytes = dto.sizeBytes ?? dto.size ?? 0;
+  const sizeBytes = dto.originalSizeBytes ?? dto.sizeBytes ?? dto.size ?? 0;
 
   return {
     id: dto.id,
+    archiveKind: dto.archiveKind,
+    originalSizeBytes: dto.originalSizeBytes,
     name,
     type: 'file',
-    fileType,
+    fileType: dto.archiveKind === 'folder' || dto.archiveKind === 'batch' ? 'folder' : fileType,
     extension: ext,
     size: sizeBytes,
     sizeFormatted: formatBytes(sizeBytes),
@@ -70,22 +75,29 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     trashed: isTrash || Boolean(dto.isDeleted),
     sharedWith: dto.isShared ? ['shared'] : (dto.sharedWith || []),
     tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
+    metadata: dto.metadata || null,
     department: dto.departmentName || '',
     previewUrl: dto.previewUrl,
+    authorName: dto.authorName || undefined,
+    isSharedLink: dto.isSharedLink ?? undefined,
+    isSharedToDepartment: dto.isSharedToDepartment ?? undefined,
+    scanStatus: dto.scanStatus ?? null,
   };
 };
 
 export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
   const name = dto.name || dto.fileName || 'Tệp không tên';
   const { type: fileType, ext } = detectFileType(name, dto.contentType);
-  const sizeBytes = dto.sizeBytes ?? dto.size ?? 0;
+  const sizeBytes = dto.originalSizeBytes ?? dto.sizeBytes ?? dto.size ?? 0;
   const sharedAt = dto.sharedAt || dto.createdAt || new Date().toISOString();
 
   return {
     id: dto.id,
+    archiveKind: dto.archiveKind,
+    originalSizeBytes: dto.originalSizeBytes,
     name,
     type: 'file',
-    fileType,
+    fileType: dto.archiveKind === 'folder' || dto.archiveKind === 'batch' ? 'folder' : fileType,
     extension: ext,
     size: sizeBytes,
     sizeFormatted: formatBytes(sizeBytes),
@@ -107,6 +119,7 @@ export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
     department: dto.departmentName || undefined,
     createdAt: dto.createdAt ? new Date(dto.createdAt).toLocaleDateString('vi-VN') : '',
     scanStatus: dto.scanStatus || 'Clean',
+    metadata: dto.metadata || null,
   };
 };
 
@@ -139,63 +152,47 @@ export const driveApi = {
   },
 
   // Upload files to current directory (Traditional / Legacy Stream through Backend)
-  uploadFiles: async (files: FileList | File[], folderId?: string | null): Promise<any> => {
+  uploadFiles: async (files: FileList | File[], folderId?: string | null, directories: string[] = []): Promise<any> => {
     const formData = new FormData();
-    Array.from(files).forEach((f) => formData.append('files', f));
+    const selection = Array.from(files);
+    formData.append('transparent', 'true');
+    selection.forEach((f) => {
+      formData.append('files', f);
+      formData.append('relativePaths', f.webkitRelativePath || f.name);
+    });
+    formData.append('compression', 'fastest');
+    directories.forEach((directory) => formData.append('directories', directory));
+    const root = selection[0]?.webkitRelativePath?.split('/')[0] || directories[0]?.split('/')[0];
+    formData.append('name', root ? `${root}.zip` : `package-${Date.now()}.zip`);
     if (folderId) formData.append('folderId', folderId);
 
-    const res: any = await apiClient.post('/files/upload', formData);
-    return res?.value ?? res?.data ?? res;
+    const res: any = await apiClient.post('/files/packages', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 });
+    return { uploaded: [res?.value ?? res?.data ?? res], failed: [], allSucceeded: true };
   },
 
   // Upload files using Direct-to-Storage (Google Drive / OneDrive / S3 - New Method)
-  uploadDirectFiles: async (
-    files: FileList | File[],
-    folderId?: string | null,
-    onProgress?: (fileName: string, progress: DirectUploadProgress) => void
-  ): Promise<any> => {
-    const fileArray = Array.from(files);
-    const uploaded: any[] = [];
-    const failed: any[] = [];
-
-    for (const file of fileArray) {
-      try {
-        const result = await CloudDirectUploader.upload({
-          file,
-          folderId: folderId || null,
-          onProgress: (p) => onProgress?.(file.name, p),
-        });
-        uploaded.push({
-          id: result.fileId,
-          fileName: file.name,
-          name: file.name,
-          sizeBytes: file.size,
-          size: file.size,
-          documentVersion: result.documentVersion,
-          createdAt: new Date().toISOString(),
-        });
-      } catch (err: any) {
-        failed.push({
-          fileName: file.name,
-          fileSize: file.size,
-          error: err?.message || 'Tải trực tiếp lên Cloud thất bại',
-        });
-      }
-    }
-
-    return {
-      uploaded,
-      failed,
-      allSucceeded: failed.length === 0,
-      totalFiles: fileArray.length,
-    };
+  uploadDirectFiles: async (files: FileList | File[], folderId?: string | null,
+    onProgress?: (fileName: string, progress: DirectUploadProgress) => void): Promise<any> => {
+    const selection = Array.from(files);
+    const packaged = await packageForStorage(selection);
+    const result = await CloudDirectUploader.upload({ file: packaged.file, folderId,
+      archiveKind: packaged.archiveKind, logicalName: packaged.logicalName,
+      onProgress: progress => onProgress?.(packaged.logicalName, progress) });
+    return { uploaded: [{ id: result.fileId, name: packaged.logicalName,
+      archiveKind: packaged.archiveKind, sizeBytes: packaged.originalSize }], failed: [], allSucceeded: true };
   },
-
   // Create folder
-  createFolder: async (name: string, parentId?: string | null): Promise<DriveItem> => {
+  createFolder: async (
+    name: string,
+    parentId?: string | null,
+    drive?: string,
+    departmentId?: string
+  ): Promise<DriveItem> => {
     const res: any = await apiClient.post('/folders', {
       name,
       parentId: parentId || null,
+      drive: drive || (departmentId ? 'shared' : 'personal'),
+      departmentId: departmentId || null,
     });
     return res?.value ?? res?.data ?? res;
   },
@@ -336,12 +333,58 @@ export const driveApi = {
     }
   },
 
-  // Download file securely with Bearer token (GET /api/files/{id}/download)
-  downloadFile: async (fileId: string, fileName = 'download'): Promise<void> => {
+  // Download file securely. Files with no archive/zip-package wrapper
+  // (`archiveKind === null`) download via a direct storage-provider link
+  // (`downloadViaLink`), bypassing the old zip-package download entirely.
+  // Zip-package files (`archiveKind` is `'file' | 'folder' | 'batch'`) keep
+  // using the legacy backend-streamed download below. When `archiveKind`
+  // is unknown (`undefined`, e.g. callers that only have a DTO without the
+  // field), we optimistically try the link path first and fall back to the
+  // legacy path only if the backend tells us to (`USE_PACKAGE_DOWNLOAD`).
+  downloadFile: async (
+    fileId: string,
+    fileName = 'download',
+    archiveKind?: string | null,
+    confirmUnscanned?: () => Promise<boolean>
+  ): Promise<void> => {
+    const confirmUnscannedResolved =
+      confirmUnscanned ??
+      (async () =>
+        typeof window !== 'undefined'
+          ? window.confirm(
+              'Tệp này quá lớn để quét virus. Hệ thống đã chặn các loại tệp thực thi, nhưng không thể đảm bảo tệp an toàn. Chỉ mở nếu bạn tin người gửi.'
+            )
+          : false);
+
+    if (archiveKind === null) {
+      await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
+      return;
+    }
+
+    if (archiveKind === undefined) {
+      try {
+        await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
+        return;
+      } catch (error: any) {
+        if (error?.code !== 'USE_PACKAGE_DOWNLOAD') throw error;
+        // fall through to the legacy path below
+      }
+    }
+
+    const folderPackage = archiveKind === 'folder' || archiveKind === 'batch';
+    let destination: any = null;
+    if (folderPackage && typeof (window as any).showDirectoryPicker === 'function') {
+      try {
+        new DecompressionStream('deflate-raw' as CompressionFormat);
+        destination = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+      } catch (error: any) { if (error.name === 'AbortError') return; }
+    }
     const res: any = await apiClient.get(`/files/${fileId}/download`, {
       responseType: 'blob',
     });
     const blob = new Blob([res]);
+    if (destination) { await extractStorageZip(blob, destination); return; }
+    if (folderPackage) fileName += '.zip';
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -350,6 +393,22 @@ export const driveApi = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  getSharedChildren: async (folderId?: string, pageNumber = 1, pageSize = 20): Promise<{
+    folders: { id: string; name: string; parentId: string | null }[];
+    files: SharedFileListResponse;
+    totalFolders: number;
+  }> => {
+    const res: any = await apiClient.get('/drive/shared/children', {
+      params: { folderId, pageNumber, pageSize },
+    });
+    const data = res?.value ?? res?.data ?? res;
+    return {
+      folders: data.folders ?? [],
+      totalFolders: data.totalFolders ?? 0,
+      files: { ...data.files, items: (data.files?.items ?? []).map(mapSharedFileItemDto) },
+    };
   },
 
   // Lấy danh sách tệp tin được chia sẻ với người dùng hiện tại
@@ -395,6 +454,17 @@ export const driveApi = {
     }
   },
 
+  getArchiveTree: async (fileId: string): Promise<ArchiveMember[]> => {
+    const res: any = await apiClient.get(`/files/${fileId}/archive`);
+    return res?.value ?? res?.data ?? res;
+  },
+  downloadArchiveMember: async (fileId: string, memberId: string, name: string): Promise<void> => {
+    const blob: any = await apiClient.get(`/files/${fileId}/archive/${memberId}/download`, { responseType: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
   getFileShares: async (fileId: string): Promise<FileShareRecipient[]> => {
     const res: any = await apiClient.get(`/files/${fileId}/shares`);
     return res?.value ?? res?.data ?? res;
@@ -414,6 +484,22 @@ export const driveApi = {
   revokeShare: async (fileId: string, recipientId: string): Promise<any> => {
     const res: any = await apiClient.delete(`/files/${fileId}/share/${recipientId}`);
     return res?.value ?? res?.data ?? res;
+  },
+
+  // Rename a file (PATCH /api/files/{fileId})
+  renameFile: async (fileId: string, name: string): Promise<any> => {
+    const res: any = await apiClient.patch(`/files/${fileId}`, { name });
+    return res?.value ?? res?.data ?? res;
+  },
+
+  // Chia sẻ tệp tin lên Kho chung Phòng ban
+  shareToDepartment: async (fileId: string, targetFolderId: string | null): Promise<void> => {
+    await apiClient.post(API_ENDPOINTS.FILES.DEPARTMENT_SHARE(fileId), { targetFolderId });
+  },
+
+  // Thu hồi chia sẻ tệp tin khỏi Kho chung Phòng ban
+  unshareFromDepartment: async (fileId: string): Promise<void> => {
+    await apiClient.delete(API_ENDPOINTS.FILES.DEPARTMENT_SHARE(fileId));
   },
 
   // Backward compatibility alias for share
@@ -454,3 +540,12 @@ export const userApi = {
     return res?.value ?? res?.data ?? res;
   },
 };
+
+export interface ArchiveMember {
+  id: string;
+  path: string;
+  parentPath: string;
+  name: string;
+  isDirectory: boolean;
+  sizeBytes: number;
+}

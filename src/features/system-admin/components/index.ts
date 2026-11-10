@@ -1,6 +1,8 @@
 export * from './MetricCard';
 export * from './StorageGrowthChart';
 export * from './SystemHealthCard';
+export * from './StoragePoolDistributionCard';
+export * from './TenantCapacityAlertsCard';
 export * from './RecentTenantsCard';
 export * from './RecentActivitiesCard';
 export * from './CreateTenantModal';
@@ -9,3 +11,5 @@ export * from './EditUserModal';
 export * from './ResetPasswordModal';
 export * from './ConnectProviderModal';
 export * from './AllocateQuotaModal';
+export * from './OffboardTenantAdminModal';
+export * from './AssignTenantAdminModal';

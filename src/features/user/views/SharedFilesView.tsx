@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Share2,
+  Folder,
   Search,
   Grid,
   List,
@@ -30,6 +31,8 @@ import {
 } from 'lucide-react';
 import { SharedFileItem, FileType, DriveItem } from '../types';
 import { driveApi } from '../api/driveApi';
+import { SharedFolderBrowser } from '../components/SharedFolderBrowser';
+import { DocumentDetailsModal } from '@/features/document-submission';
 
 interface SharedFilesViewProps {
   onOpenFilePreview: (file: DriveItem) => void;
@@ -65,6 +68,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedMetadataFileId, setSelectedMetadataFileId] = useState<string | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -111,6 +115,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   const getFileIcon = (fileType?: FileType) => {
     switch (fileType) {
+      case 'folder':
+        return <Folder className="w-5 h-5 text-amber-500" />;
       case 'pdf':
         return <FileText className="w-5 h-5 text-red-500" />;
       case 'sheet':
@@ -157,7 +163,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   const toDriveItem = (item: SharedFileItem): DriveItem => {
     return {
-      id: item.id,
+      id: item.id, archiveKind: item.archiveKind, originalSizeBytes: item.originalSizeBytes,
       name: item.name,
       type: 'file',
       fileType: item.fileType,
@@ -174,6 +180,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
       sharedWith: ['me'],
       tags: [item.fileType?.toUpperCase() || 'FILE'],
       department: item.department,
+      scanStatus: (item.scanStatus as DriveItem['scanStatus']) ?? null,
     };
   };
 
@@ -185,7 +192,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/80 shadow-2xs">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
@@ -203,7 +210,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           <button
             onClick={() => fetchSharedFiles()}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-full text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="Làm mới danh sách"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -234,8 +241,13 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
         </div>
       </div>
 
+      <SharedFolderBrowser
+        onOpenFile={file => onOpenFilePreview(toDriveItem(file))}
+        onDownloadFile={file => onDownloadItem(toDriveItem(file))}
+      />
+
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
           {/* Search Input */}
           <div className="md:col-span-5 relative">
@@ -473,7 +485,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                   <button
                     onClick={() => onOpenFilePreview(toDriveItem(file))}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                    title="Xem trước tệp"
+                    title="Mở / Tải xuống tệp"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
@@ -569,7 +581,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                         <button
                           onClick={() => onOpenFilePreview(toDriveItem(file))}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="Xem trước tệp"
+                          title="Mở / Tải xuống tệp"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -622,6 +634,13 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           </div>
         </div>
       )}
+    
+      {/* Modal xem chi tiết siêu dữ liệu tài liệu được chia sẻ */}
+      <DocumentDetailsModal
+        isOpen={Boolean(selectedMetadataFileId)}
+        fileId={selectedMetadataFileId}
+        onClose={() => setSelectedMetadataFileId(null)}
+      />
     </div>
   );
 };

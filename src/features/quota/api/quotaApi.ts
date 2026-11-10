@@ -2,8 +2,10 @@ import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import {
   CreateQuotaRequestPayload,
+  DecideQuotaRequestPayload,
   GetQuotaHistoryFilter,
   PagedResult,
+  PendingQuotaRequestDto,
   QuotaFeatureMetricsDto,
   QuotaHistoryDto,
   QuotaRequestDto,
@@ -23,17 +25,15 @@ export const quotaApi = {
   },
 
   // Lấy danh sách yêu cầu đang chờ chính người dùng hiện tại duyệt (DeptAdmin / TenantAdmin)
-  getPendingForMe: async (): Promise<QuotaRequestDto[]> => {
+  getPendingForMe: async (): Promise<PendingQuotaRequestDto[]> => {
     const res: any = await apiClient.get(API_ENDPOINTS.QUOTA.PENDING_FOR_ME);
     const data = res?.value ?? res?.data ?? res;
     return Array.isArray(data) ? data : [];
   },
 
   // Duyệt đủ hoặc duyệt một phần yêu cầu
-  decideRequest: async (requestId: string, approvedAdditionalBytes: number): Promise<QuotaRequestDto> => {
-    const res: any = await apiClient.post(API_ENDPOINTS.QUOTA.DECIDE(requestId), {
-      approvedAdditionalBytes,
-    });
+  decideRequest: async (requestId: string, payload: DecideQuotaRequestPayload): Promise<QuotaRequestDto> => {
+    const res: any = await apiClient.post(API_ENDPOINTS.QUOTA.DECIDE(requestId), payload);
     return res?.value ?? res?.data ?? res;
   },
 

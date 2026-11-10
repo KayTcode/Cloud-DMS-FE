@@ -12,10 +12,46 @@ export interface SystemTenant {
   createdDate: string; // e.g. "Jan 12, 2024"
   status: TenantStatus;
   adminEmail?: string;
+  adminId?: string;
+  adminFullName?: string;
   region?: string;
   tenantCode?: string;
   phoneNumber?: string;
   departmentName?: string;
+  storageProviderName?: string;
+  storageQuotaBytes?: number;
+  actualStorageUsedBytes?: number;
+  usagePercentage?: number;
+
+  // Tiếp quản lâm thời & Khuyết Admin
+  isInterimManaged?: boolean;
+  vacantAdminUserId?: string | null;
+  interimManagedByUserId?: string | null;
+  interimStartedAt?: string | null;
+}
+
+export type TenantAdminOffboardScenario = 'InterimTakeover' | 'InviteNewTenantAdmin';
+
+export interface OffboardTenantAdminPayload {
+  tenantAdminId: string;
+  scenario: TenantAdminOffboardScenario;
+  newAdminEmail?: string;
+  newAdminFirstName?: string;
+  newAdminLastName?: string;
+  newAdminPhoneNumber?: string;
+  reassignedUserId?: string;
+  reason?: string;
+}
+
+export interface OffboardTenantAdminResult {
+  tenantId: string;
+  offboardedAdminId: string;
+  scenario: number;
+  isInterimManaged: boolean;
+  newTenantAdminId?: string | null;
+  invitationTokenExpiresAt?: string | null;
+  completedAt: string;
+  message: string;
 }
 
 /**
@@ -56,6 +92,7 @@ export interface GetUsersQueryFilter {
   tenantId?: string;
   departmentId?: string;
   isActive?: boolean;
+  migrationReadOnly?: boolean;
   pageNumber?: number;
   pageSize?: number;
 }
@@ -113,6 +150,10 @@ export interface SystemActivityItem {
 }
 
 export interface StorageProviderItem {
+  isActive?: boolean;
+  migrationReservedBytes?: number;
+  migrationRetainedBytes?: number;
+  migrationReadOnly?: boolean;
   id: string;
   name: string;
   type: string;
@@ -126,6 +167,9 @@ export interface StorageProviderItem {
   availableCapacityBytes?: number;
   allocatedToTenantsBytes?: number;
   unallocatedCapacityBytes?: number;
+  externalUsedBytes?: number;
+  systemUsedBytes?: number;
+  availableToGrantBytes?: number;
   rootFolderId?: string;
   tenantsCount?: number;
   createdAt?: string;
@@ -168,14 +212,16 @@ export interface StorageProviderAvailableQuotaResponse {
 export interface TenantStorageQuotaResponse {
   tenantId: string;
   tenantName: string;
-  tenantCode: string;
+  tenantCode?: string;
   storageProviderId?: string;
   storageProviderName?: string;
   storageProviderType?: number;
   storageQuotaBytes: number;
   storageUsedBytes: number;
-  availableBytes: number;
-  usagePercentage: number;
+  availableBytes?: number;
+  usagePercentage?: number;
+  allocatedToDepartmentsBytes?: number;
+  allocations: QuotaAllocationPartDto[];
 }
 
 export interface AllocateTenantQuotaPayload {
@@ -216,3 +262,65 @@ export interface CreateSystemTenantPayload {
   adminEmail?: string;
   region?: string;
 }
+
+export interface QuotaAllocationPartDto {
+  allocationId: string;
+  storageProviderId: string;
+  storageProviderName: string;
+  storageProviderType: number;
+  grantedBytes: number;
+  allocatedToChildrenBytes: number;
+  usedBytes: number;
+}
+
+/** @deprecated Use TenantStorageQuotaResponse */
+export type TenantQuotaAllocationListResponse = TenantStorageQuotaResponse;
+
+export interface AllocateTenantQuotaAddPayload {
+  storageProviderId: string;
+  bytes: number;
+}
+
+export interface ReduceTenantQuotaPayload {
+  bytes: number;
+}
+
+// ==========================================
+// Bổ nhiệm Quản trị viên Doanh nghiệp mới (Assign Vacant Tenant Admin)
+// ==========================================
+
+export interface AssignTenantAdminPayload {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  note?: string;
+}
+
+export interface AssignTenantAdminResultDto {
+  tenantId: string;
+  tenantName: string;
+  newAdminUserId: string;
+  newAdminEmail: string;
+  status: string;
+  invitationExpiresAt: string;
+  note?: string;
+  assignedAt: string;
+}
+
+export interface ResendTenantAdminInvitationResultDto {
+  tenantId: string;
+  targetUserEmail: string;
+  status: string;
+  newExpiresAt: string;
+  resentAt: string;
+}
+
+export interface CancelTenantAdminInvitationResultDto {
+  tenantId: string;
+  cancelledUserEmail: string;
+  status: string;
+  cancelledAt: string;
+  smartCleanupApplied: boolean;
+}
+
