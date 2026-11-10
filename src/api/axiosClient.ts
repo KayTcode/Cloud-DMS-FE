@@ -1,8 +1,10 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { ProblemDetails } from '@/types/common.types';
+import { getAuthClient } from './authClient';
+import { waitForOperation } from './pendingOperation';
 
-//Lấy URL của backend từ biến môi trường của Vite (mặc định kết nối tới ASP.NET Core port 5289)
-export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5289/api';
+// Lấy URL của backend từ biến môi trường của Vite (mặc định /api khi qua Gateway/Proxy, hoặc fallback URL cấu hình)
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 //Tạo instance của axios với base URL và headers mặc định
 export const apiClient = axios.create({
@@ -20,9 +22,10 @@ export const apiClient = axios.create({
  * (ví dụ: `largeUploadClient.ts`), để chỉ có một nơi định nghĩa logic này.
  */
 export function attachAuthAndIdempotency(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  const token = localStorage.getItem('access_token');
+  const token = getAuthClient().accessToken();
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
+    (config as any)._sentToken = token;
   }
 
   const method = config.method?.toLowerCase();
@@ -61,103 +64,80 @@ apiClient.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
-// Trạng thái xoay vòng Refresh Token (tránh race condition nhiều request 401 cùng lúc).
-// Module-level nên được chia sẻ bởi MỌI axios instance gọi `refreshAccessToken()` dưới đây
-// (apiClient và largeUploadClient) — đảm bảo chỉ có một lượt refresh chạy tại một thời điểm,
-// không có 2 refresh chạy đua nhau ghi đè token của nhau.
-let isRefreshing = false;
-let failedQueue: Array<{
-  resolve: (value?: unknown) => void;
-  reject: (reason?: unknown) => void;
-}> = [];
-
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
+// Handler hết phiên: AuthContext đăng ký để redirect về /login và xoá user state
+let _sessionExpiredHandler: (() => void) | null = null;
 
 /**
- * Xoay vòng refresh access token dùng chung (single-flight): nếu đang có một lượt
- * refresh chạy, các lời gọi tiếp theo xếp hàng chờ chung kết quả thay vì tự gọi
- * `/auth/refresh` riêng. Trả về access token mới, hoặc throw khi refresh thất bại
- * (đồng thời dọn localStorage và điều hướng về /login, giống hành vi cũ).
- * Dùng chung bởi response interceptor của `apiClient` và `largeUploadClient`.
+ * Đăng ký hàm xử lý khi phiên đăng nhập hết hạn (401 không thể refresh).
+ * AuthContext gọi hàm này khi mount.
  */
-export async function refreshAccessToken(): Promise<string> {
-  const refreshToken = localStorage.getItem('refresh_token');
-  if (!refreshToken) {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
-    throw new Error('Không có refresh token');
-  }
-
-  if (isRefreshing) {
-    return new Promise<string>((resolve, reject) => {
-      failedQueue.push({ resolve: resolve as (value?: unknown) => void, reject });
-    });
-  }
-
-  isRefreshing = true;
-  try {
-    const refreshRes = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
-    const newAccessToken = refreshRes.data.accessToken;
-    const newRefreshToken = refreshRes.data.refreshToken;
-
-    localStorage.setItem('access_token', newAccessToken);
-    if (newRefreshToken) {
-      localStorage.setItem('refresh_token', newRefreshToken);
-    }
-
-    processQueue(null, newAccessToken);
-    return newAccessToken;
-  } catch (refreshErr) {
-    processQueue(refreshErr, null);
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
-    throw refreshErr;
-  } finally {
-    isRefreshing = false;
-  }
+export function setSessionExpiredHandler(handler: () => void): void {
+  _sessionExpiredHandler = handler;
 }
 
-// Response Interceptor: Định dạng lỗi từ .NET Web API & Xoay vòng Refresh Token (FE-07 / P3-02)
+/**
+ * Xử lý 401: thử refresh token một lần (single-flight qua authClient).
+ * - Nếu refresh thành công → trả token mới.
+ * - Nếu thất bại → gọi _sessionExpiredHandler rồi trả null.
+ *
+ * @param failedToken - token đã gửi khi nhận 401 (để authClient tránh race condition)
+ */
+export async function handleUnauthorized(failedToken: string | null): Promise<string | null> {
+  const client = getAuthClient();
+  const ok = await client.refresh(failedToken);
+  if (ok) {
+    return client.accessToken();
+  }
+  // Refresh thất bại → kích hoạt handler hết phiên
+  if (_sessionExpiredHandler) {
+    _sessionExpiredHandler();
+  }
+  return null;
+}
+
+// Response Interceptor: Định dạng lỗi từ .NET Web API & xử lý 202/401/429/503
 apiClient.interceptors.response.use(
-  (response: AxiosResponse) => response.data,
+  async (response: AxiosResponse) => {
+    // Xử lý 202 Accepted với operationId (tác vụ bất đồng bộ)
+    if (response.status === 202 && (response.data as any)?.operationId) {
+      const operationId = (response.data as any).operationId as string;
+      await waitForOperation(
+        operationId,
+        {
+          get: (path: string) => apiClient.get(path) as Promise<any>,
+          sleep: (ms: number) => new Promise(resolve => setTimeout(resolve, ms)),
+        }
+      );
+      return response.data;
+    }
+    return response.data;
+  },
   async (error: AxiosError<ProblemDetails>) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean; _sentToken?: string | null };
 
     if (error.response) {
       const { status, data } = error.response;
 
-      // Xử lý 401: Tự động Refresh Token xoay vòng (FE-07)
+      // Xử lý 401: Refresh token một lần
       if (status === 401 && originalRequest && !originalRequest._retry) {
-        // Không lặp lại nếu chính route refresh / login bị 401
+        // Không lặp lại nếu chính route auth bị 401
         if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/login')) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          if (_sessionExpiredHandler) _sessionExpiredHandler();
           return Promise.reject(error);
         }
 
         originalRequest._retry = true;
+        const sentToken = originalRequest._sentToken ?? null;
 
-        try {
-          const newAccessToken = await refreshAccessToken();
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          }
-          return apiClient(originalRequest);
-        } catch (refreshErr) {
-          return Promise.reject(refreshErr);
+        const newToken = await handleUnauthorized(sentToken);
+        if (!newToken) {
+          return Promise.reject(error);
         }
+
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        }
+        return apiClient(originalRequest);
       }
 
       // Xử lý 403: Không có quyền truy cập
@@ -166,9 +146,15 @@ apiClient.interceptors.response.use(
         return Promise.reject(new Error(forbiddenMsg));
       }
 
-      // Xử lý 429: Vượt ngưỡng Rate Limit (P3-01 / BUG-17)
+      // Xử lý 429: Vượt ngưỡng Rate Limit
       if (status === 429) {
-        return Promise.reject(new Error('Hệ thống đang bận hoặc bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ 1 phút rồi thử lại.'));
+        const retryAfter = (error.response.headers as any)?.['retry-after'] ?? 60;
+        return Promise.reject(new Error(`Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau ${retryAfter} giây.`));
+      }
+
+      // Xử lý 503: Gateway / Kong đang khởi động
+      if (status === 503) {
+        return Promise.reject(new Error('Hệ thống bảo mật chưa sẵn sàng. Vui lòng thử lại sau.'));
       }
 
       if (status === 400 && data?.errors) {

@@ -63,16 +63,20 @@ export interface DownloadViaLinkDeps {
  */
 export function resolveDownloadUrl(url: string, apiBaseUrl: string): string {
   if (!url.startsWith('/')) return url;
+  // If apiBaseUrl is not an absolute URL (e.g. '/api'), the backend and
+  // frontend share the same origin via a reverse proxy (Kong). The URL is
+  // already correct as-is — return it unchanged so it resolves against the
+  // browser's current origin.
+  let parsed: URL;
+  try {
+    parsed = new URL(apiBaseUrl);
+  } catch {
+    return url;
+  }
   // Use the API base's ORIGIN only (not its full path, e.g. `.../api`) so a
   // relative url that already includes its own `/api/...` prefix doesn't
   // get doubled up.
-  let origin: string;
-  try {
-    origin = new URL(apiBaseUrl).origin;
-  } catch {
-    origin = apiBaseUrl.replace(/\/+$/, '');
-  }
-  return `${origin}${url}`;
+  return `${parsed.origin}${url}`;
 }
 
 export interface DownloadViaLinkOptions {
