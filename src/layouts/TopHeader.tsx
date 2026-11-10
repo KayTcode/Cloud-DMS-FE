@@ -102,15 +102,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </span>
         </div>
 
-        {/* Nút Chuông thông báo (kèm chấm đỏ nếu có thông báo mới) */}
+        {/* Nút Chuông thông báo (kèm badge số lượng nếu có thông báo mới) */}
         <button
           onClick={onOpenNotifications}
           className="w-9 h-9 rounded-full border border-slate-200/90 flex items-center justify-center text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors relative cursor-pointer"
-          aria-label="Notifications"
+          aria-label="Thông báo"
+          title="Thông báo"
         >
           <Bell className="w-4 h-4" />
           {notificationCount > 0 && (
-            <span className="w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white absolute top-2 right-2" />
+            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white absolute -top-1 -right-1 shadow-2xs animate-in zoom-in-75 duration-150">
+              {notificationCount > 99 ? '99+' : notificationCount}
+            </span>
           )}
         </button>
 

@@ -9,7 +9,8 @@ import {
   Building2, 
   Layers,
   Activity,
-  Key
+  Key,
+  ArrowRightLeft
 } from 'lucide-react';
 import { StorageProviderItem } from '../types';
 import { ConnectProviderModal } from '../components/ConnectProviderModal';
@@ -87,31 +88,42 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
   };
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
+    <div className="space-y-6 animate-in fade-in duration-150">
+      {/* 1. HEADER (GOOGLE DRIVE STYLE) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-            Connected Storage Providers
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            Kho Lưu Trữ Đám Mây (Storage Providers)
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Quản lý kho lưu trữ đa đám mây (Google Drive, Microsoft OneDrive) và giám sát dung lượng khả dụng
+          <p className="text-xs text-slate-500 mt-1">
+            Quản lý kết nối các kho Google Drive, OneDrive và giám sát hạn mức dung lượng khả dụng
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Nút Làm mới */}
           <button
             onClick={fetchProviders}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200/80 hover:bg-slate-50 text-slate-700 rounded-full text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
             <span>Làm mới</span>
           </button>
 
+          {/* Nút Di chuyển dữ liệu */}
+          <button
+            onClick={() => setMigrationOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200/80 hover:bg-slate-50 text-slate-700 rounded-full text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5 text-slate-500" />
+            <span>Di chuyển dữ liệu</span>
+          </button>
+
+          {/* Nút Kết nối Cloud Provider mới */}
           <button
             onClick={() => setIsConnectModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm rounded-full shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Kết Nối Cloud Provider</span>
@@ -119,10 +131,19 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
         </div>
       </div>
 
-      {migrationOpen && <StorageMigrationPanel providers={providers} onClose={() => { setMigrationOpen(false); void fetchProviders(); }} />}
-      <button className="border rounded-lg px-4 py-2 text-sm font-semibold" onClick={() => setMigrationOpen(true)}>Di chuyển dữ liệu giữa các kho lưu trữ</button>
-      {/* Cloud Pool Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      {/* Migration Panel hiển thị khi mở */}
+      {migrationOpen && (
+        <StorageMigrationPanel
+          providers={providers}
+          onClose={() => {
+            setMigrationOpen(false);
+            void fetchProviders();
+          }}
+        />
+      )}
+
+      {/* 2. DANH SÁCH CÁC THẺ KHO LƯU TRỮ (GOOGLE ONE STYLE) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {providers.map((p) => {
           const totalBytes = p.totalCapacityBytes || 0;
           const externalUsed = p.externalUsedBytes ?? 0;
@@ -134,48 +155,49 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
           return (
             <div
               key={p.id}
-              className="flex flex-col justify-between p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs hover:border-slate-300 transition-all group"
+              className="flex flex-col justify-between p-5 bg-white border border-slate-200/80 rounded-2xl shadow-2xs hover:border-slate-300 transition-all group"
             >
               <div>
+                {/* Header Card */}
                 <div className="flex items-start justify-between">
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
                     <Cloud className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      {p.status}
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      {p.status || 'Active'}
                     </span>
                     <button
                       onClick={() => setEditingProvider(p)}
-                      title="Cập nhật Token / Credentials"
-                      className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      title="Cập nhật Token / Chứng chỉ"
+                      className="p-1.5 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                     >
                       <Key className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteProvider(p.id, p.name)}
-                      title="Ngắt kết nối Provider"
-                      className="p-1 rounded-md text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Ngắt kết nối kho lưu trữ này"
+                      className="p-1.5 rounded-full text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-blue-600 transition-colors">
+                <h3 className="text-base font-bold text-slate-900 mt-3 group-hover:text-blue-600 transition-colors">
                   {p.name}
                 </h3>
                 <p className="text-xs text-slate-400 font-mono mt-0.5">
                   {p.type} • {p.region}
                 </p>
 
-                {/* Capacity Progress Bar */}
+                {/* Thanh tiến trình dung lượng Google Drive style */}
                 {showBar && (
                   <div className="mt-4 space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-slate-500">Thực tế sử dụng:</span>
-                      <span className="text-slate-800 font-mono">{formatBytes(realUsed)} / {formatBytes(totalBytes)}</span>
+                      <span className="text-slate-500">Đã sử dụng:</span>
+                      <span className="text-slate-900 font-mono">{formatBytes(realUsed)} / {formatBytes(totalBytes)} ({usedPercent}%)</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div
@@ -186,11 +208,18 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                   </div>
                 )}
 
-                {(p.migrationReservedBytes || p.migrationRetainedBytes) ? <p className="mt-3 text-xs text-amber-700">
-                  Đang dành chỗ di chuyển: {formatBytes(p.migrationReservedBytes || 0)} · Bản nguồn chờ dọn: {formatBytes(p.migrationRetainedBytes || 0)}
-                </p> : null}
-                {p.migrationReadOnly && <p className="text-xs text-amber-700 mt-2">Kho nguồn đang chỉ đọc, không nhận phân bổ hoặc tải lên mới.</p>}
-                {/* Metrics detail */}
+                {(p.migrationReservedBytes || p.migrationRetainedBytes) ? (
+                  <p className="mt-3 text-xs text-amber-700 bg-amber-50/60 p-2 rounded-lg">
+                    Dành chỗ di chuyển: {formatBytes(p.migrationReservedBytes || 0)} · Nguồn chờ dọn: {formatBytes(p.migrationRetainedBytes || 0)}
+                  </p>
+                ) : null}
+                {p.migrationReadOnly && (
+                  <p className="text-xs text-amber-700 bg-amber-50/60 p-2 rounded-lg mt-2">
+                    Kho nguồn đang ở chế độ chỉ đọc.
+                  </p>
+                )}
+
+                {/* Bảng phân tích chi tiết dung lượng */}
                 <div className="mt-4 space-y-2 text-xs border-t border-slate-100 pt-3">
                   <div className="flex justify-between py-0.5">
                     <span className="text-slate-500 flex items-center gap-1.5">
@@ -199,26 +228,6 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                     </span>
                     <span className="font-mono font-semibold text-slate-800">
                       {totalBytes > 0 ? formatBytes(totalBytes) : 'Chưa xác định'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-0.5">
-                    <span className="text-slate-500 flex items-center gap-1.5">
-                      <Activity className="w-3.5 h-3.5 text-slate-400" />
-                      Dùng ngoài hệ thống:
-                    </span>
-                    <span className="font-mono font-semibold text-slate-700">
-                      {p.externalUsedBytes != null ? formatBytes(p.externalUsedBytes) : '—'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-0.5">
-                    <span className="text-slate-500 flex items-center gap-1.5">
-                      <Cloud className="w-3.5 h-3.5 text-slate-400" />
-                      Dùng bởi hệ thống:
-                    </span>
-                    <span className="font-mono font-semibold text-slate-700">
-                      {p.systemUsedBytes != null ? formatBytes(p.systemUsedBytes) : '—'}
                     </span>
                   </div>
 
@@ -247,7 +256,7 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                       <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
                       Cập nhật lần cuối:
                     </span>
-                    <span className="font-mono text-slate-600">
+                    <span className="font-mono text-slate-500">
                       {p.lastSyncAt ? new Date(p.lastSyncAt).toLocaleString('vi-VN') : '—'}
                     </span>
                   </div>
@@ -255,7 +264,7 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
               </div>
 
               {/* Card Footer */}
-              <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
                 <button
                   onClick={() => handleTestConnection(p.id, p.name)}
                   disabled={testingId === p.id}
@@ -271,8 +280,8 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
 
                 <button
                   onClick={() => setEditingProvider(p)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/70 hover:bg-blue-100/70 rounded-lg border border-blue-200/60 transition-colors cursor-pointer"
-                  title="Cập nhật Token hoặc Credentials mới"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-full border border-blue-200/60 transition-colors cursor-pointer"
+                  title="Cập nhật Token hoặc Credentials"
                 >
                   <Key className="w-3.5 h-3.5" />
                   <span>Cập nhật Token</span>

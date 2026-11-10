@@ -19,11 +19,6 @@ import { SelectSharedFolderModal } from './components/SelectSharedFolderModal';
 import { FolderDto, BreadcrumbItem } from './types/folder.types';
 import { folderApi } from './api/folderApi';
 import {
-  INITIAL_DEPARTMENT_QUOTAS,
-  INITIAL_USER,
-  INITIAL_USER_ACTIVITIES,
-} from './data/mockData';
-import {
   DepartmentQuota,
   DriveFilter,
   DriveItem,
@@ -35,6 +30,8 @@ import {
 import {
   HardDrive,
   FolderLock,
+  Share2,
+  Building2,
   User,
   Search,
   Trash2,
@@ -53,13 +50,38 @@ async function readFileHead(file: File): Promise<Uint8Array> {
   return new Uint8Array(buffer);
 }
 
+const DEFAULT_USER_PROFILE: UserProfile = {
+  id: '',
+  fullName: 'Người dùng',
+  email: '',
+  jobTitle: 'Nhân viên',
+  department: 'Phòng ban',
+  role: 'User',
+  phone: '',
+  location: 'Việt Nam',
+  timezone: 'GMT+7',
+  language: 'Tiếng Việt',
+  avatarUrl: '',
+  storageQuotaGB: 10,
+  storageUsedGB: 0,
+  twoFactorEnabled: false,
+  joinedDate: '',
+  lastLogin: 'Hôm nay',
+};
+
 export const UserPortal: React.FC = () => {
   const { user: authUser } = useAuth();
   const { enqueueLarge, reportPendingCount } = useUploadManager();
   const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const [activeTab, setActiveTab] = useState<UserNavTab>('documents');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
-  const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USER);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => ({
+    ...DEFAULT_USER_PROFILE,
+    id: authUser?.id || '',
+    fullName: authUser?.fullName || 'Người dùng',
+    email: authUser?.email || '',
+    role: authUser?.role || 'User',
+  }));
 
   useEffect(() => {
     if (authUser) {
@@ -76,10 +98,8 @@ export const UserPortal: React.FC = () => {
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [personalQuota, setPersonalQuota] = useState<PersonalStorageQuotaDto | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
-  const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>(
-    INITIAL_DEPARTMENT_QUOTAS
-  );
-  const [activities, setActivities] = useState<UserActivity[]>(INITIAL_USER_ACTIVITIES);
+  const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>([]);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
@@ -340,67 +360,6 @@ export const UserPortal: React.FC = () => {
     }
   };
 
-  // Xử lý tải lên trực tiếp Cloud (Direct-to-Storage)
-  const handleUploadDirectFiles = async (fileList: FileList) => {
-    if (!fileList || fileList.length === 0) return;
-
-    try {
-      showNotification(`Đang khởi tạo tải trực tiếp ${fileList.length} tệp tin lên Cloud...`, 'info');
-      // Đi qua cùng bộ phân luồng F6: file nhỏ -> đường zip hiện có, file lớn -> F5 enqueueLarge.
-      const result = await uploadSelection(
-        Array.from(fileList),
-        [],
-        { folderId: currentFolderId },
-        {
-          uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
-          enqueueLarge,
-          createFolder: (name, parentId) => driveApi.createFolder(name, parentId),
-          reportPendingCount,
-          readHead: readFileHead,
-        }
-      );
-
-      // Refresh lại danh sách files và Quota
-      await fetchDriveItems(currentFolderId);
-      await fetchPersonalQuota();
-
-      if (result.error) {
-        showNotification(`Lỗi Cloud Direct: ${result.error.message}`, 'error');
-      } else {
-        const successCount = result.items.filter((i) => i.ok).length;
-        const failedItems = result.items.filter((i) => !i.ok);
-        const failedCount = failedItems.length;
-
-        if (failedCount > 0 && successCount === 0) {
-          const errorDetail = failedItems.map((f) => `${f.relativePath}: ${f.error?.message}`).join('; ');
-          showNotification(`Tải trực tiếp Cloud thất bại: ${errorDetail}`, 'error');
-        } else if (failedCount > 0 && successCount > 0) {
-          const errorDetail = failedItems.map((f) => `${f.relativePath}: ${f.error?.message}`).join('; ');
-          showNotification(
-            `Tải trực tiếp Cloud: ${successCount} thành công, ${failedCount} thất bại (${errorDetail}).`,
-            'error'
-          );
-        } else {
-          showNotification(`Đã tải trực tiếp thành công ${successCount || fileList.length} tệp tin lên Cloud!`, 'success');
-        }
-      }
-
-      const newActivity: UserActivity = {
-        id: `act-${Date.now()}`,
-        action: 'upload',
-        targetName: fileList.length === 1 ? `[Cloud Direct] ${fileList[0].name}` : `[Cloud Direct] ${fileList.length} tệp tin`,
-        timestamp: 'Vừa xong',
-        ipAddress: 'Client IP (Direct)',
-        device: 'Trình duyệt Web',
-      };
-      setActivities((prev) => [newActivity, ...prev]);
-    } catch (error: any) {
-      console.error('Lỗi upload direct file:', error);
-      const errMsg = error?.response?.data?.message || error?.message || 'Tải lên trực tiếp Cloud thất bại.';
-      showNotification(`Lỗi Cloud Direct: ${errMsg}`, 'error');
-    }
-  };
-
   // Xử lý tạo thư mục mới
   const handleCreateFolder = async (name: string, department: string, parentFolderId?: string | null) => {
     try {
@@ -543,22 +502,67 @@ export const UserPortal: React.FC = () => {
       )}
 
       {/* User Tabs Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-2.5 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3 rounded-2xl shadow-xs">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={() => {
               setActiveTab('documents');
               setActiveFilter('all');
               setActiveNav('dashboard');
             }}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
               activeTab === 'documents' && activeFilter !== 'trash'
-                ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            <FolderLock className="w-4 h-4" />
-            <span>Tài liệu & My Drive</span>
+            <FolderLock className="w-3.5 h-3.5 text-blue-600" />
+            <span>Tài liệu của tôi</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('shared');
+              setActiveNav('shared');
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+              activeTab === 'shared'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Share2 className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Được chia sẻ</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('shared-store');
+              setActiveNav('shared-store');
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+              activeTab === 'shared-store'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 text-teal-600" />
+            <span>Kho chung phòng</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('storage');
+              setActiveNav('storage-providers');
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+              activeTab === 'storage'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <HardDrive className="w-3.5 h-3.5 text-amber-500" />
+            <span>Bộ nhớ lưu trữ</span>
           </button>
 
           <button
@@ -567,29 +571,14 @@ export const UserPortal: React.FC = () => {
               setActiveFilter('trash');
               setActiveNav('trash');
             }}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'documents' && activeFilter === 'trash'
-                ? 'bg-rose-50 text-rose-700 border border-rose-200/80 shadow-xs'
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+              (activeTab === 'documents' && activeFilter === 'trash') || activeTab === 'trash'
+                ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
                 : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50/50'
             }`}
           >
-            <Trash2 className="w-4 h-4 text-rose-500" />
+            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
             <span>Thùng rác</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('storage');
-              setActiveNav('storage-providers');
-            }}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'storage'
-                ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <HardDrive className="w-4 h-4" />
-            <span>Dung lượng lưu trữ</span>
           </button>
 
           <button
@@ -597,26 +586,26 @@ export const UserPortal: React.FC = () => {
               setActiveTab('profile');
               setActiveNav('settings');
             }}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
               activeTab === 'profile'
-                ? 'bg-blue-50 text-blue-600 border border-blue-200/80 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            <User className="w-4 h-4" />
+            <User className="w-3.5 h-3.5 text-slate-500" />
             <span>Hồ sơ & Bảo mật</span>
           </button>
         </div>
 
         {/* Search input in toolbar */}
         <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder={activeFilter === 'trash' ? "Tìm trong thùng rác..." : "Tìm kiếm tài liệu..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-full text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all"
           />
           {searchQuery && (
             <button
@@ -651,7 +640,6 @@ export const UserPortal: React.FC = () => {
             activeFilter={activeFilter}
             setActiveFilter={handleFilterChange}
             onUploadFile={handleUploadFiles}
-            onUploadDirectFile={handleUploadDirectFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
             onOpenFilePreview={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setPreviewFile(file); else void handleDownloadItem(file); }}
             onToggleStar={handleToggleStar}

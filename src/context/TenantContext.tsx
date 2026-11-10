@@ -6,7 +6,7 @@ import {
   TenantEvent,
   TenantUser,
 } from '@/features/tenants/types';
-import { initialTenant, initialEvents } from '@/data/tenantMockData';
+import { initialTenant } from '@/data/tenantMockData';
 import { ToastMessage } from '@/types/common.types';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -18,6 +18,7 @@ import {
   getTenantUsers,
   getTenantStorageQuota,
   getTenantOverviewSummary,
+  getTenantAuditLogs,
   TenantQuotaData,
   exportTenantBackup,
   updateTenantSettings,
@@ -91,6 +92,21 @@ interface TenantContextType {
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
+function formatTimeAgoVi(dateStr?: string): string {
+  if (!dateStr) return 'Vừa xong';
+  try {
+    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+    if (isNaN(diff) || diff < 60) return 'Vừa xong';
+    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+    const days = Math.floor(diff / 86400);
+    if (days < 30) return `${days} ngày trước`;
+    return new Date(dateStr).toLocaleDateString('vi-VN');
+  } catch {
+    return dateStr;
+  }
+}
+
 export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user: authUser } = useAuth();
 
@@ -125,7 +141,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     authUser?.role === 'TenantAdmin' ? 'hub' : 'overview'
   );
   const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
-  const [events, setEvents] = useState<TenantEvent[]>(initialEvents);
+  const [events, setEvents] = useState<TenantEvent[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [quotaData, setQuotaData] = useState<TenantQuotaData | null>(null);
@@ -239,11 +255,12 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }));
       }
 
-      // 2. Concurrently fetch Departments and Users lists for sub-tabs and dropdowns
-      const [quotaFallbackRes, deptsRes, usersRes] = await Promise.allSettled([
+      // 2. Concurrently fetch Departments, Users lists, and Recent Audit Logs for real activity trail
+      const [quotaFallbackRes, deptsRes, usersRes, logsRes] = await Promise.allSettled([
         summary ? Promise.resolve(null) : getTenantStorageQuota(targetId),
         getTenantDepartments(targetId),
         getTenantUsers(targetId),
+        getTenantAuditLogs(targetId, 1, 6),
       ]);
 
       if (!summary && quotaFallbackRes.status === 'fulfilled' && quotaFallbackRes.value) {
@@ -260,6 +277,28 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (usersRes.status === 'fulfilled') {
         loadedUsers = usersRes.value;
         setUsers(loadedUsers);
+      }
+
+      if (logsRes.status === 'fulfilled' && logsRes.value) {
+        const rawLogs = (logsRes.value as any)?.items || (Array.isArray(logsRes.value) ? logsRes.value : []);
+        if (Array.isArray(rawLogs) && rawLogs.length > 0) {
+          const mappedEvents: TenantEvent[] = rawLogs.map((log: any) => ({
+            id: log.id || `evt-${Date.now()}-${Math.random()}`,
+            text: log.details || `${log.actor || 'Hệ thống'}: ${log.action}`,
+            timeAgo: formatTimeAgoVi(log.timestamp),
+            timestamp: log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            type: (log.action || '').toLowerCase().includes('user')
+              ? 'user'
+              : (log.action || '').toLowerCase().includes('quota')
+              ? 'storage'
+              : 'system',
+          }));
+          setEvents(mappedEvents);
+        } else {
+          setEvents([]);
+        }
+      } else {
+        setEvents([]);
       }
 
       // Sync headcount in departments from real users list

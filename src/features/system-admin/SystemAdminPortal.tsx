@@ -34,8 +34,7 @@ import {
   AuditLogsView,
   SettingsView,
   AdminHubView,
-  QuotaRequestsView,
-  QuotaApprovalsView
+  QuotaRequestsView
 } from './views';
 import {
   CreateTenantModal,
@@ -300,16 +299,17 @@ export const SystemAdminPortal: React.FC = () => {
   return (
     <div className="system-admin-portal">
       {/* --------------------------------------------------------------------------------- */}
-      {/* THANH ĐIỀU HƯỚNG QUAY LẠI HUB KHI ĐANG Ở CÁC PHÂN HỆ CHI TIẾT                     */}
+      {/* THANH ĐIỀU HƯỚNG QUAY LẠI HUB (Google Drive Breadcrumb style)                    */}
       {/* --------------------------------------------------------------------------------- */}
       {activeNav !== 'hub' && !deepDetailTenantId && (
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => setActiveNav('hub')}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full transition-all cursor-pointer shadow-2xs"
+            title="Quay về bảng chọn chức năng chính"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>← Quay lại Trung tâm điều khiển</span>
+            <span>Trung tâm điều khiển</span>
           </button>
         </div>
       )}
@@ -426,14 +426,10 @@ export const SystemAdminPortal: React.FC = () => {
         />
       )}
 
-      {activeNav === 'quota-approvals' && (
-        <QuotaApprovalsView onAddToast={addToast} />
-      )}
-
       {/* --------------------------------------------------------------------------------- */}
       {/* SUB-VIEW 3b: Màn hình Phê duyệt Yêu cầu Quota của Tenant (Quota Requests)          */}
       {/* --------------------------------------------------------------------------------- */}
-      {activeNav === 'quota-requests' && (
+      {(activeNav === 'quota-requests' || activeNav === 'quota-approvals') && (
         <QuotaRequestsView />
       )}
 

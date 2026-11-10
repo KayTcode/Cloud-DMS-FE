@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Users, Server, Cloud } from 'lucide-react';
+import { Building2, Users, Server, Cloud, ArrowRight, AlertTriangle } from 'lucide-react';
 import { SystemTenant, SystemActivityItem, StorageProviderItem, AuditLogEntry } from '../types';
 import { MetricCard } from '../components/MetricCard';
 import { StoragePoolDistributionCard } from '../components/StoragePoolDistributionCard';
@@ -54,7 +54,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ? Math.min(100, Math.round((totalAllocatedBytes / totalStorageCapacityBytes) * 100))
     : 0;
 
-  // 3. Hoạt động kiểm toán thật trích xuất từ Audit Logs API (nếu có)
+  // 3. Hoạt động kiểm toán thật trích xuất từ Audit Logs API
   const displayActivities: SystemActivityItem[] =
     auditLogs.length > 0
       ? auditLogs.slice(0, 5).map((log) => ({
@@ -67,8 +67,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       : activities;
 
   return (
-    <div className="space-y-6">
-      {/* 4 Thẻ Chỉ số KPI Cốt lõi — 100% Đồng bộ nghiệp vụ Cloud-DMS */}
+    <div className="space-y-6 animate-in fade-in duration-150">
+      {/* Header trang Dashboard */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            Tổng Quan & Báo Cáo Hệ Thống
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Giám sát tài nguyên toàn sàn, tình trạng cấp phát Quota và nhật ký vận hành thực tế
+          </p>
+        </div>
+      </div>
+
+      {/* 4 Thẻ Chỉ số KPI Cốt lõi — Phong cách Google Drive */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         <MetricCard
           title="Tổ chức / Doanh nghiệp"
@@ -107,7 +119,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         />
       </div>
 
-      {/* Khối Chỉ số Phê duyệt Quota (Live API: /api/admin/quota-requests/metrics) */}
+      {/* Khối Chỉ số Phê duyệt Quota */}
       <QuotaMetricsCard />
 
       {/* Hàng giữa: Phân bổ Bể lưu trữ Cloud & Sức khỏe Quota Doanh nghiệp */}
@@ -128,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Hàng dưới: Bảng Doanh nghiệp chuẩn hóa & Nhật ký kiểm toán thời gian thực */}
+      {/* Hàng dưới: Bảng Doanh nghiệp chuẩn hóa & Nhật ký kiểm toán */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <div className="lg:col-span-8">
           <RecentTenantsCard

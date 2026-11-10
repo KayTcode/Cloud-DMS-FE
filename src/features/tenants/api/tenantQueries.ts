@@ -309,9 +309,9 @@ export async function getTenantAuditLogs(
 export async function getTenantEvents(tenantId: string): Promise<TenantEvent[]> {
   try {
     const data = await apiClient.get<any, TenantEvent[]>(API_ENDPOINTS.TENANTS.ACTIVITY(tenantId));
-    return data;
+    return Array.isArray(data) ? data : [];
   } catch (error) {
-    return initialEvents;
+    return [];
   }
 }
 

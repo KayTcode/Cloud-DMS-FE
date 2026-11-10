@@ -222,7 +222,7 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
               top: `${menuCoords.top}px`,
               left: `${menuCoords.left}px`,
             }}
-            className="w-60 bg-white rounded-xl shadow-2xl border border-slate-200/95 py-1.5 z-[9999] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
+            className="w-60 bg-white rounded-2xl shadow-2xl border border-slate-200/80 py-1.5 z-[9999] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
           >
             {/* 1. Mở / Xem trước */}
             {onOpenPreview && (
@@ -364,7 +364,7 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
               top: `${submenuCoords.top}px`,
               left: `${submenuCoords.left}px`,
             }}
-            className="w-56 bg-white rounded-xl shadow-2xl border border-slate-200/95 py-1.5 z-[10000] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
+            className="w-56 bg-white rounded-2xl shadow-2xl border border-slate-200/80 py-1.5 z-[10000] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
           >
             <button
               type="button"

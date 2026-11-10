@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import {
   DepartmentHubView,
   DepartmentFilesView,
@@ -13,6 +14,8 @@ import {
   AddMemberModal,
   EditQuotaModal,
   OffboardEmployeeModal,
+  DepartmentBanner,
+  DepartmentTabs,
 } from './components';
 import {
   DepartmentMember,
@@ -214,6 +217,30 @@ const DepartmentAdminPortalContent: React.FC = () => {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Top Banner & Tabs Navigation (Khi đã vào chức năng con) */}
+      {activeTab !== 'hub' && (
+        <div className="space-y-3 mb-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => handleNavigateTab('hub')}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Trung tâm điều khiển phòng ban</span>
+            </button>
+          </div>
+
+          <DepartmentBanner
+            department={departmentInfo}
+            membersCount={members.length}
+            onOpenAddMember={() => setIsAddMemberOpen(true)}
+            onNavigateToHub={() => handleNavigateTab('hub')}
+          />
+
+          <DepartmentTabs activeTab={activeTab} onTabChange={handleNavigateTab} />
         </div>
       )}
 

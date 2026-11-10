@@ -135,7 +135,7 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
               <Clock className="w-5 h-5" />
             </div>
             <div>
@@ -148,7 +148,7 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -163,24 +163,33 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {errorMessage && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
-            {/* Trạng thái hiện tại & Ngày hết hạn mới */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-              <div className="flex justify-between items-center text-slate-600">
-                <span>Hạn lưu trữ hiện tại:</span>
-                <span className="font-semibold text-slate-900">
-                  {activeDetails?.expiresAt ? new Date(activeDetails.expiresAt).toLocaleDateString('vi-VN') : 'Không giới hạn'}
-                </span>
+            {/* Trực quan hóa So sánh Hạn hiện tại & Hạn mới */}
+            <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <p className="text-[11px] text-slate-500 font-medium">Hạn hiện tại</p>
+                  <p className="font-semibold text-slate-800 text-xs">
+                    {activeDetails?.expiresAt ? new Date(activeDetails.expiresAt).toLocaleDateString('vi-VN') : 'Không giới hạn'}
+                  </p>
+                </div>
+                <div className="text-blue-500 font-bold px-2 text-base">➔</div>
+                <div className="space-y-0.5 text-right">
+                  <p className="text-[11px] text-blue-600 font-semibold">Hạn mới sau gia hạn</p>
+                  <p className="font-bold text-blue-900 text-sm">
+                    {newExpiryDate.toLocaleDateString('vi-VN')}
+                  </p>
+                </div>
               </div>
-              <div className="flex justify-between items-center text-blue-700 font-medium pt-1 border-t border-slate-200">
-                <span>Hạn lưu trữ mới sau gia hạn:</span>
-                <span className="font-bold text-blue-800 text-sm">
-                  {newExpiryDate.toLocaleDateString('vi-VN')}
+              <div className="pt-2 border-t border-blue-200/60 flex items-center justify-between text-[11px] text-blue-800 font-medium">
+                <span>Cộng thêm:</span>
+                <span className="font-bold text-blue-700 bg-blue-100/80 px-2.5 py-0.5 rounded-full">
+                  +{additionalDays} ngày
                 </span>
               </div>
             </div>
@@ -196,7 +205,7 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
                     type="button"
                     key={opt.value}
                     onClick={() => setSelectedOption(opt.value)}
-                    className={`px-3 py-2 text-xs font-medium rounded-lg border text-left transition-all cursor-pointer ${
+                    className={`px-3 py-2 text-xs font-semibold rounded-full border text-center transition-all cursor-pointer ${
                       selectedOption === opt.value
                         ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
                         : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
@@ -216,7 +225,7 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
                     max={3650}
                     value={customDays}
                     onChange={(e) => setCustomDays(Math.max(1, Number(e.target.value)))}
-                    className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    className="w-24 px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                   <span className="text-xs text-slate-500">ngày</span>
                 </div>
@@ -233,14 +242,14 @@ export const ExtendRetentionModal: React.FC<ExtendRetentionModalProps> = ({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-xl cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-full cursor-pointer transition-colors"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full shadow-md shadow-blue-500/20 transition-all cursor-pointer"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

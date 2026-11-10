@@ -97,7 +97,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
               <FileText className="w-5 h-5" />
             </div>
             <div className="truncate">
@@ -109,7 +109,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -125,7 +125,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
           )}
 
           {error && (
-            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
               {error}
             </div>
           )}
@@ -134,9 +134,9 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
             <>
               {/* Thẻ Cảnh Báo Vòng Đời Lưu Trữ (Retention Lifecycle) */}
               <div
-                className={`p-4 rounded-xl border flex items-center justify-between ${isExpiringSoon
-                    ? 'bg-amber-50 border-amber-200 text-amber-900'
-                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                className={`p-4 rounded-2xl border flex items-center justify-between ${isExpiringSoon
+                    ? 'bg-amber-50/90 border-amber-200 text-amber-900'
+                    : 'bg-slate-50/80 border-slate-200 text-slate-700'
                   }`}
               >
                 <div className="flex items-center gap-3">
@@ -152,7 +152,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       </span>
                       {details.daysRemaining !== null && details.daysRemaining !== undefined && (
                         <span
-                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${isExpiringSoon
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${isExpiringSoon
                               ? 'bg-amber-200 text-amber-800'
                               : 'bg-blue-100 text-blue-800'
                             }`}
@@ -176,7 +176,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenExtendModal(details)}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 shadow-2xs transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 text-xs font-semibold rounded-full bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 shadow-2xs transition-all cursor-pointer"
                   >
                     Gia hạn lưu trữ
                   </button>
@@ -203,7 +203,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                 >
-                  Thông Tin Tệp Nhị Phân
+                  Thông Tin Tệp Tin
                 </button>
               </div>
 
@@ -323,7 +323,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Tải tệp xuống</span>
@@ -334,7 +334,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenEditModal(details)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-full transition-colors cursor-pointer"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Sửa thông tin tệp</span>
@@ -345,8 +345,8 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenReplaceModal(details.fileId, details.fileName)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors cursor-pointer"
-                      title="Tải tệp mới thay thế và xóa vĩnh viễn tệp cũ trên S3 để bảo toàn Quota"
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full transition-colors cursor-pointer"
+                      title="Tải tệp mới thay thế nội dung và giữ nguyên hồ sơ mô tả"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                       <span>Thay thế tệp</span>

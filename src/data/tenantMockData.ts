@@ -20,29 +20,7 @@ export const initialTenant: TenantInfo = {
   directoriesCount: 18902,
 };
 
-export const initialEvents: TenantEvent[] = [
-  {
-    id: 'evt-1',
-    text: 'User Sarah Jenkins added to HR department',
-    timeAgo: '10m ago',
-    timestamp: '2026-09-28 17:02',
-    type: 'user',
-  },
-  {
-    id: 'evt-2',
-    text: "Document 'Q2 Financials.pdf' deleted",
-    timeAgo: '1 hr ago',
-    timestamp: '2026-09-28 16:15',
-    type: 'document',
-  },
-  {
-    id: 'evt-3',
-    text: 'Bulk upload (240 files) completed',
-    timeAgo: '3 hrs ago',
-    timestamp: '2026-09-28 14:30',
-    type: 'storage',
-  },
-];
+export const initialEvents: TenantEvent[] = [];
 
 export const mockUsers: TenantUser[] = [
   { id: 'usr-1', name: 'Sarah Jenkins', email: 's.jenkins@fpt.com', department: 'Human Resources', role: 'HR Specialist', status: 'Active', lastActive: '10m ago' },

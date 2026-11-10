@@ -7,10 +7,7 @@ import {
   RefreshCw,
   TrendingUp,
   History,
-  ShieldCheck,
   Hourglass,
-  Layers,
-  Inbox
 } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
 import { 
@@ -51,25 +48,25 @@ export const QuotaRequestsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 animate-in fade-in duration-150">
       {/* 1. Header Navigation & Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200/60 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
               <ClipboardCheck className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Duyệt Yêu cầu Hạn mức (Quota Requests)
+                  Phê Duyệt Hạn Mức Lưu Trữ (Quota)
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                  System Approver
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                  System Admin
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Tiếp nhận, kiểm tra và phê duyệt các đề xuất cấp thêm dung lượng lưu trữ từ các Tenant/Doanh nghiệp
+                Tiếp nhận, kiểm tra và phê duyệt đề xuất cấp phát dung lượng lưu trữ từ các Doanh nghiệp
               </p>
             </div>
           </div>
@@ -80,7 +77,7 @@ export const QuotaRequestsView: React.FC = () => {
           <button
             onClick={fetchMetrics}
             disabled={isLoadingMetrics}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="Làm mới số liệu"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMetrics ? 'animate-spin text-blue-600' : ''}`} />
@@ -89,13 +86,13 @@ export const QuotaRequestsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Overview Metrics Cards */}
+      {/* 2. Overview Metrics Cards (Google One Style) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Chờ duyệt */}
-        <div className="bg-white rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/40 to-white p-5 shadow-2xs">
+        <div className="bg-white rounded-2xl border border-amber-200/80 p-5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-medium text-amber-900">Đang chờ phê duyệt</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shadow-2xs">
+            <span className="font-semibold text-amber-900">Đang chờ phê duyệt</span>
+            <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center">
               <Clock className="w-4 h-4" />
             </div>
           </div>
@@ -105,17 +102,17 @@ export const QuotaRequestsView: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400">yêu cầu</span>
           </div>
-          <p className="text-[11px] text-amber-600/90 mt-2 flex items-center gap-1 font-medium">
+          <p className="text-[11px] text-amber-700 mt-2 flex items-center gap-1 font-medium">
             <Hourglass className="w-3 h-3" />
-            <span>Cần System Admin quyết định</span>
+            <span>Cần quyết định cấp thêm</span>
           </p>
         </div>
 
         {/* Card 2: Đã phê duyệt */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-medium">Đã phê duyệt (Toàn phần / Một phần)</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-2xs">
+            <span className="font-semibold text-slate-700">Đã phê duyệt</span>
+            <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
@@ -125,16 +122,16 @@ export const QuotaRequestsView: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400">lượt</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">
+          <p className="text-[11px] text-slate-500 mt-2">
             {metrics ? `${metrics.approvedRequests} đủ · ${metrics.partiallyApprovedRequests} một phần` : '0 lượt'}
           </p>
         </div>
 
         {/* Card 3: Đã từ chối / Hủy */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-medium">Đã từ chối / Huỷ bỏ</span>
-            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shadow-2xs">
+            <span className="font-semibold text-slate-700">Đã từ chối / Hủy</span>
+            <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
               <AlertCircle className="w-4 h-4" />
             </div>
           </div>
@@ -144,16 +141,16 @@ export const QuotaRequestsView: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400">yêu cầu</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">
-            {metrics ? `${metrics.rejectedRequests} từ chối · ${metrics.cancelledRequests} huỷ` : '0 yêu cầu'}
+          <p className="text-[11px] text-slate-500 mt-2">
+            {metrics ? `${metrics.rejectedRequests} từ chối · ${metrics.cancelledRequests} hủy` : '0 yêu cầu'}
           </p>
         </div>
 
-        {/* Card 4: Tổng số yêu cầu & Thời gian xử lý */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+        {/* Card 4: Thời gian xử lý trung bình */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-medium">Thời gian xử lý trung bình</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shadow-2xs">
+            <span className="font-semibold text-slate-700">Thời gian phản hồi</span>
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
@@ -163,14 +160,14 @@ export const QuotaRequestsView: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400">giờ</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">
-            Tổng tiếp nhận: <strong className="text-slate-700">{metrics?.totalRequests ?? 0}</strong> yêu cầu
+          <p className="text-[11px] text-slate-500 mt-2">
+            Tổng tiếp nhận: <strong className="text-slate-800">{metrics?.totalRequests ?? 0}</strong> yêu cầu
           </p>
         </div>
       </div>
 
-      {/* 3. Sub-tabs Navigation */}
-      <div className="border-b border-slate-200">
+      {/* 3. Sub-tabs Navigation (Material 3 Tabs) */}
+      <div className="border-b border-slate-200/80">
         <div className="flex items-center gap-6">
           <button
             onClick={() => setActiveTab('pending')}
@@ -205,7 +202,7 @@ export const QuotaRequestsView: React.FC = () => {
             }`}
           >
             <History className="w-4 h-4" />
-            <span>Lịch sử & Biến động Quota toàn hệ thống</span>
+            <span>Lịch sử & Biến động Quota toàn sàn</span>
             {activeTab === 'history' && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
             )}

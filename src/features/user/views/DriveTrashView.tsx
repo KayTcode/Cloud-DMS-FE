@@ -207,23 +207,28 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
       )}
 
       {/* Top Bar */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-rose-800 flex items-center gap-2">
-          <Trash2 className="w-5 h-5 text-rose-600" />
-          Thùng rác
-          {items.length > 0 && (
-            <span className="text-xs font-semibold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
-              {items.length}
-            </span>
-          )}
-        </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Trash2 className="w-5 h-5 text-rose-500" />
+            <span>Thùng rác</span>
+            {items.length > 0 && (
+              <span className="text-xs font-semibold bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded-full border border-rose-200/60">
+                {items.length} mục
+              </span>
+            )}
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Các mục trong thùng rác sẽ tự động bị xoá vĩnh viễn sau 30 ngày.
+          </p>
+        </div>
         <button
           disabled={items.length === 0 || actionLoading}
           onClick={() => setConfirmEmptyTrash(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 border border-rose-300 text-rose-600 hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-full text-xs font-semibold transition-all cursor-pointer shadow-2xs self-start sm:self-auto"
         >
           <Trash2 className="w-4 h-4" />
-          Dọn sạch thùng rác
+          <span>Dọn sạch thùng rác</span>
         </button>
       </div>
 
@@ -242,7 +247,7 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
           <p className="text-xs text-slate-500 mt-1">Không có mục nào trong thùng rác.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>

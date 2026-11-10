@@ -82,10 +82,10 @@ const SharedQuotaRow: React.FC<SharedQuotaRowProps> = ({ departmentId, onShowToa
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-indigo-200/80 p-4 shadow-2xs">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
               <FolderOpen className="w-5 h-5" />
             </div>
             <div>
@@ -108,19 +108,19 @@ const SharedQuotaRow: React.FC<SharedQuotaRowProps> = ({ departmentId, onShowToa
                 {formatBytesSimple(sharedQuota.uploadableBytes !== undefined ? sharedQuota.uploadableBytes : Math.max(0, sharedQuota.quotaBytes - sharedQuota.usedBytes))}
               </p>
               {sharedQuota.uploadableBytes === 0 && sharedQuota.usedBytes >= sharedQuota.quotaBytes && (
-                <p className="text-[10px] text-rose-600 mt-0.5">Đã vượt hạn mức</p>
+                <p className="text-[10px] text-rose-600 mt-0.5 font-semibold">Đã vượt hạn mức</p>
               )}
               {sharedQuota.uploadableBytes === 0 && sharedQuota.usedBytes < sharedQuota.quotaBytes && (
-                <p className="text-[10px] text-amber-600 mt-0.5">Kho đang đầy</p>
+                <p className="text-[10px] text-amber-600 mt-0.5 font-semibold">Kho đang đầy</p>
               )}
             </div>
           </div>
           <button
             onClick={openEdit}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-blue-600 text-xs font-semibold border border-slate-200/80 transition-colors cursor-pointer"
           >
             <Pencil className="w-3.5 h-3.5" />
-            Sửa
+            <span>Sửa</span>
           </button>
         </div>
       </div>
@@ -234,39 +234,30 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-5 animate-in fade-in duration-150">
       {/* 1. Header Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBackToHub}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
-            title="Quay lại Trung tâm điều khiển"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Quản lý Hạn mức & Chính sách Phòng ban
-              </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                Department Approver
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Phê duyệt Quota nhân viên, quản lý hạn ngạch tổng và thiết lập thời hạn lưu trữ dữ liệu · Phòng {department.name}
-            </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+              Quản lý Hạn mức & Chính sách Phòng ban
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              Department Approver
+            </span>
           </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Phê duyệt Quota nhân viên, quản lý hạn ngạch tổng và thiết lập thời hạn lưu trữ dữ liệu
+          </p>
         </div>
 
         {/* Nút yêu cầu xin thêm hạn ngạch phòng ban */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
           <button
             onClick={() => { setTopUpBytes(undefined); setIsRequestModalOpen(true); }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-3.5 h-3.5" />
             <span>Xin thêm dung lượng phòng ban</span>
           </button>
         </div>
@@ -426,33 +417,33 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
 
       {/* 5. Sub Tabs & Content */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
           <button
             onClick={() => setActiveSubTab('pending')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer border ${
               activeSubTab === 'pending'
-                ? 'text-purple-600 border-b-2 border-purple-600'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-blue-50 text-blue-700 border-blue-200/80 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
             }`}
           >
             <span>Yêu cầu chờ phê duyệt</span>
           </button>
           <button
             onClick={() => setActiveSubTab('history')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer border ${
               activeSubTab === 'history'
-                ? 'text-purple-600 border-b-2 border-purple-600'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-blue-50 text-blue-700 border-blue-200/80 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
             }`}
           >
             <span>Lịch sử cấp phát Quota</span>
           </button>
           <button
             onClick={() => setActiveSubTab('retention')}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer border ${
               activeSubTab === 'retention'
-                ? 'text-purple-600 border-b-2 border-purple-600'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-blue-50 text-blue-700 border-blue-200/80 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
             }`}
           >
             <span>Chính sách Lưu trữ (Retention)</span>

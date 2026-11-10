@@ -114,15 +114,15 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
       {/* 4.1. CÁC MÀN HÌNH CHI TIẾT KHI ĐÃ CHỌN CHỨC NĂNG */}
       {activeTab !== 'hub' && (
-        <>
+        <div className="space-y-3 mb-4">
           {/* Nút quay lại Menu chức năng chính */}
-          <div className="mb-4">
+          <div className="flex items-center justify-between">
             <button
               onClick={() => setActiveTab('hub')}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 rounded-lg shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-all cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>← Quay lại Trung tâm điều khiển Doanh nghiệp</span>
+              <span>Trung tâm điều khiển Doanh nghiệp</span>
             </button>
           </div>
 
@@ -136,7 +136,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
           {/* Thanh chuyển Tab điều hướng nhanh giữa các chức năng con */}
           <TenantTabs activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
-        </>
+        </div>
       )}
 
       {/* 4.3. Khu vực hiển thị nội dung của Tab con đang active */}

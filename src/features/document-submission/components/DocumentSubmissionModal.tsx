@@ -191,18 +191,18 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Nộp Tài Liệu Mới Kèm Thông Tin Mô Tả</h3>
-              <p className="text-xs text-slate-500">Tải tệp và khai báo thông tin tệp trong một thao tác duy nhất</p>
+              <h3 className="text-base font-bold text-slate-900">Tạo Hồ Sơ Tài Liệu Mới</h3>
+              <p className="text-xs text-slate-500">Tải tệp và khai báo thông tin tài liệu trong một bước duy nhất</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={isSubmitting}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -211,7 +211,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
           {errorMessage && (
-            <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm animate-in fade-in">
+            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm animate-in fade-in">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
@@ -229,7 +229,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${dragActive
+                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 ${dragActive
                     ? 'border-blue-500 bg-blue-50/50'
                     : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/60'
                   }`}
@@ -253,9 +253,9 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                 <p className="text-xs text-slate-400 mt-1">Hỗ trợ PDF, Word, Excel, Slide, Ảnh, Tệp nén v.v.</p>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div className="truncate">
@@ -270,7 +270,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                       setSelectedFile(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
                     title="Hủy chọn tệp"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -295,7 +295,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
             />
           </div>
 
-          {/* 3. Tác giả (Author Badge readonly từ JWT) */}
+          {/* 3. Tác giả (Author Badge readonly) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
@@ -303,7 +303,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
               </label>
               <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Xác thực danh tính từ JWT
+                Xác thực danh tính tài khoản
               </span>
             </div>
             <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-100/80 border border-slate-200/80 text-slate-700 text-sm">
@@ -406,7 +406,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                   type="button"
                   key={opt.value}
                   onClick={() => setRetentionOption(opt.value)}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all cursor-pointer text-left ${retentionOption === opt.value
+                  className={`px-3 py-2 text-xs font-semibold rounded-full border transition-all cursor-pointer text-center ${retentionOption === opt.value
                       ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
                       : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
@@ -425,25 +425,24 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                   max={3650}
                   value={customDays}
                   onChange={(e) => setCustomDays(Math.max(1, Number(e.target.value)))}
-                  className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  className="w-24 px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 />
                 <span className="text-xs text-slate-500">ngày</span>
               </div>
             )}
 
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              * Hệ thống sẽ gửi thông báo cảnh báo trước 7 ngày khi tài liệu sắp hết hạn. Sau khi đến hạn, tệp sẽ tự
-              động bị xóa dứt điểm trên Cloud Storage để giải phóng dung lượng Quota của bạn.
+              * Hệ thống sẽ gửi thông báo nhắc trước 7 ngày khi tài liệu sắp đến hạn. Sau thời hạn lưu trữ, tệp sẽ được dọn dẹp để tự động tối ưu hóa bộ nhớ.
             </p>
           </div>
 
           {/* Thanh Tiến Trình Khi Đang Upload */}
           {isSubmitting && (
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-600">
                 <span className="font-semibold flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                  Đang tải lên, quét ClamAV và lưu trữ...
+                  Đang tải lên và kiểm tra an toàn dữ liệu...
                 </span>
                 <span className="font-bold text-blue-600">{uploadPercent}%</span>
               </div>
@@ -462,14 +461,14 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !selectedFile}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-full shadow-md shadow-blue-500/20 transition-all cursor-pointer"
             >
               {isSubmitting ? (
                 <>
@@ -479,7 +478,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  <span>Nộp tài liệu</span>
+                  <span>Tạo hồ sơ tài liệu</span>
                 </>
               )}
             </button>

@@ -182,7 +182,7 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
               <Edit3 className="w-5 h-5" />
             </div>
             <div>
@@ -193,7 +193,7 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -208,14 +208,14 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
             {errorMessage && (
-              <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
-            <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-800 leading-relaxed">
-              * Thay đổi tại đây chỉ cập nhật thông tin mô tả. Tệp nhị phân trên S3 và dung lượng Quota của bạn giữ nguyên 100%.
+            <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 leading-relaxed">
+              * Thao tác này chỉ cập nhật thông tin mô tả và từ khóa. Tệp đính kèm và dung lượng lưu trữ của bạn được giữ nguyên không thay đổi.
             </div>
 
             {/* Tiêu đề */}
@@ -338,14 +338,14 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-xl cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-full cursor-pointer transition-colors"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full shadow-md shadow-blue-500/20 transition-all cursor-pointer"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

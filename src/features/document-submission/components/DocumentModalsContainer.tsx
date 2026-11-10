@@ -60,7 +60,7 @@ export const DocumentModalsContainer: React.FC<DocumentModalsContainerProps> = (
         isOpen={isSubmissionOpen}
         onClose={closeSubmission}
         parentFolderId={parentFolderId}
-        onSuccess={() => onSuccess('Nộp tài liệu mới thành công!')}
+        onSuccess={() => onSuccess('Tạo hồ sơ tài liệu thành công!')}
       />
 
       {/* 2. Modal Chi tiết thông tin tệp */}
@@ -79,7 +79,7 @@ export const DocumentModalsContainer: React.FC<DocumentModalsContainerProps> = (
         fileId={replaceState.fileId}
         currentFileName={replaceState.fileName}
         onClose={closeReplace}
-        onSuccess={() => onSuccess('Đã thay thế tệp và bảo toàn 100% thông tin tệp!')}
+        onSuccess={() => onSuccess('Đã thay thế tệp đính kèm thành công!')}
       />
 
       {/* 4. Modal Sửa thông tin tệp */}

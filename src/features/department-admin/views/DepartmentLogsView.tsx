@@ -224,34 +224,28 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
   }).length;
 
   return (
-    <div className="space-y-6">
-      {/* 1. NÚT QUAY LẠI VÀ HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5 animate-in fade-in duration-150">
+      {/* 1. HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
         <div>
-          <button
-            onClick={onBackToHub}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-blue-600 rounded-lg shadow-2xs transition-all cursor-pointer mb-3"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>← Quay lại Trung tâm điều khiển phòng ban</span>
-          </button>
-
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <span>Nhật Ký Hoạt Động Nhân Viên Phòng {department.name}</span>
-            <span className="text-xs font-semibold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+              Nhật Ký Hoạt Động Nhân Viên
+            </h2>
+            <span className="text-[10px] font-semibold px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
               Dữ liệu thực tế
             </span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
             Theo dõi toàn bộ lịch sử thao tác của các thành viên phòng ban: tải tệp, tải xuống, thay đổi hạn ngạch và tác vụ hệ thống
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
           <button
             onClick={() => fetchLogs()}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-slate-200/80 text-slate-700 font-semibold text-xs rounded-full shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
             title="Tải lại dữ liệu mới nhất"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
@@ -261,18 +255,18 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
           <button
             onClick={handleExportJson}
             disabled={logs.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white border border-slate-200/80 text-slate-700 font-semibold text-xs rounded-full shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Xuất Nhật ký (JSON)</span>
+            <span>Xuất JSON</span>
           </button>
         </div>
       </div>
 
       {/* 2. STATS CARDS ROW */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-600 shrink-0">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
             <FileText className="w-5 h-5" />
           </div>
           <div>
@@ -285,8 +279,8 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shrink-0">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
             <UploadCloud className="w-5 h-5" />
           </div>
           <div>
@@ -299,8 +293,8 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-2xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 shrink-0">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
             <HardDrive className="w-5 h-5" />
           </div>
           <div>
@@ -316,14 +310,14 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
 
       {/* ERROR BANNER */}
       {error && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between text-rose-700 text-xs">
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-between text-rose-700 text-xs">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{error}</span>
           </div>
           <button
             onClick={() => fetchLogs()}
-            className="px-3 py-1 bg-white border border-rose-300 font-semibold rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
+            className="px-3 py-1 bg-white border border-rose-300 font-semibold rounded-full hover:bg-rose-100 transition-colors cursor-pointer"
           >
             Thử lại
           </button>
@@ -331,17 +325,17 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
       )}
 
       {/* 3. BẢNG NHẬT KÝ THAO TÁC */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
         {/* Search & Action Filter Bar */}
         <div className="p-4 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/40">
           <div className="relative max-w-sm w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               placeholder="Tìm kiếm nhân viên, email, nội dung thao tác..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 text-xs bg-white border border-slate-200/80 rounded-full text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             />
           </div>
 
@@ -351,17 +345,17 @@ export const DepartmentLogsView: React.FC<DepartmentLogsViewProps> = ({
               { id: 'all', label: 'Tất cả' },
               { id: 'upload', label: 'Tải lên' },
               { id: 'download', label: 'Tải / Đọc file' },
-              { id: 'delete', label: 'Xóa tệp tin' },
-              { id: 'quota', label: 'Hạn ngạch' },
+              { id: 'delete', label: 'Xóa tệp' },
+              { id: 'quota', label: 'Hạn mức' },
               { id: 'employee', label: 'Nhân sự' },
             ].map((f) => (
               <button
                 key={f.id}
                 onClick={() => handleActionFilterChange(f.id)}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors cursor-pointer whitespace-nowrap border ${
                   actionFilter === f.id
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-2xs'
+                    : 'bg-white border-slate-200/80 text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 {f.label}

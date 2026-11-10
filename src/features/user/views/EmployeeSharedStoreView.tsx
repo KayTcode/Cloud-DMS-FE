@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DriveView } from './DriveView';
 import { folderApi } from '../api/folderApi';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
@@ -68,8 +68,8 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-xs font-medium text-blue-800">
-        <span>Bạn chỉ có quyền xem và tải tệp trong Kho chung.</span>
+      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl text-xs font-medium text-blue-800">
+        <span>Bạn chỉ có quyền xem và tải tệp trong Kho chung phòng ban.</span>
       </div>
       <DriveView
       items={driveItems}

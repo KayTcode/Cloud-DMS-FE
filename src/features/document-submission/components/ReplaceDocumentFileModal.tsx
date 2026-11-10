@@ -91,18 +91,18 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+            <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
               <RefreshCw className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Thay Thế Tệp Vật Lý</h3>
-              <p className="text-xs text-slate-500">Cập nhật nội dung tệp mà không làm mất thông tin mô tả</p>
+              <h3 className="text-base font-bold text-slate-900">Thay Thế Tệp Đính Kèm</h3>
+              <p className="text-xs text-slate-500">Cập nhật nội dung tệp mới và giữ nguyên toàn bộ hồ sơ mô tả</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -111,25 +111,23 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
               {errorMessage}
             </div>
           )}
 
-          {/* Cảnh báo xóa file cũ trên S3 và bảo toàn thông tin */}
-          <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2 text-amber-900 text-xs leading-relaxed">
+          {/* Cảnh báo thay thế và bảo toàn thông tin */}
+          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 space-y-2 text-amber-900 text-xs leading-relaxed">
             <div className="flex items-center gap-2 font-bold">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Chính sách Zero-Waste Storage:</span>
+              <span>Lưu ý khi thay thế:</span>
             </div>
             <p>
-              • Tệp cũ (<span className="font-semibold">{currentFileName || 'Hiện tại'}</span>) trên Cloud S3 sẽ bị{' '}
-              <span className="font-bold text-rose-700">xóa vĩnh viễn ngay lập tức</span> để hoàn trả Quota dung
-              lượng cho bạn.
+              • Tệp nội dung cũ (<span className="font-semibold">{currentFileName || 'Hiện tại'}</span>) sẽ được thay thế bằng tệp mới tải lên; dung lượng lưu trữ sẽ tự động điều chỉnh tương ứng.
             </p>
             <p className="flex items-center gap-1.5 text-emerald-800 font-semibold pt-1">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              Toàn bộ Thông tin tệp (Tiêu đề, Tác giả, Ngày phát hành, Từ khóa...) được giữ nguyên 100%!
+              Toàn bộ hồ sơ tài liệu (Tiêu đề, Tác giả, Ngày phát hành, Từ khóa...) được bảo toàn nguyên vẹn 100%.
             </p>
           </div>
 
@@ -141,7 +139,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
             {!selectedFile ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-slate-50/60 rounded-xl p-6 text-center cursor-pointer transition-all duration-200"
+                className="border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-slate-50/60 rounded-2xl p-6 text-center cursor-pointer transition-all duration-200"
               >
                 <input
                   ref={fileInputRef}
@@ -160,12 +158,12 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
                 <p className="text-sm font-semibold text-slate-800">
                   Nhấn để chọn tệp mới từ máy tính của bạn
                 </p>
-                <p className="text-xs text-slate-400 mt-1">Dung lượng sẽ được tự động bù trừ vào Quota</p>
+                <p className="text-xs text-slate-400 mt-1">Dung lượng sẽ được tự động điều chỉnh vào bộ nhớ lưu trữ</p>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div className="truncate">
@@ -177,7 +175,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
                   <button
                     type="button"
                     onClick={() => setSelectedFile(null)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-full cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -190,7 +188,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
           {isSubmitting && (
             <div className="space-y-1.5 pt-2">
               <div className="flex justify-between text-xs text-slate-600">
-                <span>Đang tải tệp mới và dọn dẹp tệp cũ...</span>
+                <span>Đang tải tệp mới và cập nhật hồ sơ...</span>
                 <span className="font-bold text-amber-600">{uploadPercent}%</span>
               </div>
               <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
@@ -208,14 +206,14 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-xl cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 rounded-full cursor-pointer transition-colors"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !selectedFile}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-full shadow-md shadow-amber-500/20 transition-all cursor-pointer"
             >
               {isSubmitting ? 'Đang thay thế...' : 'Xác nhận thay thế'}
             </button>

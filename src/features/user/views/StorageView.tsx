@@ -196,7 +196,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setIsRequestModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-semibold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Xin thêm dung lượng</span>
@@ -205,7 +205,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
           <button
             onClick={handleManualRefresh}
             disabled={isLoading}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-full text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="Làm mới"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
@@ -256,7 +256,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
 
       {/* 3 Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Hạn mức được cấp</p>
             <Database className="w-4 h-4 text-slate-400" />
@@ -270,7 +270,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Đã sử dụng</p>
             <HardDrive className={`w-4 h-4 ${statusColor.text}`} />
@@ -283,7 +283,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Còn có thể tải lên</p>
             <FolderLock className="w-4 h-4 text-emerald-500" />
@@ -310,7 +310,7 @@ export const StorageView: React.FC<StorageViewProps> = ({
       </div>
 
       {/* Chi tiết thanh trạng thái dung lượng & cảnh báo */}
-      <div className="bg-white rounded-xl p-6 border border-slate-200/90 shadow-xs space-y-6">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-semibold text-slate-800">Tiến độ lưu trữ</span>
@@ -407,9 +407,9 @@ export const StorageView: React.FC<StorageViewProps> = ({
                   <button
                     key={d}
                     onClick={() => setMyExpiringDays(d)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                       myExpiringDays === d
-                        ? 'bg-rose-600 text-white'
+                        ? 'bg-rose-600 text-white shadow-2xs'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >

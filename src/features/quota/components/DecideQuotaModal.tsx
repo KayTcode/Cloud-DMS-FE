@@ -173,7 +173,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -238,13 +238,13 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         </div>
 
         {/* Tab chọn hành động: Duyệt hay Từ chối */}
-        <div className="mt-4 flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <div className="mt-4 flex items-center bg-slate-100 p-1 rounded-full border border-slate-200/80">
           <button
             type="button"
             onClick={() => setMode('approve')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               mode === 'approve'
-                ? 'bg-white text-emerald-700 shadow-xs'
+                ? 'bg-white text-emerald-700 shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -254,9 +254,9 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
           <button
             type="button"
             onClick={() => setMode('reject')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               mode === 'reject'
-                ? 'bg-white text-rose-700 shadow-xs'
+                ? 'bg-white text-rose-700 shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -269,17 +269,17 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         {mode === 'approve' && (
           <div className="mt-4 space-y-3 animate-in fade-in duration-150">
             {isShort && remaining !== null && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-2">
-                <div className="flex items-start gap-2">
+              <div className="p-3.5 bg-amber-50 border border-amber-200/80 rounded-2xl text-xs text-amber-900 space-y-2.5">
+                <div className="flex items-start gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     {(request.requesterRole === 'Employee' || request.requesterRole === 'DepartmentAdmin') && (
                       <span className="font-semibold block">
-                        {request.requesterRole === 'Employee' ? 'Phòng ban' : 'Tổ chức'}
+                        Quỹ dung lượng {request.requesterRole === 'Employee' ? 'Phòng ban' : 'Tổ chức'}
                       </span>
                     )}
                     <span>
-                      Nguồn cấp còn {bytesToGB(remaining)} GB, thiếu {bytesToGB(bytesToApprove - remaining)} GB.
+                      Hiện chỉ còn <strong>{bytesToGB(remaining)} GB</strong> trống, còn thiếu <strong>{bytesToGB(bytesToApprove - remaining)} GB</strong> để cấp đủ.
                     </span>
                   </div>
                 </div>
@@ -291,13 +291,13 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
                       onRequestTopUp?.(bytesToApprove - remaining);
                       onClose();
                     }}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-4 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-full shadow-2xs transition-all cursor-pointer disabled:opacity-50"
                   >
                     Xin thêm từ cấp trên
                   </button>
                 )}
                 {request.viewerOwnsSource && request.viewerHasPendingRequest && (
-                  <p className="font-medium">Bạn đã gửi yêu cầu lên cấp trên, đang chờ duyệt.</p>
+                  <p className="font-medium text-amber-800">Bạn đã gửi yêu cầu lên cấp trên, đang chờ duyệt.</p>
                 )}
               </div>
             )}
@@ -313,35 +313,41 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
                     <span>Đang tải danh sách tài khoản lưu trữ...</span>
                   </div>
                 ) : providers.length === 0 ? (
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-                    Không tìm thấy tài khoản lưu trữ nào. Vui lòng kết nối Storage Provider trước.
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                    Không tìm thấy tài khoản lưu trữ nào. Vui lòng kết nối kho lưu trữ trước.
                   </div>
                 ) : (
                   <div className="space-y-1.5">
                     {providers.map((p) => {
                       const isSelected = p.id === storageProviderId;
+                      const providerLabel = p.type?.toLowerCase().includes('s3')
+                        ? 'Lưu trữ Đám mây (S3)'
+                        : p.type?.toLowerCase().includes('minio')
+                          ? 'Lưu trữ Cục bộ (MinIO)'
+                          : p.type || 'Lưu trữ Đám mây';
+
                       return (
                         <div
                           key={p.id}
                           onClick={() => { setStorageProviderId(p.id); setErrorMessage(null); }}
-                          className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                          className={`flex items-center justify-between p-3 rounded-2xl border-2 cursor-pointer transition-all ${
                             isSelected
                               ? 'border-indigo-600 bg-indigo-50/40 shadow-xs'
                               : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           <div className="flex items-center gap-2.5">
-                            <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                              <HardDrive className="w-3.5 h-3.5" />
+                            <div className={`p-2 rounded-xl ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                              <HardDrive className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="text-xs font-bold text-slate-800">{p.name}</div>
-                              <div className="text-[11px] text-slate-500 font-mono">{p.type}</div>
+                              <div className="text-[11px] text-slate-500 font-medium">{providerLabel}</div>
                             </div>
                           </div>
                           <div className="text-right text-xs">
                             <span className="text-slate-400 text-[11px] block">Tổng</span>
-                            <span className="font-mono font-semibold text-slate-700">{p.capacity}</span>
+                            <span className="font-semibold text-slate-700">{p.capacity}</span>
                           </div>
                         </div>
                       );
@@ -351,13 +357,13 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
               </div>
             )}
             <div className="space-y-2">
-              <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+              <label className="flex items-center gap-2.5 p-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                 <input
                   type="radio"
                   name="approvalType"
                   checked={approvalType === 'full'}
                   onChange={() => setApprovalType('full')}
-                  className="text-blue-600 focus:ring-blue-500"
+                  className="text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
                 <div className="text-xs">
                   <span className="font-semibold text-slate-800 block">
@@ -369,13 +375,13 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
                 </div>
               </label>
 
-              <label className="flex items-start gap-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+              <label className="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
                 <input
                   type="radio"
                   name="approvalType"
                   checked={approvalType === 'partial'}
                   onChange={() => setApprovalType('partial')}
-                  className="text-blue-600 focus:ring-blue-500 mt-1"
+                  className="text-blue-600 focus:ring-blue-500 mt-1 cursor-pointer"
                 />
                 <div className="text-xs flex-1">
                   <span className="font-semibold text-slate-800 block">
@@ -394,9 +400,9 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
                         step={1}
                         value={partialGB || ''}
                         onChange={(e) => setPartialGB(Math.max(1, parseInt(e.target.value) || 0))}
-                        className="w-32 px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                        className="w-32 px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800 bg-white"
                       />
-                      <span className="text-xs text-slate-500">GB (Tối đa {requestedGB} GB)</span>
+                      <span className="text-xs text-slate-500 font-medium">GB (Tối đa {requestedGB} GB)</span>
                     </div>
                   )}
                 </div>
@@ -423,39 +429,49 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         )}
 
         {/* Footer actions */}
-        <div className="flex items-center justify-end gap-2.5 pt-4 mt-5 border-t border-slate-100">
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
-          >
-            Đóng
-          </button>
-
-          {mode === 'approve' ? (
-            <button
-              type="button"
-              disabled={isLoading || (isShort && !showProviderSelector)}
-              onClick={handleApprove}
-              className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {isLoading ? (
-                <span>Đang xử lý...</span>
-              ) : (
-                <span>Xác nhận Duyệt ({approvalType === 'full' ? `+${requestedGB} GB` : `+${partialGB} GB`})</span>
-              )}
-            </button>
+        <div className="flex items-center justify-between gap-2.5 pt-4 mt-5 border-t border-slate-100 flex-wrap">
+          {mode === 'approve' && isShort && !showProviderSelector ? (
+            <span className="text-[11px] text-amber-700 font-medium">
+              * Quỹ chưa đủ dung lượng để duyệt mức này.
+            </span>
           ) : (
+            <span />
+          )}
+
+          <div className="flex items-center gap-2.5 ml-auto">
             <button
               type="button"
-              disabled={isLoading || !rejectionReason.trim()}
-              onClick={handleReject}
-              className="px-5 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              disabled={isLoading}
+              onClick={onClose}
+              className="px-5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              {isLoading ? <span>Đang xử lý...</span> : <span>Xác nhận Từ chối</span>}
+              Đóng
             </button>
-          )}
+
+            {mode === 'approve' ? (
+              <button
+                type="button"
+                disabled={isLoading || (isShort && !showProviderSelector)}
+                onClick={handleApprove}
+                className="px-6 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-full shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {isLoading ? (
+                  <span>Đang xử lý...</span>
+                ) : (
+                  <span>Xác nhận Duyệt ({approvalType === 'full' ? `+${requestedGB} GB` : `+${partialGB} GB`})</span>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isLoading || !rejectionReason.trim()}
+                onClick={handleReject}
+                className="px-6 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-full shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {isLoading ? <span>Đang xử lý...</span> : <span>Xác nhận Từ chối</span>}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

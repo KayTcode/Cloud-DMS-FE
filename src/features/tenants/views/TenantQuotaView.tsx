@@ -68,21 +68,21 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBackToOverview}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+            className="w-9 h-9 rounded-full border border-slate-200/80 hover:bg-slate-50 flex items-center justify-center text-slate-600 transition-colors cursor-pointer shadow-2xs shrink-0"
             title="Quay lại Tổng quan"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 Quản lý Hạn mức Quota & Phê duyệt
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                Tenant Approver
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                Tenant Admin
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-0.5">
               Phê duyệt các yêu cầu tăng dung lượng từ Trưởng phòng ban hoặc gửi yêu cầu xin thêm hạn ngạch cho Doanh nghiệp {tenant.name}
             </p>
           </div>
@@ -92,9 +92,9 @@ export const TenantQuotaView: React.FC<TenantQuotaViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={() => { setTopUpBytes(undefined); setIsRequestModalOpen(true); }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4 stroke-[2.5]" />
             <span>Xin thêm hạn ngạch Doanh nghiệp</span>
           </button>
         </div>
