@@ -16,11 +16,9 @@
  *  - `attachAuthAndIdempotency` for the request interceptor (Bearer token +
  *    auto Idempotency-Key for mutating requests + FormData Content-Type
  *    handling) — identical behavior to `apiClient`, single source of truth.
- *  - `refreshAccessToken` for 401 handling — this is the SAME module-level
- *    `isRefreshing`/`failedQueue` single-flight guard used by `apiClient`,
- *    so a 401 from either client triggers at most one concurrent refresh
- *    call; the other client's in-flight requests queue behind it instead of
- *    racing to rotate the refresh token independently.
+ *  - `handleUnauthorized` for 401 handling — delegates to `getAuthClient().refresh()`
+ *    which has single-flight built in; a 401 from either client triggers at most
+ *    one concurrent refresh call.
  *
  * Only the final error-shaping step differs from `apiClient`: on a non-401
  * error response with a backend `code` field, this instance's interceptor
@@ -28,7 +26,7 @@
  * plain `Error`.
  */
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { BASE_URL, attachAuthAndIdempotency, refreshAccessToken } from './axiosClient';
+import { BASE_URL, attachAuthAndIdempotency, handleUnauthorized } from './axiosClient';
 
 /**
  * Error thrown by every function in `largeUploadApi.ts` when the backend
@@ -82,23 +80,20 @@ largeUploadClient.interceptors.response.use(
 
     if (status === 401 && originalRequest && !originalRequest._retry) {
       if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/login')) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
         return Promise.reject(error);
       }
 
       originalRequest._retry = true;
 
-      try {
-        const newAccessToken = await refreshAccessToken();
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        }
-        return largeUploadClient(originalRequest);
-      } catch (refreshErr) {
-        return Promise.reject(refreshErr);
+      const sentToken = (originalRequest as any)._sentToken ?? null;
+      const newToken = await handleUnauthorized(sentToken);
+      if (!newToken) {
+        return Promise.reject(error);
       }
+      if (originalRequest.headers) {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      }
+      return largeUploadClient(originalRequest);
     }
 
     const code = (data as any)?.code;
