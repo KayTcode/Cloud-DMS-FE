@@ -85,32 +85,10 @@ export const deleteAdminUserApi = async (id: string): Promise<boolean> => {
 export const createSystemTenantApi = async (
   payload: CreateSystemTenantPayload
 ): Promise<SystemTenant> => {
-  try {
-    const response: any = await axiosClient.post('/admin/tenants', payload);
-    if (response?.value) return response.value;
-    if (response?.data) return response.data;
-    return response;
-  } catch {
-    // Fallback simulation
-  }
-
-  const today = new Date();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const formattedDate = `${months[today.getMonth()]} ${String(today.getDate()).padStart(2, '0')}, ${today.getFullYear()}`;
-
-  return {
-    id: `t-${Date.now()}`,
-    name: payload.name,
-    plan: payload.plan,
-    usersAssigned: payload.usersAssigned,
-    storageUsed: '0 GB',
-    storageAllocated: payload.storageAllocated,
-    storageDisplay: `0 GB / ${payload.storageAllocated}`,
-    createdDate: formattedDate,
-    status: 'Active',
-    adminEmail: payload.adminEmail || `admin@${payload.name.toLowerCase().replace(/\s+/g, '')}.com`,
-    region: payload.region || 'us-east-1 (N. Virginia)',
-  };
+  const response: any = await axiosClient.post('/admin/tenants', payload);
+  if (response?.value) return response.value;
+  if (response?.data) return response.data;
+  return response;
 };
 
 /**
