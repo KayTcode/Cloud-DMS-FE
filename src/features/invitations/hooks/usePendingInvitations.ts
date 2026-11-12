@@ -51,8 +51,10 @@ export function usePendingInvitations(initial: GetPendingInvitationsFilter = {})
   }, [tenantId, departmentId, debouncedSearch, pageNumber]);
 
   useEffect(() => {
+    // While a debounce is pending, wait: the fetch that carries the new term is the only one we want.
+    if (searchTerm !== debouncedSearch) return;
     void load();
-  }, [load]);
+  }, [load, searchTerm, debouncedSearch]);
 
   // A new search term invalidates the current page position.
   const setSearchTerm = useCallback((term: string) => {

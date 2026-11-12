@@ -151,4 +151,37 @@ describe('usePendingInvitations', () => {
     expect(result.current.pageNumber).toBe(2);
     expect(mocked.getPending).toHaveBeenCalledTimes(1);
   });
+
+  it('issues a single fetch with the new term on page 1 when searching from a later page', async () => {
+    vi.useFakeTimers();
+    try {
+      mocked.getPending.mockResolvedValue(page([row('a')], 3, 3, 41));
+
+      const { result } = renderHook(() => usePendingInvitations({ pageNumber: 3 }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(mocked.getPending).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        result.current.setSearchTerm('a');
+      });
+      // Let any in-flight request resolve, but stay inside the 300ms debounce window.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(mocked.getPending).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(mocked.getPending).toHaveBeenCalledTimes(2);
+      expect(mocked.getPending).toHaveBeenLastCalledWith(
+        expect.objectContaining({ searchTerm: 'a', pageNumber: 1 }),
+      );
+      expect(result.current.pageNumber).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
