@@ -13,6 +13,12 @@ import {
 import { DepartmentMember, DepartmentInfo } from '../types';
 import { useDepartment } from '../context/DepartmentContext';
 import { formatBytes } from '../utils/quotaUtils';
+import { useToast } from '@/hooks/useToast';
+import {
+  PendingInvitationsTable,
+  resendToastMessage,
+  cancelToastMessage,
+} from '@/features/invitations';
 
 interface StaffManagementViewProps {
   members: DepartmentMember[];
@@ -67,7 +73,8 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
   const totalAllocated = members.reduce((acc, m) => acc + m.allocatedQuotaGB, 0);
   const activeCount = members.filter((m) => m.status === 'active').length;
 
-  const { summary } = useDepartment();
+  const { summary, departmentId } = useDepartment();
+  const { toast } = useToast();
   const quotaBytes = summary?.departmentQuotaBytes ?? (department.totalAllocatedGB * 1024 * 1024 * 1024);
   const allocatedPercent = quotaBytes > 0
     ? Math.min(100, Math.round(((totalAllocated * 1024 * 1024 * 1024) / quotaBytes) * 100))
@@ -387,6 +394,18 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Lời mời đang chờ */}
+      <section className="mt-6 space-y-3" aria-labelledby="pending-invitations-heading">
+        <h3 id="pending-invitations-heading" className="text-sm font-bold text-slate-900">
+          Lời mời đang chờ
+        </h3>
+        <PendingInvitationsTable
+          departmentId={departmentId ?? undefined}
+          onResent={(r) => toast.success(resendToastMessage(r))}
+          onCancelled={(r) => toast.success(cancelToastMessage(r))}
+        />
+      </section>
     </div>
   );
 };

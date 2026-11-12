@@ -23,6 +23,12 @@ import {
   resendVacantTenantAdminInvitationApi,
   cancelVacantTenantAdminInvitationApi
 } from '../api/systemAdminCommands';
+import { useToast } from '@/hooks/useToast';
+import {
+  PendingInvitationsTable,
+  resendToastMessage,
+  cancelToastMessage,
+} from '@/features/invitations';
 
 interface TenantManagementViewProps {
   users: AdminUserDto[];
@@ -57,6 +63,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   onOpenAllocateQuotaModal,
   onRefreshUsers,
 }) => {
+  const { toast } = useToast();
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
   const [retryingUserId, setRetryingUserId] = useState<string | null>(null);
@@ -487,6 +494,17 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Lời mời đang chờ */}
+      <section className="mt-6 space-y-3" aria-labelledby="pending-invitations-heading">
+        <h3 id="pending-invitations-heading" className="text-sm font-bold text-slate-900">
+          Lời mời đang chờ
+        </h3>
+        <PendingInvitationsTable
+          onResent={(r) => toast.success(resendToastMessage(r))}
+          onCancelled={(r) => toast.success(cancelToastMessage(r))}
+        />
+      </section>
     </div>
   );
 };

@@ -5,13 +5,24 @@ import { formatQuotaAuto } from '@/utils/quotaUnitUtils';
 import { usePendingInvitations } from '../hooks/usePendingInvitations';
 import { resendCooldownRemainingMs } from '../utils/resendCooldown';
 import { normalizeUtcTimestamp } from '../utils/normalizeUtcTimestamp';
-import type { PendingInvitationDto } from '../types/invitation.types';
+import type {
+  CancelInvitationResultDto,
+  PendingInvitationDto,
+  ResendInvitationResultDto,
+} from '../types/invitation.types';
 import { InvitationStatusBadge } from './InvitationStatusBadge';
+import { CancelInvitationModal } from './CancelInvitationModal';
 
 interface PendingInvitationsTableProps {
   tenantId?: string;
   departmentId?: string;
-  onCancelRequested: (inv: PendingInvitationDto) => void;
+  /**
+   * When supplied, the host drives the confirmation and the table opens no modal of its own.
+   * When omitted, the table renders CancelInvitationModal itself.
+   */
+  onCancelRequested?: (inv: PendingInvitationDto) => void;
+  onResent?: (result: ResendInvitationResultDto) => void;
+  onCancelled?: (result: CancelInvitationResultDto) => void;
 }
 
 const cooldownMs = (inv: PendingInvitationDto, now: Date) =>
@@ -21,6 +32,8 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
   tenantId,
   departmentId,
   onCancelRequested,
+  onResent,
+  onCancelled,
 }) => {
   const {
     items,
@@ -33,6 +46,7 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
     setSearchTerm,
     setPageNumber,
     resend,
+    cancel,
   } = usePendingInvitations({ tenantId, departmentId });
 
   // Re-render once a second while any row is cooling down so the countdown label ticks.
@@ -47,9 +61,33 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
 
   const handleResend = async (userId: string) => {
     try {
-      await resend(userId);
+      const result = await resend(userId);
+      onResent?.(result);
     } catch {
       // The hook has already recorded the message in `error`, shown in the banner.
+    }
+  };
+
+  const [invitationToCancel, setInvitationToCancel] = useState<PendingInvitationDto | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelClick = (inv: PendingInvitationDto) => {
+    if (onCancelRequested) onCancelRequested(inv);
+    else setInvitationToCancel(inv);
+  };
+
+  const handleConfirmCancel = async (userId: string) => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      const result = await cancel(userId);
+      setInvitationToCancel(null);
+      onCancelled?.(result);
+    } catch {
+      // The hook has already recorded the message in `error`; close so the banner is visible.
+      setInvitationToCancel(null);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -130,7 +168,7 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
                         >
                           {remainingSec > 0 ? `Gửi lại (${remainingSec}s)` : 'Gửi lại'}
                         </Button>
-                        <Button size="sm" variant="danger" onClick={() => onCancelRequested(inv)}>
+                        <Button size="sm" variant="danger" onClick={() => handleCancelClick(inv)}>
                           Hủy lời mời
                         </Button>
                       </div>
@@ -165,6 +203,16 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
             Trang sau
           </Button>
         </div>
+      )}
+
+      {!onCancelRequested && (
+        <CancelInvitationModal
+          invitation={invitationToCancel}
+          isSubmitting={isCancelling}
+          // A request in flight must not be dismissed by Escape, the backdrop or the header X.
+          onClose={isCancelling ? () => {} : () => setInvitationToCancel(null)}
+          onConfirm={handleConfirmCancel}
+        />
       )}
     </div>
   );
