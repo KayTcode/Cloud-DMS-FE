@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test e2e/specs/demo-path.spec.ts --headed",
+    "test:e2e:all": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -22,6 +25,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@testing-library/dom": "10.4.0",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.3.0",
