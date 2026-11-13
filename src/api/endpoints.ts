@@ -107,4 +107,9 @@ export const API_ENDPOINTS = {
     READ: (id: string) => `/notifications/${id}/read`,
     READ_ALL: '/notifications/read-all',
   },
+  INVITATIONS: {
+    PENDING: '/invitations/pending',
+    RESEND: (userId: string) => `/invitations/${userId}/resend`,
+    CANCEL: (userId: string) => `/invitations/${userId}/cancel`,
+  },
 } as const;

@@ -21,4 +21,10 @@ export default defineConfig({
     allowedHosts: ['host.docker.internal'],
     hmr: { protocol: 'ws', host: 'localhost', port: 3000, clientPort: 3000 },
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['./src/test/setup.ts'],
+  },
 });

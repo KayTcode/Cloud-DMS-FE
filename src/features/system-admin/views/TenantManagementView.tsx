@@ -23,6 +23,12 @@ import {
   resendVacantTenantAdminInvitationApi,
   cancelVacantTenantAdminInvitationApi
 } from '../api/systemAdminCommands';
+import { useToast } from '@/hooks/useToast';
+import {
+  PendingInvitationsTable,
+  resendToastMessage,
+  cancelToastMessage,
+} from '@/features/invitations';
 
 interface TenantManagementViewProps {
   users: AdminUserDto[];
@@ -57,6 +63,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   onOpenAllocateQuotaModal,
   onRefreshUsers,
 }) => {
+  const { toast } = useToast();
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
   const [retryingUserId, setRetryingUserId] = useState<string | null>(null);
@@ -64,6 +71,10 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   const [cancellingTenantId, setCancellingTenantId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [localSearch, setLocalSearch] = useState('');
+  // The legacy vacant-TenantAdmin buttons below mutate the same invitations the pending list
+  // shows (SPEC EARS-22 keeps those endpoints alive), so every legacy success bumps this token
+  // and the pending list refetches instead of keeping a row that is already gone.
+  const [invitationsReloadToken, setInvitationsReloadToken] = useState(0);
 
   const effectiveSearch = searchQuery || localSearch;
 
@@ -91,6 +102,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         type: 'success',
         message: `Đã gửi lại thư mời Quản trị viên mới tới ${res.targetUserEmail || email}. Thời hạn kích hoạt được gia hạn 48 giờ!`,
       });
+      setInvitationsReloadToken((t) => t + 1);
     } catch (err: any) {
       setActionNotice({
         type: 'error',
@@ -117,6 +129,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         type: 'success',
         message: `Đã hủy lời mời thành công cho ${email}. ${res.smartCleanupApplied ? '(Đã xóa tài khoản khỏi CSDL)' : ''}`,
       });
+      setInvitationsReloadToken((t) => t + 1);
       if (onRefreshUsers) {
         onRefreshUsers();
       }
@@ -487,6 +500,22 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Lời mời đang chờ */}
+      <section className="mt-6 space-y-3" aria-labelledby="pending-invitations-heading">
+        <h3 id="pending-invitations-heading" className="text-sm font-bold text-slate-900">
+          Lời mời đang chờ
+        </h3>
+        <PendingInvitationsTable
+          reloadToken={invitationsReloadToken}
+          onResent={(r) => toast.success(resendToastMessage(r))}
+          onCancelled={(r) => {
+            toast.success(cancelToastMessage(r));
+            // The cancelled invitation may also be a row in the legacy table above.
+            onRefreshUsers?.();
+          }}
+        />
+      </section>
     </div>
   );
 };

@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { Search, UserPlus, Filter, Users, Loader2 } from 'lucide-react';
 import { TenantUser } from '@/features/tenants/types';
 import { useTenantContext } from '@/context/TenantContext';
+import { useToast } from '@/hooks/useToast';
+import {
+  PendingInvitationsTable,
+  resendToastMessage,
+  cancelToastMessage,
+} from '@/features/invitations';
 
 interface TenantUsersViewProps {
   users: TenantUser[];
@@ -15,6 +21,7 @@ export const TenantUsersView: React.FC<TenantUsersViewProps> = ({
   onCreateDepartmentUser,
 }) => {
   const { departments, isLoadingData } = useTenantContext();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
 
@@ -169,6 +176,17 @@ export const TenantUsersView: React.FC<TenantUsersViewProps> = ({
           </table>
         </div>
       )}
+
+      {/* Lời mời đang chờ */}
+      <section className="mt-6 space-y-3" aria-labelledby="pending-invitations-heading">
+        <h3 id="pending-invitations-heading" className="text-sm font-bold text-slate-900">
+          Lời mời đang chờ
+        </h3>
+        <PendingInvitationsTable
+          onResent={(r) => toast.success(resendToastMessage(r))}
+          onCancelled={(r) => toast.success(cancelToastMessage(r))}
+        />
+      </section>
     </div>
   );
 };
