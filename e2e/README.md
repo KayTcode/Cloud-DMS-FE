@@ -19,6 +19,7 @@ Toàn bộ 27 test cases được phân thành 2 tầng kịch bản rõ ràng:
 * **`e2e/specs/sharing-permissions.spec.ts`:** Kiểm tra chia sẻ quyền Viewer/Editor và thu hồi quyền xóa cache Redis.
 * **`e2e/specs/quota-approval.spec.ts`:** Kiểm tra quy trình xin tăng hạn mức và duyệt bù quota phân cấp.
 * **`e2e/specs/offboarding-handover.spec.ts`:** Khóa tài khoản nhân viên thôi việc (văng session JWT) và bàn giao dữ liệu cho người kế nhiệm.
+* **`e2e/specs/interim-governance.spec.ts`:** Quản trị lâm thời khi khuyết lãnh đạo: (1) System Admin tiếp quản khi Tenant vắng (Offboard Tenant Admin -> Interim Takeover -> Bổ nhiệm mới -> Hủy/Gửi lại lời mời); (2) Tenant Admin quản lý lâm thời khi Department vắng (Offboard Dept Admin -> Tạm giữ Kho chung -> Tự động leo thang duyệt Quota -> Thêm nhân viên mới -> Phân bổ hạn mức -> Bổ nhiệm Trưởng phòng mới); (3) UI Verification (Banner "Đang tạm quản lý", các Tab chức năng và modal bổ nhiệm).
 * **`e2e/specs/multipart-upload.spec.ts`:** Khởi tạo phiên tải file lớn multipart và duy trì heartbeat.
 
 ---
@@ -83,3 +84,14 @@ npx playwright show-report
 | **TC-UF-07.03** | Định tuyến chuyển tiếp bù quota khi thiếu | `e2e/specs/quota-approval.spec.ts` |
 | **TC-UF-08.01** | Khóa tài khoản thôi việc (văng session) | `e2e/specs/offboarding-handover.spec.ts` |
 | **TC-UF-08.02** | Bàn giao toàn bộ tệp tin cho người tiếp quản | `e2e/specs/offboarding-handover.spec.ts` |
+| **TC-IG-01.01** | [Interim] System Admin tiếp quản khi Tenant vắng (InterimTakeover) | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-01.02** | [Interim] Zero-Day Revocation cho Tenant Admin bị vô hiệu hóa | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-01.03** | [Interim] Bổ nhiệm Tenant Admin mới cho Tenant khuyết (AssignVacant) | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-01.04** | [Interim] Resend & Cancel lời mời Tenant Admin mới (Smart Cleanup) | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-02.01** | [Interim] Tenant Admin vô hiệu hóa Trưởng phòng chuyển Kho chung (InterimHold) | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-02.02** | [Interim] Tự động leo thang duyệt Quota lên Tenant Admin khi khuyết Lead | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-02.03** | [Interim] Tenant Admin thêm nhân viên mới vào phòng ban khuyết | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-02.04** | [Interim] Tenant Admin phân bổ Quota cá nhân cho nhân viên phòng ban khuyết | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-02.05** | [Interim] Tenant Admin bổ nhiệm Trưởng phòng mới cho phòng ban khuyết | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-03.01** | [UI] System Admin Portal hiển thị Banner Tiếp quản Lâm thời & Nút Bổ nhiệm | `e2e/specs/interim-governance.spec.ts` |
+| **TC-IG-03.02** | [UI] Tenant Admin Portal hiển thị Panel "Đang tạm quản lý" & 4 Tabs chức năng | `e2e/specs/interim-governance.spec.ts` |

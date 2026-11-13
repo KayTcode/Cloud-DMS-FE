@@ -47,6 +47,42 @@ export class SystemAdminPage {
     await expect(this.page.getByRole('heading', { name: 'Khởi tạo Tổ chức Doanh nghiệp' })).not.toBeVisible({ timeout: 20_000 });
   }
 
+  async openTenantDetail(tenantName: string) {
+    await this.page.getByText(tenantName).first().click();
+    await expect(this.page.getByRole('heading', { name: /Chi tiết Tổ chức/i })).toBeVisible({ timeout: 10_000 });
+  }
+
+  async offboardTenantAdminInterim() {
+    await this.page.getByRole('button', { name: /Vô hiệu hóa Quản trị viên/i }).click();
+    await expect(this.page.getByRole('heading', { name: /Vô hiệu hóa Quản trị viên/i })).toBeVisible({ timeout: 5_000 });
+
+    // Chọn kịch bản Tiếp quản Lâm thời (mặc định)
+    const interimRadio = this.page.locator('input[value="InterimTakeover"]');
+    if (await interimRadio.isVisible()) {
+      await interimRadio.check();
+    }
+
+    await this.page.getByRole('button', { name: /Xác nhận Tiếp quản|Vô hiệu hóa/i }).click();
+  }
+
+  async expectInterimManagementBanner() {
+    await expect(this.page.getByText('Chế độ Tiếp quản Lâm thời (Interim Management)')).toBeVisible({ timeout: 10_000 });
+  }
+
+  async assignVacantTenantAdmin(params: { email: string; firstName: string; lastName: string; phone?: string }) {
+    await this.page.getByRole('button', { name: /Bổ nhiệm Quản trị viên mới/i }).click();
+    await expect(this.page.getByRole('heading', { name: /Bổ nhiệm Quản trị viên/i })).toBeVisible({ timeout: 5_000 });
+
+    await this.page.locator('input[type="email"]').fill(params.email);
+    await this.page.locator('input[placeholder*="Văn"]').first().fill(params.firstName);
+    await this.page.locator('input[placeholder*="Nguyễn"]').first().fill(params.lastName);
+    if (params.phone) {
+      await this.page.locator('input[type="tel"]').fill(params.phone);
+    }
+
+    await this.page.getByRole('button', { name: /Phát hành thư mời/i }).click();
+  }
+
   async logout() {
     const logoutBtn = this.page.getByRole('button', { name: /Đăng xuất/i });
     if (await logoutBtn.isVisible()) {
