@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import process from 'node:process';
 import { loginViaApi } from '../helpers/apiHelper';
 
 test.describe('Thôi Việc Nhân Sự & Bàn Giao Dữ Liệu (Offboarding & Handover Flow)', () => {

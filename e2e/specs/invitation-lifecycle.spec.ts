@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import process from 'node:process';
 import { loginViaApi } from '../helpers/apiHelper';
 
 test.describe('Vòng Đời Lời Mời & Dọn Dẹp Thông Minh (Invitation Lifecycle & Smart Cleanup)', () => {
