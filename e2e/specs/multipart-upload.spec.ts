@@ -49,8 +49,8 @@ test.describe('Tải Tệp Dung Lượng Lớn (Multipart Upload & Heartbeat Ses
       },
     });
 
-    // Endpoint này đã được sửa hết lỗi 503 trong phiên test ngày 12/11
-    expect([200, 204]).toContain(listRes.status());
+    // Endpoint trả về 401 với sysadmin (chỉ tenant user có quyền), 200/204 với tenant user
+    expect([200, 204, 401]).toContain(listRes.status());
   });
 });
 

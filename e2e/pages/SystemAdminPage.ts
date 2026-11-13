@@ -4,8 +4,8 @@ export class SystemAdminPage {
   constructor(private page: Page) {}
 
   async navigateToTenants() {
-    // Click menu Tổ chức / Tenants
-    await this.page.getByRole('button', { name: /Tổ chức/i }).click();
+    // Click card "Quản lý Tổ chức & Tài khoản" trong AdminHubView (là <div>, không phải <button>)
+    await this.page.getByText('Quản lý Tổ chức & Tài khoản').click({ timeout: 15_000 });
     await expect(this.page.getByRole('button', { name: 'Tạo Tổ chức mới' })).toBeVisible({ timeout: 15_000 });
   }
 
@@ -19,9 +19,9 @@ export class SystemAdminPage {
     await this.page.getByRole('button', { name: 'Tạo Tổ chức mới' }).click();
 
     // Chờ Modal hiện ra
-    await expect(this.page.getByRole('heading', { name: 'Khởi tạo Tổ chức Doanh nghiệp' })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: /Khởi tạo Tổ chức/i })).toBeVisible();
 
-    await this.page.locator('input[placeholder*="Công ty TNHH"]').fill(params.tenantName);
+    await this.page.locator('input[placeholder*="Acme Corp"], input[placeholder*="Công ty TNHH"]').first().fill(params.tenantName);
 
     // Chọn Storage Provider nếu có
     const providerSelect = this.page.locator('select').first();
@@ -44,7 +44,7 @@ export class SystemAdminPage {
     await this.page.getByRole('button', { name: 'Khởi tạo Tenant & Gửi thư mời' }).click();
 
     // Chờ modal đóng
-    await expect(this.page.getByRole('heading', { name: 'Khởi tạo Tổ chức Doanh nghiệp' })).not.toBeVisible({ timeout: 20_000 });
+    await expect(this.page.getByRole('heading', { name: /Khởi tạo Tổ chức/i })).not.toBeVisible({ timeout: 20_000 });
   }
 
   async logout() {

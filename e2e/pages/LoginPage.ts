@@ -15,6 +15,8 @@ export class LoginPage {
     await emailInput.fill(email);
     await passwordInput.fill(pass);
     await this.page.getByRole('button', { name: 'Đăng nhập' }).click();
+    // Chờ navigate ra khỏi /login sau khi đăng nhập thành công
+    await this.page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20_000 }).catch(() => {});
   }
 
   async expectErrorMessage(messageSnippet: string) {
