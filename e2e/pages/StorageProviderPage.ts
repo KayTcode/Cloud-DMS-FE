@@ -3,10 +3,19 @@ import { Page, expect } from '@playwright/test';
 export class StorageProviderPage {
   constructor(private page: Page) {}
 
-  async openConnectModal() {
-    // Điều hướng từ AdminHubView: thẻ là <div onClick>, không phải <button>
+  async navigate() {
     await this.page.getByText('Nhà cung cấp Lưu trữ (Storage Pools)').click({ timeout: 15_000 });
     await expect(this.page.getByRole('button', { name: 'Kết Nối Cloud Provider' })).toBeVisible({ timeout: 15_000 });
+  }
+
+  async openConnectModal() {
+    // Điều hướng từ AdminHubView: thẻ là <div onClick>, không phải <button>
+    await this.navigate();
+    await this.page.getByRole('button', { name: 'Kết Nối Cloud Provider' }).click();
+    await expect(this.page.getByText('Kết Nối Cloud Storage Provider')).toBeVisible({ timeout: 10_000 });
+  }
+
+  async openConnectModalFromPage() {
     await this.page.getByRole('button', { name: 'Kết Nối Cloud Provider' }).click();
     await expect(this.page.getByText('Kết Nối Cloud Storage Provider')).toBeVisible({ timeout: 10_000 });
   }
@@ -47,10 +56,16 @@ export class StorageProviderPage {
     await expect(this.page.getByText('Kết Nối Cloud Storage Provider')).not.toBeVisible({ timeout: 20_000 });
   }
 
-  async readListedCapacity(name: string): Promise<number> {
-    const row = this.page.getByText(name).locator('..').locator('..');
-    const text = await row.textContent();
-    const match = text?.match(/([\d.]+)\s*GB/);
-    return match ? Math.round(parseFloat(match[1]) * 1024 * 1024 * 1024) : 0;
+  async readListedCapacity(name: string): Promise<{ total: number; used: number }> {
+    const card = this.page.getByText(name).first().locator('../..').locator('..');
+    const text = await card.textContent();
+    // UI format: "Tổng dung lượng thật: 15.0 GB" and "Đã sử dụng: 3.9 GB / 15.0 GB (26%)"
+    const totalMatch = text?.match(/Tổng dung lượng thật[:\s]+([\d.]+)\s*GB/);
+    const usedMatch = text?.match(/Đã sử dụng[:\s]+([\d.]+)\s*GB/);
+    const toBytes = (gb: string) => Math.round(parseFloat(gb) * 1024 * 1024 * 1024);
+    return {
+      total: totalMatch ? toBytes(totalMatch[1]) : 0,
+      used: usedMatch ? toBytes(usedMatch[1]) : 0,
+    };
   }
 }
