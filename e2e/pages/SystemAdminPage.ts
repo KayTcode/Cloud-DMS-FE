@@ -23,16 +23,24 @@ export class SystemAdminPage {
 
     await this.page.locator('input[placeholder*="Acme Corp"], input[placeholder*="Công ty TNHH"]').first().fill(params.tenantName);
 
-    // Chọn Storage Provider nếu có
-    const providerSelect = this.page.locator('select').first();
+    // Scope vào modal để tránh match selector ngoài modal
+    const modal = this.page.locator('[role="dialog"], .fixed.inset-0').last();
+
+    // Chờ provider options load (lazy fetch trong useEffect khi modal mở)
+    const providerSelect = modal.locator('select').first();
+    try {
+      // Chờ ít nhất 2 option xuất hiện trong select (placeholder + 1 provider)
+      await expect(providerSelect.locator('option').nth(1)).toBeAttached({ timeout: 8000 });
+    } catch { /* nếu không load được provider, bỏ qua */ }
+
     const optionCount = await providerSelect.locator('option').count();
     if (optionCount > 1) {
       await providerSelect.selectOption({ index: 1 });
     }
 
     if (params.quotaGb) {
-      const quotaInput = this.page.locator('input[placeholder="50"]');
-      if (await quotaInput.isVisible()) {
+      const quotaInput = modal.locator('input[placeholder="50"]');
+      if (await quotaInput.isEnabled({ timeout: 3000 }).catch(() => false)) {
         await quotaInput.fill(params.quotaGb.toString());
       }
     }
