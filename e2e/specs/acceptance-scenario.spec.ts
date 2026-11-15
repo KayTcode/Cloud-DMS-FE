@@ -14,9 +14,10 @@ const ACCEPT_TENANT_CODE = 'NGHIE_4427';
 const ACCEPT_DEPT_ID = '16f04590-3f37-4beb-bfef-c885d8c1a472';
 const ACCEPT_DEPT_CODE = 'PNT';
 const ACCEPT_DEPTADMIN_USER_ID = '664fdf02-813d-4458-aba4-fb29db7fc67a';
+const SYSADMIN_EMAIL = process.env.SYSADMIN_EMAIL ?? 'sysadmin@local.com';
 
 async function getSysAdminToken(request: APIRequestContext): Promise<string> {
-  return getUserToken(request, 'kayt1206.js@gmail.com', process.env.SYSADMIN_PASSWORD!);
+  return getUserToken(request, SYSADMIN_EMAIL, process.env.SYSADMIN_PASSWORD!);
 }
 
 async function findTenantByName(request: APIRequestContext, token: string, name: string) {
@@ -59,7 +60,7 @@ test.describe('Nghiệm thu kịch bản 4 bước', () => {
     const providers = new StorageProviderPage(page);
 
     await login.goto();
-    await login.login('kayt1206.js@gmail.com', process.env.SYSADMIN_PASSWORD!);
+    await login.login(SYSADMIN_EMAIL, process.env.SYSADMIN_PASSWORD!);
 
     // Điều hướng vào trang Storage Providers (click card "Nhà cung cấp Lưu trữ" trên AdminHub)
     await page.getByText('Nhà cung cấp Lưu trữ (Storage Pools)').click({ timeout: 15_000 });
