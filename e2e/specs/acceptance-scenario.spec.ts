@@ -265,4 +265,79 @@ test.describe('Nghiệm thu kịch bản 4 bước', () => {
     console.log(`ACCEPT_DEPT_CODE=${ACCEPT_DEPT_CODE}`);
     console.log(`ACCEPT_DEPTADMIN_USER_ID=${ACCEPT_DEPTADMIN_USER_ID}`);
   });
+
+  test('Bước 4: Employee Chử Hữu Thành với hạn mức 3 GB', async ({ request }) => {
+    const THREE_GB = 3221225472;
+    const FIVE_GB = 5368709120;
+    const TWO_GB = 2147483648;
+    const EMPLOYEE_EMAIL = 'thanhchhe161893@fpt.edu.vn';
+
+    const daToken = await getUserToken(
+      request, 'anhthichemquaroi@gmail.com', process.env.DA_PASSWORD ?? process.env.SYSADMIN_PASSWORD!
+    );
+
+    // Reset shared quota = 0 để giải phóng freeBytes cho employee (total 5GB = lead 2GB + employee 3GB)
+    const resetSharedRes = await request.put(
+      `https://localhost:8443/api/department/${ACCEPT_DEPT_ID}/quota/shared`,
+      { headers: { Authorization: `Bearer ${daToken}` }, data: { quotaBytes: 0 } }
+    );
+    console.log(`reset shared quota status=${resetSharedRes.status()}`);
+    expect(resetSharedRes.ok()).toBe(true);
+
+    // Tìm employee đã tồn tại hoặc tạo mới
+    const membersRes = await request.get(
+      `https://localhost:8443/api/department/${ACCEPT_DEPT_ID}/employees?pageSize=50`,
+      { headers: { Authorization: `Bearer ${daToken}` } }
+    );
+    const membersBody = await membersRes.json().catch(() => ({}));
+    const members: Array<{ id?: string; userId?: string; email?: string }> =
+      membersBody.value?.items ?? membersBody.items ?? [];
+    const existing = members.find((m) => m.email === EMPLOYEE_EMAIL);
+
+    let employeeUserId: string;
+    if (existing) {
+      employeeUserId = (existing.id ?? existing.userId) as string;
+      console.log(`Employee đã tồn tại: id=${employeeUserId}`);
+    } else {
+      const createRes = await request.post(
+        `https://localhost:8443/api/department/${ACCEPT_DEPT_ID}/employees`,
+        {
+          headers: { Authorization: `Bearer ${daToken}` },
+          data: { email: EMPLOYEE_EMAIL, firstName: 'Hữu Thành', lastName: 'Chử' },
+        }
+      );
+      const createBody = await createRes.json().catch(() => ({}));
+      console.log(`create employee status=${createRes.status()} body=${JSON.stringify(createBody).substring(0, 300)}`);
+      expect(createRes.ok()).toBe(true);
+      employeeUserId = createBody.value?.id ?? createBody.value?.userId ?? createBody.data?.id;
+    }
+    console.log(`EMPLOYEE_USER_ID=${employeeUserId}`);
+    expect(employeeUserId).toBeTruthy();
+
+    // DA cấp 3 GB cho employee
+    const empQuotaRes = await request.put(
+      `https://localhost:8443/api/department/${ACCEPT_DEPT_ID}/quota/users/${employeeUserId}`,
+      { headers: { Authorization: `Bearer ${daToken}` }, data: { quotaBytes: THREE_GB } }
+    );
+    const empQuotaText = await empQuotaRes.text().catch(() => '');
+    console.log(`employee quota PUT status=${empQuotaRes.status()} text=${empQuotaText.substring(0, 500)}`);
+    const empQuotaBody = (() => { try { return JSON.parse(empQuotaText); } catch { return {}; } })();
+    expect(empQuotaRes.ok()).toBe(true);
+
+    // Xác nhận breakdown: totalBytes = 5 GB, leadBytes = 2 GB, employeesBytes >= 3 GB
+    const breakdownRes = await request.get(
+      `https://localhost:8443/api/department/${ACCEPT_DEPT_ID}/quota/breakdown`,
+      { headers: { Authorization: `Bearer ${daToken}` } }
+    );
+    const breakdown = await breakdownRes.json();
+    console.log(`breakdown=${JSON.stringify(breakdown).substring(0, 300)}`);
+    const bd = breakdown.value ?? breakdown.data ?? breakdown;
+    expect(bd.totalBytes).toBe(FIVE_GB);
+    expect(bd.leadBytes).toBe(TWO_GB);
+    expect(bd.employeesBytes).toBeGreaterThanOrEqual(THREE_GB);
+
+    console.log(`ACCEPT_DEPT_ID=${ACCEPT_DEPT_ID}`);
+    console.log(`ACCEPT_DEPT_CODE=${ACCEPT_DEPT_CODE}`);
+    console.log(`ACCEPT_TENANT_ID=${ACCEPT_TENANT_ID}`);
+  });
 });

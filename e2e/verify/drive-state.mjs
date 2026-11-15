@@ -1,18 +1,24 @@
 /**
  * Xác minh trạng thái thật của Google Drive qua OAuth2.
- * Chạy: node e2e/verify/drive-state.mjs <folderId|root>
+ * Chạy: node e2e/verify/drive-state.mjs <folderId|root> [--account=1|2]
  * In: danh sách con của thư mục (name\tmimeType\tid), rồi DRIVE_LIMIT=<bytes>
  *
- * Env: GDRIVE_OAUTH_CONFIG_JSON — JSON chứa client_id, client_secret, refresh_token
+ * Env:
+ *   GDRIVE_OAUTH_CONFIG_JSON  — dùng khi --account=1 hoặc không có --account
+ *   GDRIVE_OAUTH2_CONFIG_JSON — dùng khi --account=2
  */
 import https from 'https';
 
-const folderId = process.argv[2] || 'root';
+const args = process.argv.slice(2);
+const folderId = args.find(a => !a.startsWith('--')) || 'root';
+const accountArg = args.find(a => a.startsWith('--account='));
+const account = accountArg ? Number(accountArg.split('=')[1]) : 1;
+const configEnvKey = account === 2 ? 'GDRIVE_OAUTH2_CONFIG_JSON' : 'GDRIVE_OAUTH_CONFIG_JSON';
 
-const oauthCfg = JSON.parse(process.env.GDRIVE_OAUTH_CONFIG_JSON || '{}');
+const oauthCfg = JSON.parse(process.env[configEnvKey] || '{}');
 const { client_id, client_secret, refresh_token } = oauthCfg;
 if (!client_id || !client_secret || !refresh_token) {
-  console.error('Thiếu GDRIVE_OAUTH_CONFIG_JSON (cần client_id, client_secret, refresh_token)');
+  console.error(`Thiếu ${configEnvKey} (cần client_id, client_secret, refresh_token)`);
   process.exit(1);
 }
 
