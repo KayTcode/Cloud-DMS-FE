@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import process from 'node:process';
 import { loginViaApi } from '../helpers/apiHelper';
 
 test.describe('Kiểm thử Ranh giới Bảo mật & Chống IDOR (Security Boundaries & IDOR Defense)', () => {

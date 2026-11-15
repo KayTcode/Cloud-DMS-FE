@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import process from 'node:process';
 import * as path from 'path';
 import * as fs from 'fs';
 
