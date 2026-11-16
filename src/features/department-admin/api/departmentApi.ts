@@ -6,6 +6,7 @@ import {
   DepartmentEmployeeDto,
   PaginatedResult,
   CreateEmployeePayload,
+  CreateEmployeeResult,
   AllocateUserQuotaPayload,
   SetupDepartmentPayload,
   DepartmentDto,
@@ -89,7 +90,7 @@ export const departmentApi = {
   createEmployee: async (
     departmentId: string,
     payload: CreateEmployeePayload
-  ): Promise<DepartmentEmployeeDto> => {
+  ): Promise<CreateEmployeeResult> => {
     const res: any = await apiClient.post(
       API_ENDPOINTS.DEPARTMENT.EMPLOYEES(departmentId),
       payload

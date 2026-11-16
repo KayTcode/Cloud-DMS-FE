@@ -150,8 +150,13 @@ const InterimPanelInner: React.FC<InterimManagementPanelProps> = ({
 
   const handleAddMember = async (payload: CreateEmployeePayload) => {
     try {
-      await createEmployee(payload);
-      onShowToast?.('success', `Đã tạo nhân viên và gửi email kích hoạt tới ${payload.email}.`);
+      const { activationEmailSent } = await createEmployee(payload);
+      onShowToast?.(
+        activationEmailSent ? 'success' : 'error',
+        activationEmailSent
+          ? `Đã tạo nhân viên và gửi email kích hoạt tới ${payload.email}.`
+          : `Đã tạo nhân viên ${payload.email} nhưng KHÔNG gửi được email kích hoạt — hãy gửi lại lời mời.`
+      );
       setIsAddMemberOpen(false);
     } catch (err) {
       handleApiError(err);

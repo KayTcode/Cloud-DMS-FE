@@ -37,6 +37,16 @@ export interface CreateEmployeePayload {
   storageQuotaBytes?: number;
 }
 
+/**
+ * Token lời mời chỉ nằm trong email kích hoạt, nên khi `activationEmailSent` là false thì tài
+ * khoản đã tạo xong nhưng chưa thể kích hoạt — phải gửi lại lời mời.
+ */
+export interface CreateEmployeeResult {
+  // Backend trả UserDto nên không có `emailConfirmed`.
+  user: Omit<DepartmentEmployeeDto, 'emailConfirmed'>;
+  activationEmailSent: boolean;
+}
+
 export interface AllocateUserQuotaPayload {
   quotaBytes: number;
 }
