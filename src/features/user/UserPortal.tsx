@@ -98,6 +98,9 @@ export const UserPortal: React.FC = () => {
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [personalQuota, setPersonalQuota] = useState<PersonalStorageQuotaDto | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
+  // Danh sách hiện tại đến từ API tìm kiếm lai của server, không phải liệt kê thư mục.
+  // DriveView dùng cờ này để không lọc lại theo tên và ném mất kết quả tìm theo nội dung.
+  const [isServerSearch, setIsServerSearch] = useState(false);
   const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>([]);
   const [activities, setActivities] = useState<UserActivity[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -139,12 +142,14 @@ export const UserPortal: React.FC = () => {
         // ra kết quả dù chỉ mục đã có đầy đủ.
         const result = await driveApi.searchFiles(term, folderId);
         setDriveItems(result.items);
+        setIsServerSearch(true);
         if (result.degraded) {
           console.warn('[search] chạy ở chế độ hạn chế:', result.modeUsed, result.warnings);
         }
       } else {
         const items = await driveApi.getDriveItems(folderId);
         setDriveItems(items);
+        setIsServerSearch(false);
       }
     } catch (error) {
       console.error('Lỗi nạp tệp tin:', error);
@@ -667,6 +672,7 @@ export const UserPortal: React.FC = () => {
             currentFolderId={currentFolderId}
             setCurrentFolderId={setCurrentFolderId}
             searchQuery={searchQuery}
+            serverSearched={isServerSearch}
             activeFilter={activeFilter}
             setActiveFilter={handleFilterChange}
             onUploadFile={handleUploadFiles}
