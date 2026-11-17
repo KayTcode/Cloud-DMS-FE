@@ -15,6 +15,7 @@ import {
   getSession,
   completeSession,
   abortSession,
+  uploadPartViaServer,
   type BeginLargeRequest,
   type LargeSession,
   type UploadSessionStatus,
@@ -37,6 +38,9 @@ export function createTransport(
   beginRequest: BeginLargeRequest,
   idempotencyKey: string
 ): LargeUploadTransport {
+  // Bật lên khi backend báo provider này cho PUT trực tiếp (501), để không hỏi lại mỗi phần.
+  let proxyUnsupported = false;
+
   return {
     async begin(): Promise<LargeSession> {
       return beginLargeSession(beginRequest, idempotencyKey);
@@ -71,6 +75,34 @@ export function createTransport(
       contentRange: string,
       signal: AbortSignal
     ): Promise<{ status: number; rangeHeader: string | null; retryAfter: number | null }> {
+      // Đẩy qua backend trước. Trình duyệt KHÔNG PUT thẳng lên URL resumable của Google
+      // được: phiên do backend tạo nên Google không cấp quyền CORS cho origin trang web,
+      // mọi PUT bị chặn tại chỗ và file trên 100 MB không bao giờ lên được.
+      if (!proxyUnsupported) {
+        const match = /bytes (\d+)-(\d+)\/(\d+)/.exec(contentRange);
+        if (match) {
+          const offset = Number(match[1]);
+          const partNumber = Math.floor(offset / Math.max(1, session.partSizeBytes ?? 1)) + 1;
+          try {
+            const result = await uploadPartViaServer(session.sessionId, partNumber, offset, body, signal);
+            // Quy về đúng ngữ nghĩa mà LargeFileUploader đang chờ: 308 cho phần giữa
+            // chừng, 200 cho phần cuối, và Range nói offset xác nhận được.
+            return {
+              status: result.isComplete ? 200 : 308,
+              rangeHeader: result.confirmedBytes > 0 ? `bytes=0-${result.confirmedBytes - 1}` : null,
+              retryAfter: null,
+            };
+          } catch (error: any) {
+            if (error?.status === 501 || error?.code === 'PROXY_UPLOAD_NOT_SUPPORTED') {
+              // Provider cho PUT truc tiep: quay ve duong presign cho ca phien nay.
+              proxyUnsupported = true;
+            } else {
+              throw error;
+            }
+          }
+        }
+      }
+
       const res = await fetch(url, {
         method: 'PUT',
         body,
@@ -86,6 +118,19 @@ export function createTransport(
     },
 
     async queryOffset(url: string, total: number): Promise<number> {
+      // Hỏi backend trước: nó giữ tiến độ do provider xác nhận sau mỗi phần đẩy qua proxy.
+      // Hỏi thẳng Google cũng bị CORS chặn y như lúc PUT, nên đường dưới chỉ còn dùng được
+      // cho provider cho phép gọi trực tiếp.
+      if (!proxyUnsupported) {
+        try {
+          const status = await getSession(session.sessionId);
+          const received = Number(status?.receivedBytes ?? 0);
+          if (Number.isFinite(received) && received >= 0) return Math.min(received, total);
+        } catch {
+          // Khong hoi duoc thi roi xuong duong truc tiep ben duoi.
+        }
+      }
+
       // Google resumable: PUT rỗng với `Content-Range: bytes */total`, đọc header `Range` trả về.
       // OneDrive: GET để lấy `nextExpectedRanges`.
       const res = await fetch(url, {

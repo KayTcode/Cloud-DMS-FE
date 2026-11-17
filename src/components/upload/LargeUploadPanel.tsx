@@ -27,11 +27,13 @@ function formatRemaining(task: UploadTask): string {
 }
 
 const UploadTaskRow: React.FC<{ task: UploadTask }> = ({ task }) => {
-  const { pause, resume, cancel } = useUploadManager();
+  const { pause, resume, cancel, dismiss } = useUploadManager();
   const percent = task.size > 0 ? Math.min(100, Math.round((task.uploaded / task.size) * 100)) : 0;
   const canPause = task.state === 'sending';
   const canResume = task.state === 'paused' || task.state === 'provider-limited' || task.state === 'error';
-  const canCancel = task.state !== 'done' && task.state !== 'cancelled';
+  const canCancel = task.state !== 'done' && task.state !== 'cancelled' && task.state !== 'error';
+  // Task đã kết thúc thì việc duy nhất còn lại là dọn nó khỏi màn hình.
+  const canDismiss = task.state === 'done' || task.state === 'cancelled' || task.state === 'error';
 
   return (
     <div className="upload-task-row" style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb' }}>
@@ -68,6 +70,11 @@ const UploadTaskRow: React.FC<{ task: UploadTask }> = ({ task }) => {
         {canCancel && (
           <button type="button" onClick={() => void cancel(task.id)}>
             Huỷ
+          </button>
+        )}
+        {canDismiss && (
+          <button type="button" onClick={() => dismiss(task.id)}>
+            Đóng
           </button>
         )}
       </div>
