@@ -116,6 +116,36 @@ export async function beginLargeSession(
   return res;
 }
 
+export interface ProxyUploadPartResult {
+  confirmedBytes: number;
+  isComplete: boolean;
+}
+
+/**
+ * Đẩy một phần dữ liệu QUA BACKEND thay vì PUT thẳng lên provider.
+ *
+ * Cần cho Google Drive: phiên resumable do backend tạo nên Google không trả header CORS cho
+ * origin của trang web, mọi PUT từ trình duyệt bị chặn ngay (405 + thiếu
+ * Access-Control-Allow-Origin) nên file trên 100 MB không upload được.
+ *
+ * Backend trả 501 `PROXY_UPLOAD_NOT_SUPPORTED` với provider cho PUT trực tiếp (S3,
+ * OneDrive); khi đó người gọi quay về đường presign.
+ */
+export async function uploadPartViaServer(
+  sessionId: string,
+  partNumber: number,
+  offset: number,
+  body: Blob,
+  signal?: AbortSignal
+): Promise<ProxyUploadPartResult> {
+  const res: any = await largeUploadClient.put(
+    `/files/upload-sessions/${sessionId}/parts/${partNumber}?offset=${offset}`,
+    body,
+    { signal, headers: { 'Content-Type': 'application/octet-stream' } }
+  );
+  return res;
+}
+
 export async function presignPart(
   sessionId: string,
   partNumber: number,
