@@ -3,6 +3,7 @@ import { X, UserPlus, Mail, Phone, HardDrive, Sparkles, AlertTriangle } from 'lu
 import { CreateEmployeePayload } from '../types';
 import { QuotaUnitInput } from '@/components/common';
 import { QuotaUnit, unitToBytes, formatQuotaAuto, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
+import { apiErrorMessage } from '../utils/apiErrorMessage';
 
 interface AddMemberModalProps {
   isOpen: boolean;
@@ -80,11 +81,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       });
       onClose();
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        'Không thể thêm nhân viên. Vui lòng kiểm tra lại.';
-      setErrorMessage(msg);
+      setErrorMessage(apiErrorMessage(err, 'Không thể thêm nhân viên. Vui lòng kiểm tra lại.'));
     } finally {
       setIsSubmitting(false);
     }

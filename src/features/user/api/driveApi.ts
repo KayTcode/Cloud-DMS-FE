@@ -124,6 +124,73 @@ export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
 };
 
 export const driveApi = {
+  /**
+   * Tìm kiếm lai (từ khoá + vector) trên mọi tài liệu người dùng được phép đọc.
+   * Khớp BE: GET /api/files/search?q=...&mode=hybrid
+   *
+   * Khác hẳn `getDriveItems`: endpoint kia chỉ lọc theo TÊN trong danh sách thư mục, nên
+   * không bao giờ tìm được theo nội dung tài liệu. Endpoint này đọc chỉ mục nội dung
+   * (MySQL full-text + vector Qdrant) nên tìm được theo thứ nằm bên trong tệp.
+   */
+  searchFiles: async (
+    query: string,
+    folderId?: string | null,
+    mode: 'hybrid' | 'keyword' | 'semantic' = 'hybrid'
+  ): Promise<{ items: DriveItem[]; degraded: boolean; warnings: string[]; modeUsed: string }> => {
+    const res: any = await apiClient.get('/files/search', {
+      params: {
+        q: query.trim(),
+        mode,
+        folderId: folderId || undefined,
+        pageSize: 50,
+      },
+    });
+    // Phản hồi có thể bị bọc nhiều tầng tuỳ interceptor (res, res.data, res.value) và
+    // danh sách có thể nằm ở 'items' hoặc chính là mảng gốc. Dò lần lượt thay vì giả định
+    // một hình dạng duy nhất.
+    const candidates = [res, res?.data, res?.value, res?.data?.value, res?.value?.data];
+    let data: any = null;
+    let hits: any[] = [];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (Array.isArray(candidate)) {
+        hits = candidate;
+        data = { items: candidate };
+        break;
+      }
+      if (Array.isArray(candidate.items)) {
+        hits = candidate.items;
+        data = candidate;
+        break;
+      }
+    }
+    if (data === null) {
+      console.warn('[search] khong doc duoc danh sach ket qua tu phan hoi:', res);
+      data = {};
+    }
+
+    const items: DriveItem[] = hits.map((hit) => {
+      const mapped = mapFileEntryToDriveItem({
+        id: hit.fileId,
+        name: hit.name,
+        contentType: hit.contentType,
+        sizeBytes: hit.sizeBytes,
+        scanStatus: hit.scanStatus,
+        authorName: hit.author,
+      });
+      // Đoạn trích là thứ cho người dùng thấy VÌ SAO tệp này khớp — không có nó thì kết
+      // quả tìm theo nội dung trông y hệt tìm theo tên.
+      return { ...mapped, contentSnippet: hit.snippet || undefined };
+    });
+
+    return {
+      items,
+      degraded: Boolean(data?.degraded),
+      warnings: Array.isArray(data?.warnings) ? data.warnings : [],
+      modeUsed: data?.modeUsed ?? mode,
+    };
+  },
+
   // Fetch files and folders for current user (My Drive) from dedicated endpoint
   getDriveItems: async (folderId?: string | null, searchTerm?: string, filter?: string): Promise<DriveItem[]> => {
     try {

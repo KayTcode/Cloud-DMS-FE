@@ -3,6 +3,7 @@ import { X, HardDrive, Calendar, AlertCircle, Info, Sparkles } from 'lucide-reac
 import { quotaApi } from '../api/quotaApi';
 import { QuotaRequestDto } from '../types/quota.types';
 import { GB_IN_BYTES, bytesToGB, checkAvailability } from '../utils/quotaAvailability';
+import { QuotaUnit, UNIT_BYTES, unitToBytes, formatQuotaAuto } from '@/utils/quotaUnitUtils';
 
 interface RequestQuotaModalProps {
   isOpen: boolean;
@@ -23,7 +24,8 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   onSuccess,
   initialRequestedBytes,
 }) => {
-  const [requestedGB, setRequestedGB] = useState<number>(5);
+  const [requestedAmount, setRequestedAmount] = useState<number>(5);
+  const [requestedUnit, setRequestedUnit] = useState<QuotaUnit>('GB');
   const [isTemporary, setIsTemporary] = useState<boolean>(false);
   const [expiresDate, setExpiresDate] = useState<string>(() => {
     const d = new Date();
@@ -34,9 +36,17 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Điền sẵn đúng phần còn thiếu. Trước đây dùng Math.ceil theo GB nên thiếu 120 MB cũng
+  // thành xin 1 GB — mà bể của phòng ban có khi còn chưa tới 1 GB, thành ra bế tắc.
   useEffect(() => {
     if (isOpen && initialRequestedBytes && initialRequestedBytes > 0) {
-      setRequestedGB(Math.ceil(initialRequestedBytes / GB_IN_BYTES));
+      if (initialRequestedBytes < UNIT_BYTES.GB) {
+        setRequestedUnit('MB');
+        setRequestedAmount(Math.max(1, Math.ceil(initialRequestedBytes / UNIT_BYTES.MB)));
+      } else {
+        setRequestedUnit('GB');
+        setRequestedAmount(Math.ceil(initialRequestedBytes / GB_IN_BYTES));
+      }
     }
   }, [isOpen, initialRequestedBytes]);
 
@@ -52,17 +62,19 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!requestedGB || requestedGB <= 0) {
-      setErrorMessage('Vui lòng nhập dung lượng muốn xin thêm lớn hơn 0 GB.');
+    const requestedBytes = Math.round(unitToBytes(requestedAmount, requestedUnit));
+
+    if (!requestedAmount || requestedBytes <= 0) {
+      setErrorMessage(`Vui lòng nhập dung lượng muốn xin thêm lớn hơn 0 ${requestedUnit}.`);
       return;
     }
 
-    if (requestedGB > MAX_GB) {
+    if (requestedBytes > MAX_GB * GB_IN_BYTES) {
       setErrorMessage(`Dung lượng yêu cầu tối đa là ${MAX_GB} GB.`);
       return;
     }
 
-    const availability = checkAvailability(Math.round(requestedGB * GB_IN_BYTES), maxAvailableBytes);
+    const availability = checkAvailability(requestedBytes, maxAvailableBytes);
     if (!availability.ok) {
       setErrorMessage(availability.message!);
       return;
@@ -87,7 +99,7 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
     try {
       setIsLoading(true);
       const newRequest = await quotaApi.createRequest({
-        requestedAdditionalBytes: Math.round(requestedGB * GB_IN_BYTES),
+        requestedAdditionalBytes: Math.round(unitToBytes(requestedAmount, requestedUnit)),
         isTemporary,
         expiresAt: formattedExpiresAt,
         reason: reason.trim(),
@@ -108,9 +120,17 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
     }
   };
 
-  const handleQuickAdd = (gb: number) => {
-    setRequestedGB(gb);
+  const handleQuickAdd = (amount: number, unit: QuotaUnit) => {
+    setRequestedAmount(amount);
+    setRequestedUnit(unit);
   };
+
+  // Gợi ý bám theo dung lượng thực sự còn cấp được. Bể chỉ còn vài trăm MB mà chỉ gợi ý
+  // theo GB thì mọi gợi ý đều bấm không được.
+  const quickChoices: { amount: number; unit: QuotaUnit }[] =
+    maxAvailableBytes != null && maxAvailableBytes < UNIT_BYTES.GB
+      ? [100, 250, 500, 750].map((amount) => ({ amount, unit: 'MB' as QuotaUnit }))
+      : [2, 5, 10, 20, 50].map((amount) => ({ amount, unit: 'GB' as QuotaUnit }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
@@ -156,23 +176,31 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
           {/* Nhập dung lượng xin thêm */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Dung lượng muốn xin thêm (GB)
+              Dung lượng muốn xin thêm
             </label>
-            <div className="relative">
+            <div className="flex gap-2">
               <input
                 type="number"
                 min={1}
-                max={MAX_GB}
-                step={1}
+                step="any"
                 required
-                value={requestedGB || ''}
-                onChange={(e) => setRequestedGB(Math.max(1, parseInt(e.target.value) || 0))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
-                placeholder="Nhập số GB cần thêm..."
+                value={requestedAmount || ''}
+                onChange={(e) => setRequestedAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+                placeholder={`Nhập số ${requestedUnit} cần thêm...`}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
-                GB
-              </span>
+              <select
+                value={requestedUnit}
+                onChange={(e) => setRequestedUnit(e.target.value as QuotaUnit)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold text-slate-700 bg-white cursor-pointer"
+                aria-label="Đơn vị dung lượng"
+              >
+                <option value="MB">MB</option>
+                <option value="GB">GB</option>
+              </select>
+            </div>
+            <div className="mt-1 text-[11px] text-slate-500">
+              Tương đương {formatQuotaAuto(unitToBytes(requestedAmount || 0, requestedUnit))}
             </div>
 
             {/* Quick choice chips */}
@@ -180,19 +208,19 @@ export const RequestQuotaModal: React.FC<RequestQuotaModalProps> = ({
               <span className="text-[11px] text-slate-500 mr-1 flex items-center gap-1 font-medium">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Chọn nhanh:
               </span>
-              {[2, 5, 10, 20, 50].map((gb) => (
+              {quickChoices.map(({ amount, unit }) => (
                 <button
                   type="button"
-                  key={gb}
-                  onClick={() => handleQuickAdd(gb)}
-                  disabled={maxAvailableBytes != null && gb * GB_IN_BYTES > maxAvailableBytes}
+                  key={`${amount}${unit}`}
+                  onClick={() => handleQuickAdd(amount, unit)}
+                  disabled={maxAvailableBytes != null && unitToBytes(amount, unit) > maxAvailableBytes}
                   className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                    requestedGB === gb
+                    requestedAmount === amount && requestedUnit === unit
                       ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
                   }`}
                 >
-                  +{gb} GB
+                  +{amount} {unit}
                 </button>
               ))}
             </div>

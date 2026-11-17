@@ -6,6 +6,7 @@ import {
   DepartmentEmployeeDto,
   PaginatedResult,
   CreateEmployeePayload,
+  CreateEmployeeResult,
   AllocateUserQuotaPayload,
   SetupDepartmentPayload,
   DepartmentDto,
@@ -55,9 +56,16 @@ export const departmentApi = {
     departmentId: string,
     pageNumber: number = 1,
     pageSize: number = 50,
-    searchTerm?: string
+    searchTerm?: string,
+    // Mặc định chỉ lấy nhân viên đang làm việc. Backend có bộ lọc IsActive nhưng là tuỳ
+    // chọn, và trước đây frontend không bao giờ truyền, nên người đã offboard vẫn nằm
+    // nguyên trong danh sách y như người đang làm. Truyền false để xem cả người đã nghỉ.
+    includeInactive: boolean = false
   ): Promise<PaginatedResult<DepartmentEmployeeDto>> => {
     const params: Record<string, any> = { pageNumber, pageSize };
+    if (!includeInactive) {
+      params.isActive = true;
+    }
     if (searchTerm && searchTerm.trim()) {
       params.searchTerm = searchTerm.trim();
     }
@@ -89,7 +97,7 @@ export const departmentApi = {
   createEmployee: async (
     departmentId: string,
     payload: CreateEmployeePayload
-  ): Promise<DepartmentEmployeeDto> => {
+  ): Promise<CreateEmployeeResult> => {
     const res: any = await apiClient.post(
       API_ENDPOINTS.DEPARTMENT.EMPLOYEES(departmentId),
       payload

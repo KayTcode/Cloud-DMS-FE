@@ -98,6 +98,9 @@ export const UserPortal: React.FC = () => {
   const [driveItems, setDriveItems] = useState<DriveItem[]>([]);
   const [personalQuota, setPersonalQuota] = useState<PersonalStorageQuotaDto | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
+  // Danh sách hiện tại đến từ API tìm kiếm lai của server, không phải liệt kê thư mục.
+  // DriveView dùng cờ này để không lọc lại theo tên và ném mất kết quả tìm theo nội dung.
+  const [isServerSearch, setIsServerSearch] = useState(false);
   const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>([]);
   const [activities, setActivities] = useState<UserActivity[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -131,8 +134,23 @@ export const UserPortal: React.FC = () => {
   const fetchDriveItems = useCallback(async (folderId: string | null = null, search?: string) => {
     try {
       setIsLoadingItems(true);
-      const items = await driveApi.getDriveItems(folderId, search);
-      setDriveItems(items);
+      const term = search?.trim();
+      if (term) {
+        // Có từ khoá thì gọi tìm kiếm lai. Trước đây chỗ này truyền từ khoá vào danh sách
+        // thư mục, mà danh sách chỉ khớp theo TÊN tệp — nên endpoint tìm kiếm lai của
+        // backend chưa bao giờ được giao diện gọi tới, và tìm theo nội dung không bao giờ
+        // ra kết quả dù chỉ mục đã có đầy đủ.
+        const result = await driveApi.searchFiles(term, folderId);
+        setDriveItems(result.items);
+        setIsServerSearch(true);
+        if (result.degraded) {
+          console.warn('[search] chạy ở chế độ hạn chế:', result.modeUsed, result.warnings);
+        }
+      } else {
+        const items = await driveApi.getDriveItems(folderId);
+        setDriveItems(items);
+        setIsServerSearch(false);
+      }
     } catch (error) {
       console.error('Lỗi nạp tệp tin:', error);
       showNotification('Không thể nạp danh sách tệp tin từ máy chủ.', 'error');
@@ -289,11 +307,28 @@ export const UserPortal: React.FC = () => {
     }
   };
 
-  // Tự động load dữ liệu khi thay đổi tab lọc, thư mục hoặc từ khóa tìm kiếm
+  // Tự động load dữ liệu khi thay đổi tab lọc, thư mục hoặc từ khóa tìm kiếm.
+  //
+  // Có debounce cho từ khoá: trước đây mỗi phím gõ bắn một request, "thiet bi van phong"
+  // tạo 18 lệnh gọi. Với tìm kiếm lai thì mỗi lệnh gọi kéo theo một lần nhúng vector và
+  // một truy vấn Qdrant, nên gõ nhanh vừa tốn tài nguyên vừa dễ chạm rate limit
+  // 'file-search' của backend — và khi bị chặn thì tìm kiếm im lặng không ra gì.
+  //
+  // Đổi thư mục hay đổi tab lọc thì chạy ngay, không chờ: đó là thao tác dứt khoát của
+  // người dùng chứ không phải đang gõ dở.
   useEffect(() => {
-    if (activeFilter !== 'trash') {
-      fetchDriveItems(currentFolderId, searchQuery);
+    if (activeFilter === 'trash') return;
+
+    const term = searchQuery?.trim() ?? '';
+    if (term.length === 0) {
+      fetchDriveItems(currentFolderId, '');
+      return;
     }
+
+    const timer = setTimeout(() => {
+      fetchDriveItems(currentFolderId, term);
+    }, 350);
+    return () => clearTimeout(timer);
   }, [activeFilter, currentFolderId, fetchDriveItems, searchQuery]);
 
   useEffect(() => {
@@ -637,6 +672,7 @@ export const UserPortal: React.FC = () => {
             currentFolderId={currentFolderId}
             setCurrentFolderId={setCurrentFolderId}
             searchQuery={searchQuery}
+            serverSearched={isServerSearch}
             activeFilter={activeFilter}
             setActiveFilter={handleFilterChange}
             onUploadFile={handleUploadFiles}

@@ -43,6 +43,12 @@ interface DriveViewProps {
   currentFolderId: string | null;
   setCurrentFolderId: (id: string | null) => void;
   searchQuery: string;
+  /**
+   * Danh sách hiện tại đã do server tìm kiếm và lọc sẵn (tìm kiếm lai: từ khoá + vector).
+   * Khi đó KHÔNG được lọc lại ở client theo tên: kết quả tìm theo nội dung thường có tên
+   * tệp chẳng liên quan gì tới từ khoá, nên lọc lại sẽ ném đi đúng thứ vừa tìm được.
+   */
+  serverSearched?: boolean;
   activeFilter: DriveFilter;
   setActiveFilter: (filter: DriveFilter) => void;
   onUploadFile?: (files: FileList, directories?: string[]) => void;
@@ -88,6 +94,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   currentFolderId,
   setCurrentFolderId,
   searchQuery,
+  serverSearched = false,
   activeFilter,
   setActiveFilter,
   onUploadFile,
@@ -186,8 +193,9 @@ export const DriveView: React.FC<DriveViewProps> = ({
 
   // Filter items based on active tab, search, and folder
   const filteredItems = sourceItems.filter((item) => {
-    // Search query
-    if (searchQuery.trim()) {
+    // Search query — bỏ qua khi server đã tìm sẵn, nếu không sẽ lọc mất kết quả tìm theo
+    // nội dung (tên tệp không chứa từ khoá nhưng nội dung bên trong thì có).
+    if (searchQuery.trim() && !serverSearched) {
       const q = searchQuery.toLowerCase();
       const matchName = item.name.toLowerCase().includes(q);
       const matchTags = item.tags ? item.tags.some((t) => t.toLowerCase().includes(q)) : false;

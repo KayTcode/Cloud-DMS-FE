@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import process from 'node:process';
 import { LoginPage } from '../pages/LoginPage';
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage';
 import { SystemAdminPage } from '../pages/SystemAdminPage';
@@ -31,7 +32,7 @@ test.describe.serial('Đường Demo Cloud-DMS (7 Bước Liên Hoàn)', () => {
     await loginPage.login('sysadmin@local.com', sysAdminPass);
 
     // Xác nhận vào đúng System Admin Portal
-    await expect(page.getByText('System Admin')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('System Admin').first()).toBeVisible({ timeout: 15_000 });
   });
 
   test('Bước 2: System Admin tạo Tenant và mời Tenant Admin', async ({ page }) => {

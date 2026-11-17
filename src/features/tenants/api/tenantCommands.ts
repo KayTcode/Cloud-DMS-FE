@@ -13,11 +13,9 @@ import {
  */
 export async function toggleSuspendTenant(tenantId: string, currentStatus: TenantStatus): Promise<TenantStatus> {
   const newStatus: TenantStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-  try {
-    await apiClient.post(API_ENDPOINTS.TENANTS.STATUS(tenantId), { status: newStatus });
-  } catch (error) {
-    console.warn('[API Offline] Tạm thời xử lý mock cho toggleSuspendTenant:', error);
-  }
+  // Không nuốt lỗi: trước đây mọi thất bại đều bị bỏ qua và hàm vẫn trả về trạng thái mới,
+  // nên giao diện hiển thị tenant đã đổi trạng thái trong khi server không hề đổi.
+  await apiClient.post(API_ENDPOINTS.TENANTS.STATUS(tenantId), { status: newStatus });
   return newStatus;
 }
 
@@ -26,22 +24,9 @@ export async function toggleSuspendTenant(tenantId: string, currentStatus: Tenan
  * Khớp BE: CreateTenantUserCommand
  */
 export async function createTenantUser(tenantId: string, request: CreateTenantUserRequest): Promise<TenantUser> {
-  try {
-    const response = await apiClient.post<any, TenantUser>(API_ENDPOINTS.TENANTS.USERS(tenantId), request);
-    return response;
-  } catch (error) {
-    console.warn('[API Offline] Tạm thời xử lý mock cho createTenantUser:', error);
-    // Mock created user response
-    return {
-      id: `usr-${Date.now()}`,
-      name: request.name,
-      email: request.email,
-      department: request.department,
-      role: request.role,
-      status: 'Active',
-      lastActive: 'Just now',
-    };
-  }
+  // Lỗi phải nổi lên tới người gọi. Khối catch cũ bịa ra một TenantUser với
+  // status 'Active' khiến tài khoản không tồn tại vẫn hiện trong danh sách.
+  return await apiClient.post<any, TenantUser>(API_ENDPOINTS.TENANTS.USERS(tenantId), request);
 }
 
 /**
@@ -70,16 +55,12 @@ export async function createDepartmentAdminApi(
       lastActive: 'Just now',
     };
   } catch (error) {
-    console.warn('[API Offline/Fallback] Tạm thời fallback mock cho createDepartmentAdminApi:', error);
-    return {
-      id: `usr-${Date.now()}`,
-      name: `${request.firstName} ${request.lastName}`.trim(),
-      email: request.email,
-      department: request.departmentId || 'Chưa gán phòng ban',
-      role: 'DepartmentAdmin',
-      status: 'Active',
-      lastActive: 'Just now',
-    };
+    // KHÔNG bịa kết quả thành công ở đây. Khối catch cũ trả về một TenantUser giả, khiến
+    // giao diện báo "đã tạo tài khoản" trong khi server trả 400 kèm thông báo rất rõ ràng
+    // ("Hạn mức yêu cầu vượt quá dung lượng khả dụng của Tổ chức"). Người dùng không bao
+    // giờ thấy được lý do thật, còn lời mời thì không hề được gửi.
+    console.error('createDepartmentAdminApi thất bại:', error);
+    throw error;
   }
 }
 
@@ -88,16 +69,10 @@ export async function createDepartmentAdminApi(
  * Khớp BE: ExportTenantBackupCommand
  */
 export async function exportTenantBackup(tenantId: string): Promise<{ downloadUrl: string; filename: string }> {
-  try {
-    const response = await apiClient.post(API_ENDPOINTS.TENANTS.BACKUP(tenantId));
-    return response as any;
-  } catch (error) {
-    console.warn('[API Offline] Tạm thời xử lý mock cho exportTenantBackup:', error);
-    return {
-      downloadUrl: '#',
-      filename: `tnt_${tenantId}_backup_${new Date().toISOString().slice(0, 10)}.sql.gz`,
-    };
-  }
+  // Khối catch cũ trả về downloadUrl '#': người dùng bấm tải về và không nhận được gì,
+  // mà vẫn tin rằng bản sao lưu đã được tạo.
+  const response = await apiClient.post(API_ENDPOINTS.TENANTS.BACKUP(tenantId));
+  return response as any;
 }
 
 /**
@@ -105,13 +80,10 @@ export async function exportTenantBackup(tenantId: string): Promise<{ downloadUr
  * Khớp BE: UpdateTenantSubscriptionCommand
  */
 export async function updateTenantSubscription(tenantId: string, plan: string): Promise<boolean> {
-  try {
-    await apiClient.put(API_ENDPOINTS.TENANTS.SUBSCRIPTION(tenantId), { plan });
-    return true;
-  } catch (error) {
-    console.warn('[API Offline] Tạm thời xử lý mock cho updateTenantSubscription:', error);
-    return true;
-  }
+  // Khối catch cũ trả về true kể cả khi gọi API thất bại, nên giao diện báo đã đổi gói
+  // thuê bao trong khi server giữ nguyên gói cũ.
+  await apiClient.put(API_ENDPOINTS.TENANTS.SUBSCRIPTION(tenantId), { plan });
+  return true;
 }
 
 /**

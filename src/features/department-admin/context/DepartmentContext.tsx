@@ -6,6 +6,7 @@ import {
   UserStorageQuotaDto,
   DepartmentEmployeeDto,
   CreateEmployeePayload,
+  CreateEmployeeResult,
   SetupDepartmentPayload,
   DepartmentDto,
 } from '../types';
@@ -20,7 +21,7 @@ interface DepartmentContextType {
   error: string | null;
   refreshData: () => Promise<void>;
   allocateQuota: (userId: string, quotaBytes: number) => Promise<UserStorageQuotaDto>;
-  createEmployee: (payload: CreateEmployeePayload) => Promise<DepartmentEmployeeDto>;
+  createEmployee: (payload: CreateEmployeePayload) => Promise<CreateEmployeeResult>;
   setupDepartment: (payload: SetupDepartmentPayload) => Promise<DepartmentDto>;
 }
 
@@ -104,7 +105,7 @@ export const DepartmentProvider: React.FC<{ children: ReactNode; departmentIdOve
     }
   };
 
-  const createEmployee = async (payload: CreateEmployeePayload): Promise<DepartmentEmployeeDto> => {
+  const createEmployee = async (payload: CreateEmployeePayload): Promise<CreateEmployeeResult> => {
     if (!departmentId) throw new Error('Chưa thiết lập phòng ban');
     setIsMutating(true);
     try {

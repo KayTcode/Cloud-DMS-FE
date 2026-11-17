@@ -27,3 +27,7 @@ package-lock.json
 
 .worktrees/
 .superpowers/
+
+# Playwright test output
+playwright-report/
+test-results/

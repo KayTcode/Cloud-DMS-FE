@@ -26,8 +26,10 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
   const [quotaValue, setQuotaValue] = useState<number>(50);
   const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const resetForm = () => {
+    setErrorMessage(null);
     setTenantName('');
     setFirstName('');
     setLastName('');
@@ -42,7 +44,19 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !firstName.trim() || !lastName.trim() || !tenantName.trim()) return;
+    setErrorMessage(null);
+
+    // Trước đây chỗ này `return` im lặng: nút bấm trông như chết, không ô nào được tô đỏ,
+    // không thông báo nào hiện ra, và người dùng không có cách nào biết thiếu gì.
+    const missing: string[] = [];
+    if (!tenantName.trim()) missing.push('Tên tổ chức');
+    if (!lastName.trim()) missing.push('Họ');
+    if (!firstName.trim()) missing.push('Tên');
+    if (!email.trim()) missing.push('Email');
+    if (missing.length > 0) {
+      setErrorMessage(`Vui lòng điền: ${missing.join(', ')}.`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -261,6 +275,15 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
               </p>
             </div>
           </div>
+
+          {errorMessage && (
+            <div
+              role="alert"
+              className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium"
+            >
+              {errorMessage}
+            </div>
+          )}
 
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

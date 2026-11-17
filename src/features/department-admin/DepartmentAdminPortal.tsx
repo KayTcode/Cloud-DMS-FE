@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { apiErrorMessage } from './utils/apiErrorMessage';
 import {
   DepartmentHubView,
   DepartmentFilesView,
@@ -181,17 +182,15 @@ const DepartmentAdminPortalContent: React.FC = () => {
 
   const handleAddMember = async (payload: CreateEmployeePayload) => {
     try {
-      await createEmployee(payload);
+      const { activationEmailSent } = await createEmployee(payload);
       showNotification(
-        'success',
-        `Đã tạo tài khoản và gửi email mời kích hoạt (48 giờ) tới ${payload.email}.`
+        activationEmailSent ? 'success' : 'error',
+        activationEmailSent
+          ? `Đã tạo tài khoản và gửi email mời kích hoạt (48 giờ) tới ${payload.email}.`
+          : `Đã tạo tài khoản ${payload.email} nhưng KHÔNG gửi được email mời kích hoạt. Tài khoản chưa thể kích hoạt — hãy gửi lại lời mời.`
       );
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        'Không thể thêm nhân viên. Vui lòng kiểm tra lại.';
-      showNotification('error', msg);
+      showNotification('error', apiErrorMessage(err, 'Không thể thêm nhân viên. Vui lòng kiểm tra lại.'));
       throw err;
     }
   };

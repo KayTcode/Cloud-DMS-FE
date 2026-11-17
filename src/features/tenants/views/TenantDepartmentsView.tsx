@@ -118,14 +118,14 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
               Chưa có phòng ban nào được thiết lập trong tổ chức
             </div>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-              Hãy tạo phòng ban và chỉ định tài khoản Department Admin đầu tiên để bắt đầu phân quyền và lưu trữ tài liệu.
+              Hãy mời Trưởng phòng đầu tiên. Sau khi nhận lời mời và đăng nhập, họ sẽ tự tạo phòng ban của mình.
             </p>
             <button
               onClick={() => onCreateDepartmentUser()}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>Tạo phòng ban & Admin</span>
+              <span>Mời Trưởng phòng</span>
             </button>
           </div>
         ) : (
