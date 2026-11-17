@@ -61,7 +61,10 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
     let cancelled = false;
     setIsLoadingProviders(true);
     getStorageProvidersApi()
-      .then((data) => { if (!cancelled) setProviders(data); })
+      // Chỉ hiện kho lưu trữ đang bật. Chọn một kho đã vô hiệu hoá thì backend ném
+      // "Tài khoản lưu trữ không tồn tại hoặc đã bị vô hiệu hoá" (QuotaAllocationService),
+      // nên đưa nó vào danh sách chỉ dẫn người duyệt tới một lựa chọn chắc chắn hỏng.
+      .then((data) => { if (!cancelled) setProviders(data.filter((p) => p.isActive !== false)); })
       .catch((err) => console.error('Failed to load providers:', err))
       .finally(() => { if (!cancelled) setIsLoadingProviders(false); });
     return () => { cancelled = true; };
@@ -157,7 +160,7 @@ export const DecideQuotaModal: React.FC<DecideQuotaModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="decide-modal-title"
-        className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">

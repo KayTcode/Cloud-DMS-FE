@@ -68,8 +68,15 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
       return;
     }
 
-    if (quotaValue > 0 && maxAllowedBytes > 0 && currentQuotaBytes > maxAllowedBytes) {
-      setErrorMessage(`Hạn mức yêu cầu (${formatQuotaWithUnit(currentQuotaBytes, quotaUnit)}) vượt quá dung lượng khả dụng (${formatQuotaAuto(maxAllowedBytes)}).`);
+    // Không đòi maxAllowedBytes > 0: khi dung lượng khả dụng đúng bằng 0 thì MỌI hạn mức
+    // dương đều bất khả thi, và đó chính là trường hợp cần chặn nhất. Điều kiện cũ bỏ sót
+    // đúng trường hợp đó, để request bay lên server rồi bị trả 400.
+    if (quotaValue > 0 && currentQuotaBytes > maxAllowedBytes) {
+      setErrorMessage(
+        maxAllowedBytes > 0
+          ? `Hạn mức yêu cầu (${formatQuotaWithUnit(currentQuotaBytes, quotaUnit)}) vượt quá dung lượng khả dụng (${formatQuotaAuto(maxAllowedBytes)}).`
+          : 'Tổ chức hiện không còn dung lượng khả dụng để cấp. Hãy cấp thêm dung lượng cho tổ chức trước, hoặc đặt hạn mức về 0 để gán sau.'
+      );
       return;
     }
 

@@ -58,6 +58,13 @@ export interface UploadManagerContextValue {
   pause(id: string): void;
   resume(id: string): Promise<void>;
   cancel(id: string): Promise<void>;
+  /**
+   * Xoá task khỏi danh sách hiển thị. `cancel` chỉ đổi trạng thái sang `cancelled`
+   * còn task vẫn nằm trong mảng, mà panel chỉ ẩn khi mảng rỗng — nên không có hàm
+   * này thì một upload hỏng để lại ô báo đỏ suốt phiên, chỉ tải lại trang mới sạch.
+   * Chỉ cho xoá task đã ở trạng thái kết thúc, để không bỏ rơi một upload đang chạy.
+   */
+  dismiss(id: string): void;
   resumeWithFile(sessionId: string, file: File): Promise<void>;
   pendingRemote: UploadSessionStatus[];
   refreshPending(): Promise<void>;
@@ -421,6 +428,18 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     [handleEvent, updateTask]
   );
 
+  const dismiss = useCallback((id: string) => {
+    setTasks((prev) =>
+      prev.filter(
+        (t) =>
+          t.id !== id ||
+          // Giữ lại nếu task vẫn đang chạy: xoá khỏi danh sách sẽ làm mất dấu một
+          // upload còn sống, người dùng không còn chỗ nào để tạm dừng hay huỷ nó.
+          (t.state !== 'done' && t.state !== 'cancelled' && t.state !== 'error')
+      )
+    );
+  }, []);
+
   const onFileCompleted = useCallback((cb: (fileId: string, target: UploadTarget) => void) => {
     completedCbsRef.current.add(cb);
     return () => {
@@ -434,6 +453,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
     pause,
     resume,
     cancel,
+    dismiss,
     resumeWithFile,
     pendingRemote,
     refreshPending,
