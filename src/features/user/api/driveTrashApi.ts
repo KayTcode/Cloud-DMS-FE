@@ -10,6 +10,12 @@ export interface DriveTrashItem {
   sizeBytes: number;
   deletedAt: string;
   daysLeft: number;
+  /**
+   * Đã bấm xoá vĩnh viễn nhưng cloud chưa xoá xong (backend: Lifecycle=Purging). Tệp vẫn
+   * chiếm dung lượng thật trên provider, nên không được coi là đã xoá và không cho khôi phục
+   * hay xoá lại.
+   */
+  cloudDeletePending: boolean;
 }
 
 /**
@@ -34,6 +40,7 @@ const mapItem = (dto: any): DriveTrashItem => ({
   sizeBytes: dto.sizeBytes ?? 0,
   deletedAt: dto.deletedAt,
   daysLeft: dto.daysLeft ?? 0,
+  cloudDeletePending: dto.cloudDeletePending === true,
 });
 
 export const driveTrashApi = {
