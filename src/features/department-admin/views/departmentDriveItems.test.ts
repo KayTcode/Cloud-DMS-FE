@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapDriveChildrenToItems } from './departmentDriveItems';
+import { mapDriveChildrenToItems, mapBreadcrumb } from './departmentDriveItems';
 
 // Hinh dang response cua GET api/drive/children (DriveChildrenDto, camelCase).
 const children = (over: Record<string, unknown> = {}) => ({
@@ -111,5 +111,27 @@ describe('mapDriveChildrenToItems', () => {
 
   it('chiu duoc response thieu truong folders/files', () => {
     expect(mapDriveChildrenToItems({} as never)).toEqual([]);
+  });
+});
+
+describe('mapBreadcrumb', () => {
+  it('giu thu tu goc toi folder hien tai, chi can id va ten', () => {
+    const crumbs = mapBreadcrumb({
+      breadcrumb: [
+        { id: 'd1', name: 'Ho so' },
+        { id: 'd2', name: '2026' },
+      ],
+    } as never);
+
+    expect(crumbs.map((c) => c.id)).toEqual(['d1', 'd2']);
+    expect(crumbs.map((c) => c.name)).toEqual(['Ho so', '2026']);
+  });
+
+  it('tra mang rong khi o goc o dia', () => {
+    expect(mapBreadcrumb({ breadcrumb: [] } as never)).toEqual([]);
+  });
+
+  it('chiu duoc response thieu truong breadcrumb', () => {
+    expect(mapBreadcrumb({} as never)).toEqual([]);
   });
 });

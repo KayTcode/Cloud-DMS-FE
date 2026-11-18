@@ -89,3 +89,18 @@ export function mapDriveChildrenToItems(
 
   return [...folders, ...files];
 }
+
+export interface BreadcrumbCrumb {
+  id: string;
+  name: string;
+}
+
+/**
+ * Breadcrumb cua GET api/drive/children da xep tu goc toi folder hien tai.
+ * Truoc day man hinh tu suy breadcrumb bang cach di nguoc parentId trong danh sach
+ * items — cach do chi chay khi items chua ca cay, nen het hoat dong khi doc endpoint
+ * chi tra con truc tiep.
+ */
+export function mapBreadcrumb(res: { breadcrumb?: any[] }): BreadcrumbCrumb[] {
+  return (res?.breadcrumb ?? []).map((c: any) => ({ id: c.id, name: c.name }));
+}
