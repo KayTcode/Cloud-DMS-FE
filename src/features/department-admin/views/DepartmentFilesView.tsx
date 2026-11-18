@@ -50,13 +50,12 @@ import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
 import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import {
-  getDepartmentFilesApi,
   downloadTenantFileApi,
   deleteTenantFileApi,
-  TenantStorageSummaryDto,
 } from '@/features/tenants/api/fileApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
 import { folderApi } from '@/features/user/api/folderApi';
+import { mapDriveChildrenToItems } from './departmentDriveItems';
 import { DocumentModalsContainer, useDocumentModals, DocumentContextMenu } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 import { Edit3 } from 'lucide-react';
@@ -100,7 +99,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [items, setItems] = useState<DriveItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [storageSummary, setStorageSummary] = useState<TenantStorageSummaryDto | null>(null);
 
   // Trash states
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
@@ -192,127 +190,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     try {
       setIsLoading(true);
       setErrorMessage(null);
-      const isVirtualRoot = currentFolderId === 'drive-shared' || currentFolderId === 'drive-personal';
-      const actualFolderId = currentFolderId && !isVirtualRoot ? currentFolderId : undefined;
 
-      const res = await getDepartmentFilesApi(
-        department.id || '',
-        actualFolderId,
-        1,
-        100,
-        searchQuery.trim() || undefined
-      );
-      setStorageSummary(res);
-
-      const ROOT_SHARED_ID = 'drive-shared';
-      const ROOT_PERSONAL_ID = 'drive-personal';
-
-      // 2 Thư mục gốc đại diện cho 2 kho vật lý thực tế trên Google Drive
-      const rootSharedFolder: DriveItem = {
-        id: ROOT_SHARED_ID,
-        name: res.sharedFolderName || `FPR-${department.code || department.name}-shared`,
-        type: 'folder',
-        size: 0,
-        sizeFormatted: 'Kho chung',
-        updatedAt: 'Hệ thống',
-        createdAt: 'Hệ thống',
-        owner: {
-          name: 'Kho dùng chung phòng ban',
-          email: department.adminEmail || '',
-        },
-        parentId: null,
-        starred: false,
-        trashed: false,
-        sharedWith: [],
-        tags: ['Kho chung phòng ban', 'Google Drive'],
-      };
-
-      const rootPersonalFolder: DriveItem = {
-        id: ROOT_PERSONAL_ID,
-        name: res.personalFolderName || `FPR-${department.code || department.name}-personal`,
-        type: 'folder',
-        size: 0,
-        sizeFormatted: 'Kho riêng',
-        updatedAt: 'Hệ thống',
-        createdAt: 'Hệ thống',
-        owner: {
-          name: 'Kho riêng cá nhân',
-          email: department.adminEmail || '',
-        },
-        parentId: null,
-        starred: false,
-        trashed: false,
-        sharedWith: [],
-        tags: ['Thư mục cá nhân', 'Google Drive'],
-      };
-
-      const apiFiles: DriveItem[] = (res.files || []).map((f: any) => {
-        const ext = f.name.split('.').pop()?.toLowerCase() || '';
-        let fType: FileType = 'other';
-        if (ext === 'pdf') fType = 'pdf';
-        else if (['xlsx', 'xls', 'csv'].includes(ext)) fType = 'sheet';
-        else if (['docx', 'doc', 'txt'].includes(ext)) fType = 'docx';
-        else if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) fType = 'image';
-        else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) fType = 'archive';
-        else if (['cs', 'ts', 'tsx', 'js', 'json', 'py', 'java', 'html', 'css', 'sql'].includes(ext)) fType = 'code';
-        else if (['ppt', 'pptx'].includes(ext)) fType = 'slide';
-
-        const isPersonal = f.driveKind === 'Personal';
-        const effectiveParentId = f.folderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
-
-        return {
-          id: f.id, archiveKind: f.archiveKind, originalSizeBytes: f.originalSizeBytes,
-          name: f.name,
-          type: 'file',
-          fileType: f.archiveKind === 'folder' || f.archiveKind === 'batch' ? 'folder' : fType,
-          extension: ext || 'file',
-          size: f.originalSizeBytes ?? f.sizeBytes,
-          sizeFormatted: formatBytes(f.originalSizeBytes ?? f.sizeBytes),
-          updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          owner: {
-            name: f.ownerName || department.adminName || 'Thành viên phòng',
-            email: department.adminEmail || '',
-          },
-          parentId: effectiveParentId,
-          starred: false,
-          trashed: false,
-          sharedWith: [],
-          tags: [f.storageProviderName || 'Google Drive', isPersonal ? 'Thư mục cá nhân' : 'Kho chung'],
-          contentSnippet: `Tài liệu lưu trữ thuộc ${department.name}. Dung lượng: ${formatBytes(f.sizeBytes)}. Trạng thái bảo mật ClamAV: ${f.scanStatus || 'Clean'}. Khóa lưu trữ: ${f.storageKey}`,
-          metadata: f.metadata || null,
-          scanStatus: f.scanStatus ?? null,
-        };
+      // Nav "Tai lieu & Upload" chi la kho rieng cua chinh Truong phong.
+      // Kho chung cua phong thuoc nav "Kho chung" (SharedStoreView) de khong trung lap,
+      // va endpoint nay da scoped theo DriveKind + DriveOwnerId nen khong the ro kho
+      // rieng cua nhan vien khac.
+      const res = await folderApi.getDriveChildren('personal', {
+        folderId: currentFolderId ?? undefined,
       });
 
-      const apiFolders: DriveItem[] = (res.folders || []).map((f: any) => {
-        const isPersonal = f.isPersonal || f.driveKind === 'Personal';
-        const effectiveParentId = f.parentFolderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
-
-        return {
-          id: f.id, archiveKind: f.archiveKind, originalSizeBytes: f.originalSizeBytes,
-          name: f.name,
-          type: 'folder',
-          size: 0,
-          sizeFormatted: '0 mục',
-          updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          owner: {
-            name: f.ownerName || (isPersonal ? 'Cá nhân tôi' : (department.adminName || 'Phòng ban')),
-            email: department.adminEmail || '',
-          },
-          parentId: effectiveParentId,
-          starred: false,
-          trashed: false,
-          sharedWith: [],
-          tags: [isPersonal ? 'Thư mục cá nhân' : 'Thư mục chung phòng ban'],
-          isPendingHandover: f.isPendingHandover ?? false,
-        };
-      });
-
-      // Nếu đang ở thư mục con cụ thể trong DB (actualFolderId), ta chỉ cần render apiFolders + apiFiles
-      // Nếu đang ở Root (currentFolderId === null) hoặc ở 2 root ảo, ta cần cả 2 root folders
-      setItems([rootSharedFolder, rootPersonalFolder, ...apiFolders, ...apiFiles]);
+      setItems(mapDriveChildrenToItems(res));
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách tệp của phòng ban:', err);
       const msg = err?.response?.data?.detail 
@@ -880,11 +767,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
             <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
               Phòng ban: {department.name}
             </span>
-            {storageSummary?.storageProviderName && (
-              <span className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
-                {storageSummary.storageProviderName}
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
