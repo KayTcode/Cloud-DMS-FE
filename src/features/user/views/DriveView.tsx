@@ -918,10 +918,61 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
                               </span>
                             )}
+                            {/* Trang thai Kho chung. Dieu kien giu giong het List View ben duoi:
+                                mot muc chi thuoc mot trong hai ca theo driveKind, khong bao gio
+                                hien ca hai. */}
+                            {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && (
+                              <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] rounded font-medium mt-0.5">
+                                Đã chia sẻ vào Kho chung
+                              </span>
+                            )}
+                            {driveKind === 'DepartmentShared' && file.isSharedLink && (
+                              <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium mt-0.5">
+                                Liên kết
+                              </span>
+                            )}
+                            {driveKind === 'DepartmentShared' && file.authorName && (
+                              <div className="text-[10px] text-slate-500 mt-0.5 truncate">{file.authorName}</div>
+                            )}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
+                          {/* Hanh dong Kho chung. Thieu khoi nay thi o che do Grid nhan vien
+                              khong con duong nao share tep len Kho chung — ho khong co quyen
+                              upload vao do, nen share LA duong duy nhat. Dieu kien va thu tu
+                              giu giong het List View; the card co onClick rieng nen moi nut
+                              phai stopPropagation. */}
+                          {!isReadOnly && driveKind !== 'DepartmentShared' && !file.isSharedToDepartment && onShareToDepartment && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onShareToDepartment(file); }}
+                              className="p-1 rounded-lg text-slate-500 hover:text-green-600 hover:bg-green-50 transition-colors cursor-pointer"
+                              title="Chia sẻ vào Kho chung"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {!isReadOnly && driveKind !== 'DepartmentShared' && file.isSharedToDepartment && onUnshareFromDepartment && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void onUnshareFromDepartment(file); }}
+                              className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Gỡ khỏi Kho chung"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {!isReadOnly && driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void onUnshareFromDepartment(file); }}
+                              className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Gỡ khỏi Kho chung"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
