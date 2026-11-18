@@ -30,6 +30,7 @@ const fileItem = (over: Partial<DriveTrashItem> = {}): DriveTrashItem => ({
   sizeBytes: 2048,
   deletedAt: '2026-11-17T13:34:59Z',
   daysLeft: 30,
+  cloudDeletePending: false,
   ...over,
 });
 
@@ -40,6 +41,7 @@ const folderItem = (over: Partial<DriveTrashItem> = {}): DriveTrashItem => ({
   sizeBytes: 10240,
   deletedAt: '2026-11-16T09:00:00Z',
   daysLeft: 29,
+  cloudDeletePending: false,
   ...over,
 });
 
@@ -117,5 +119,39 @@ describe('DriveTrashView', () => {
       expect(driveTrashApi.restoreFolder).toHaveBeenCalledWith('folder-1')
     );
     expect(driveApi.restoreFile).not.toHaveBeenCalled();
+  });
+
+  // Lifecycle=Purging: người dùng đã bấm xoá vĩnh viễn nhưng tệp còn nguyên trên cloud và vẫn
+  // chiếm dung lượng. Hiện nó ra là cách duy nhất để họ biết việc xoá chưa xong.
+  it('mục chưa xoá xong trên cloud hiện nhãn "Đang xoá trên cloud"', async () => {
+    vi.mocked(driveTrashApi.getTrash).mockResolvedValue([
+      fileItem({ cloudDeletePending: true }),
+    ]);
+
+    render(<DriveTrashView driveKind="Personal" driveOwnerId="user-1" />);
+
+    expect(await screen.findByText(/Đang xoá trên cloud/i)).toBeInTheDocument();
+  });
+
+  it('mục chưa xoá xong trên cloud không cho khôi phục hay xoá lại', async () => {
+    vi.mocked(driveTrashApi.getTrash).mockResolvedValue([
+      fileItem({ cloudDeletePending: true }),
+    ]);
+
+    render(<DriveTrashView driveKind="Personal" driveOwnerId="user-1" />);
+    await screen.findByText(/Đang xoá trên cloud/i);
+
+    expect(screen.queryByRole('button', { name: /Khôi phục/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Xoá vĩnh viễn/i })).not.toBeInTheDocument();
+  });
+
+  it('mục bình thường vẫn hiện số ngày còn lại, không hiện nhãn đang xoá', async () => {
+    vi.mocked(driveTrashApi.getTrash).mockResolvedValue([fileItem()]);
+
+    render(<DriveTrashView driveKind="Personal" driveOwnerId="user-1" />);
+    await screen.findByText('bao-cao-quy-4.pdf');
+
+    expect(screen.queryByText(/Đang xoá trên cloud/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Khôi phục/i })).toBeInTheDocument();
   });
 });

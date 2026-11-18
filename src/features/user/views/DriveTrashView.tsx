@@ -282,10 +282,24 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
                         : '—'}
                     </td>
                     <td className="py-3 px-4">
-                      <DaysLeftBadge days={item.daysLeft} />
+                      {item.cloudDeletePending ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60"
+                          title="Đã yêu cầu xoá vĩnh viễn, nhưng tệp vẫn còn trên kho lưu trữ đám mây và vẫn đang chiếm dung lượng. Hệ thống sẽ tự thử lại."
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          Đang xoá trên cloud
+                        </span>
+                      ) : (
+                        <DaysLeftBadge days={item.daysLeft} />
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {(
+                      {/* Mục đang xoá trên cloud: không cho khôi phục (backend đã loại Purging
+                          khỏi đường restore) và không cho xoá lại (đã ở trong hàng đợi xoá). */}
+                      {item.cloudDeletePending ? (
+                        <span className="text-xs text-slate-400">Chờ kho lưu trữ xác nhận</span>
+                      ) : (
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => handleRestore(item)}

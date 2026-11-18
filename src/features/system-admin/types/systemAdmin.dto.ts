@@ -171,6 +171,8 @@ export interface StorageProviderItem {
   systemUsedBytes?: number;
   availableToGrantBytes?: number;
   rootFolderId?: string;
+  /** Email tài khoản sở hữu kho trên provider (Google Drive / OneDrive). Không có với Local/S3. */
+  accountEmail?: string | null;
   tenantsCount?: number;
   createdAt?: string;
   lastSyncAt?: string;

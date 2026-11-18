@@ -97,6 +97,24 @@ describe('driveTrashApi.getTrash', () => {
     expect(items).toHaveLength(1);
   });
 
+  // Lifecycle=Purging: đã bấm xoá vĩnh viễn nhưng cloud chưa xoá xong. Tệp vẫn chiếm dung
+  // lượng thật, nên thùng rác phải hiện và phải phân biệt được trạng thái này.
+  it('map cloudDeletePending=true khi cloud chưa xoá xong', async () => {
+    mockGet.mockResolvedValue({ value: [dto({ cloudDeletePending: true })] });
+
+    const [item] = await driveTrashApi.getTrash('Personal', 'user-1');
+
+    expect(item.cloudDeletePending).toBe(true);
+  });
+
+  it('cloudDeletePending mặc định false khi backend không trả về', async () => {
+    mockGet.mockResolvedValue({ value: [dto()] });
+
+    const [item] = await driveTrashApi.getTrash('Personal', 'user-1');
+
+    expect(item.cloudDeletePending).toBe(false);
+  });
+
   it('ném lỗi ra ngoài thay vì trả mảng rỗng khi request thất bại', async () => {
     mockGet.mockRejectedValue(new Error('Lỗi kết nối máy chủ'));
 

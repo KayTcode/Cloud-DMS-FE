@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   CheckCircle,
   ShieldAlert,
+  Tag,
 } from 'lucide-react';
 import { DriveFilter, DriveItem, FileType, UserProfile } from '../types';
 import { FolderDto, BreadcrumbItem } from '../types/folder.types';
@@ -312,28 +313,51 @@ export const DriveView: React.FC<DriveViewProps> = ({
     }
   };
 
-  const getFileIcon = (fileType?: FileType) => {
+  const getGoogleDriveIcon = (fileType?: FileType, ext?: string) => {
     switch (fileType) {
       case 'folder':
-        return <Folder className="w-5 h-5 text-amber-500" />;
+        return <Folder className="w-5 h-5 text-amber-500 shrink-0" />;
       case 'pdf':
-        return <FileText className="w-5 h-5 text-red-500" />;
+        return (
+          <div className="w-5 h-5 rounded flex items-center justify-center text-red-500 shrink-0">
+            <FileText className="w-5 h-5 fill-red-50 text-red-600 stroke-[2.2]" />
+          </div>
+        );
       case 'sheet':
-        return <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
-      case 'docx':
-        return <FileText className="w-5 h-5 text-blue-600" />;
-      case 'slide':
-        return <Presentation className="w-5 h-5 text-amber-500" />;
-      case 'image':
-        return <ImageIcon className="w-5 h-5 text-violet-500" />;
+        return (
+          <div className="w-5 h-5 rounded flex items-center justify-center text-emerald-600 shrink-0">
+            <FileSpreadsheet className="w-5 h-5 fill-emerald-50 text-emerald-600 stroke-[2.2]" />
+          </div>
+        );
       case 'code':
-        return <FileCode className="w-5 h-5 text-slate-700" />;
-      case 'archive':
-        return <FileArchive className="w-5 h-5 text-amber-700" />;
+      case 'docx':
+        return (
+          <div className="w-5 h-5 rounded flex items-center justify-center text-blue-600 shrink-0">
+            <FileText className="w-5 h-5 fill-blue-50 text-blue-600 stroke-[2.2]" />
+          </div>
+        );
+      case 'slide':
+        return (
+          <div className="w-5 h-5 rounded flex items-center justify-center text-amber-500 shrink-0">
+            <Presentation className="w-5 h-5 fill-amber-50 text-amber-500 stroke-[2.2]" />
+          </div>
+        );
+      case 'image':
+        return (
+          <div className="w-5 h-5 rounded flex items-center justify-center text-purple-600 shrink-0">
+            <ImageIcon className="w-5 h-5 fill-purple-50 text-purple-600 stroke-[2.2]" />
+          </div>
+        );
       default:
-        return <FileText className="w-5 h-5 text-slate-500" />;
+        return (
+          <div className="w-5 h-5 rounded flex items-center justify-center text-slate-500 shrink-0">
+            <FileText className="w-5 h-5 fill-slate-50 text-slate-500 stroke-[2.2]" />
+          </div>
+        );
     }
   };
+
+  const getFileIcon = (fileType?: FileType) => getGoogleDriveIcon(fileType);
 
   return (
     <div
@@ -435,58 +459,84 @@ export const DriveView: React.FC<DriveViewProps> = ({
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
           {!isReadOnly && (
-            <div className="relative" ref={newMenuRef}>
+            <>
+              {/* Nút Nộp tài liệu */}
               <button
-                onClick={() => setIsNewMenuOpen((prev) => !prev)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-semibold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-                title="Tạo mới hoặc tải lên"
+                onClick={() => docModals.openSubmission()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-sm font-semibold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                title="Nộp tài liệu kèm thông tin mô tả chuẩn hóa (Tiêu đề, Tác giả, Ngày ban hành, Thời hạn lưu...)"
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>Mới</span>
+                <FileText className="w-4 h-4 stroke-[2.2]" />
+                <span>Nộp tài liệu</span>
               </button>
 
-              {isNewMenuOpen && (
-                <div className="absolute right-0 sm:left-0 sm:right-auto z-30 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 animate-in fade-in zoom-in-95">
-                  <button
-                    onClick={() => {
-                      setIsNewMenuOpen(false);
-                      onOpenNewFolderModal();
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
-                  >
-                    <FolderPlus className="w-4 h-4 text-slate-500 shrink-0" />
-                    <span>Thư mục mới</span>
-                  </button>
+              <div className="relative" ref={newMenuRef}>
+                <button
+                  onClick={() => setIsNewMenuOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-semibold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                  title="Tạo mới hoặc tải lên"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Mới</span>
+                </button>
 
-                  {onUploadFile && (
-                    <>
-                      <div className="h-px bg-slate-100 my-1" />
-                      <button
-                        onClick={() => {
-                          setIsNewMenuOpen(false);
-                          fileInputRef.current?.click();
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
-                      >
-                        <Upload className="w-4 h-4 text-slate-500 shrink-0" />
-                        <span>Tải tệp lên</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsNewMenuOpen(false);
-                          setFolderError('');
-                          void pickDirectory(() => folderInputRef.current?.click(), onUploadFile, setFolderError);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
-                      >
-                        <FolderUp className="w-4 h-4 text-slate-500 shrink-0" />
-                        <span>Tải thư mục lên</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+                {isNewMenuOpen && (
+                  <div className="absolute right-0 sm:left-0 sm:right-auto z-30 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 animate-in fade-in zoom-in-95">
+                    <button
+                      onClick={() => {
+                        setIsNewMenuOpen(false);
+                        onOpenNewFolderModal();
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
+                    >
+                      <FolderPlus className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span>Thư mục mới</span>
+                    </button>
+
+                    <div className="h-px bg-slate-100 my-1" />
+
+                    {/* Tùy chọn: Nộp tài liệu mới */}
+                    <button
+                      onClick={() => {
+                        setIsNewMenuOpen(false);
+                        docModals.openSubmission();
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors text-left cursor-pointer font-medium"
+                      title="Nộp tài liệu kèm thông tin mô tả chuẩn hóa"
+                    >
+                      <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Nộp tài liệu mới</span>
+                    </button>
+
+                    {onUploadFile && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsNewMenuOpen(false);
+                            fileInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>Tải tệp lên</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsNewMenuOpen(false);
+                            setFolderError('');
+                            void pickDirectory(() => folderInputRef.current?.click(), onUploadFile, setFolderError);
+                          }}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
+                        >
+                          <FolderUp className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>Tải thư mục lên</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {/* View Mode Toggle */}
@@ -606,6 +656,27 @@ export const DriveView: React.FC<DriveViewProps> = ({
           <p className="text-xs text-slate-500 mt-1 max-w-md">
             {searchQuery.trim() ? 'Hãy thử kiểm tra lại chính tả hoặc tìm kiếm bằng từ khóa ngắn hơn.' : 'Kéo thả tệp từ máy tính của bạn vào đây hoặc nhấn vào nút "Tải tệp lên" để bắt đầu.'}
           </p>
+          {!searchQuery.trim() && !isReadOnly && (
+            <div className="flex items-center gap-3 mt-5">
+              <button
+                onClick={() => docModals.openSubmission()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                title="Nộp tài liệu kèm thông tin mô tả chuẩn hóa"
+              >
+                <FileText className="w-4 h-4 stroke-[2.2]" />
+                <span>Nộp tài liệu</span>
+              </button>
+              {onUploadFile && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Tải tệp lên</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-8">
@@ -796,316 +867,246 @@ export const DriveView: React.FC<DriveViewProps> = ({
               </h3>
 
               {viewMode === 'grid' ? (
-                /* Grid View */
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                /* GRID VIEW (Document Preview Cards) */
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => { if (renamingFileId !== file.id) onOpenFilePreview(file); }}
-                      className="bg-white rounded-xl border overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group border-slate-200/90 hover:border-blue-400"
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? onOpenFilePreview(file) : void onDownloadItem(file))}
+                      className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
-                      {/* Card Content Top */}
-                      <div className="p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 shrink-0">
-                              {getFileIcon(file.fileType)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              {renamingFileId === file.id ? (
-                                <>
-                                  <input
-                                    autoFocus
-                                    data-rename-file={file.id}
-                                    value={renameFileValue}
-                                    onChange={(e) => { setRenameFileValue(e.target.value); setRenameFileError(''); }}
-                                    onKeyDown={async (e) => {
-                                      if (e.key === 'Enter') {
-                                        const trimmed = renameFileValue.trim();
-                                        if (!trimmed) { setRenameFileError('Tên tệp không hợp lệ.'); return; }
-                                        if (onRenameFile) await onRenameFile(file.id, trimmed);
-                                        setRenamingFileId(null);
-                                        setRenameFileError('');
-                                      } else if (e.key === 'Escape') {
-                                        setRenamingFileId(null);
-                                        setRenameFileError('');
-                                      }
-                                    }}
-                                    onBlur={async () => {
-                                      const trimmed = renameFileValue.trim();
-                                      if (!trimmed) { setRenamingFileId(null); setRenameFileError(''); return; }
-                                      if (onRenameFile) await onRenameFile(file.id, trimmed);
-                                      setRenamingFileId(null);
-                                      setRenameFileError('');
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onFocus={(e) => {
-                                      const dotIdx = file.name.lastIndexOf('.');
-                                      const end = dotIdx > 0 ? dotIdx : file.name.length;
-                                      e.target.setSelectionRange(0, end);
-                                    }}
-                                    className="text-xs font-bold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  />
-                                  {renameFileError && (
-                                    <p className="text-[10px] text-red-500 mt-0.5">{renameFileError}</p>
-                                  )}
-                                </>
-                              ) : (
-                                <p
-                                  className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors"
-                                  title={file.name}
-                                >
-                                  {file.name}
-                                </p>
-                              )}
-                              <p className="text-[10px] text-slate-400">
-                                {file.deletedAt ? `Xóa: ${file.deletedAt}` : `Tạo: ${file.createdAt}`}
-                              </p>
-                              {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && (
-                                <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] rounded font-medium mt-0.5">
-                                  Đã chia sẻ vào Kho chung
-                                </span>
-                              )}
-                              {driveKind === 'DepartmentShared' && file.isSharedLink && (
-                                <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium mt-0.5">
-                                  Liên kết
-                                </span>
-                              )}
-                              {driveKind === 'DepartmentShared' && file.authorName && (
-                                <p className="text-[10px] text-slate-500 mt-0.5">{file.authorName}</p>
-                              )}
-                              {file.scanStatus === 'TooLargeToScan' && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
-                                  <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {!isReadOnly && (
-                            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setFileMenuOpenId(fileMenuOpenId === file.id ? null : file.id);
+                      {/* Card Header (File Icon + Name + 3-dots) */}
+                      <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {getGoogleDriveIcon(file.fileType, file.extension)}
+                          <div className="min-w-0">
+                            {renamingFileId === file.id ? (
+                              <input
+                                autoFocus
+                                data-rename-file={file.id}
+                                value={renameFileValue}
+                                onChange={(e) => { setRenameFileValue(e.target.value); setRenameFileError(''); }}
+                                onKeyDown={async (e) => {
+                                  if (e.key === 'Enter') {
+                                    const trimmed = renameFileValue.trim();
+                                    if (!trimmed) { setRenameFileError('Tên tệp không hợp lệ.'); return; }
+                                    if (onRenameFile) await onRenameFile(file.id, trimmed);
+                                    setRenamingFileId(null);
+                                    setRenameFileError('');
+                                  } else if (e.key === 'Escape') {
+                                    setRenamingFileId(null);
+                                    setRenameFileError('');
+                                  }
                                 }}
-                                className="text-slate-300 hover:text-slate-600 transition-colors p-1 cursor-pointer opacity-0 group-hover:opacity-100"
-                              >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </button>
-                              {fileMenuOpenId === file.id && (
-                                <div
-                                  className="absolute right-0 top-6 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[150px]"
-                                  onMouseLeave={() => setFileMenuOpenId(null)}
-                                >
-                                  {driveKind !== 'DepartmentShared' && !file.isSharedLink && (
-                                    <>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setFileMenuOpenId(null);
-                                          setRenameFileValue(file.name);
-                                          setRenamingFileId(file.id);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                      >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                        Đổi tên
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setFileMenuOpenId(null);
-                                          onToggleStar(file.id);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                      >
-                                        <Star className="w-3.5 h-3.5" />
-                                        {file.starred ? 'Bỏ dấu sao' : 'Gắn dấu sao'}
-                                      </button>
-                                    </>
-                                  )}
-                                  {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && onUnshareFromDepartment && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setFileMenuOpenId(null);
-                                        onUnshareFromDepartment(file);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                    >
-                                      <Share2 className="w-3.5 h-3.5" />
-                                      Gỡ khỏi Kho chung
-                                    </button>
-                                  )}
-                                  {driveKind !== 'DepartmentShared' && !file.isSharedToDepartment && onShareToDepartment && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setFileMenuOpenId(null);
-                                        onShareToDepartment(file);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                    >
-                                      <Share2 className="w-3.5 h-3.5" />
-                                      Chia sẻ vào Kho chung
-                                    </button>
-                                  )}
-                                  {driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setFileMenuOpenId(null);
-                                        onUnshareFromDepartment(file);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                    >
-                                      <Share2 className="w-3.5 h-3.5" />
-                                      Gỡ khỏi Kho chung
-                                    </button>
-                                  )}
-                                  {driveKind === 'DepartmentShared' && !file.isSharedLink && (
-                                    <>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setFileMenuOpenId(null);
-                                          setRenameFileValue(file.name);
-                                          setRenamingFileId(file.id);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                      >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                        Đổi tên
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setFileMenuOpenId(null);
-                                          onToggleStar(file.id);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
-                                      >
-                                        <Star className="w-3.5 h-3.5" />
-                                        {file.starred ? 'Bỏ dấu sao' : 'Gắn dấu sao'}
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {isReadOnly && (
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleStar(file.id);
-                              }}
-                              className="text-slate-300 hover:text-amber-500 transition-colors p-1 cursor-pointer"
-                              title={file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}
-                            >
-                              <Star
-                                className={`w-4 h-4 ${
-                                  file.starred ? 'fill-amber-400 text-amber-500' : ''
-                                }`}
+                                onBlur={async () => {
+                                  const trimmed = renameFileValue.trim();
+                                  if (!trimmed) { setRenamingFileId(null); setRenameFileError(''); return; }
+                                  if (onRenameFile) await onRenameFile(file.id, trimmed);
+                                  setRenamingFileId(null);
+                                  setRenameFileError('');
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs font-bold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
                               />
-                            </button>
-
-                            <DocumentContextMenu
-                              file={file}
-                              docModals={docModals}
-                              onOpenPreview={() => onOpenFilePreview(file)}
-                              onDownload={() => onDownloadItem(file)}
-                              onShare={() => onShareItem(file)}
-                              onToggleStar={() => onToggleStar(file.id)}
-                              onDelete={() => onDeleteFile(file.id)}
-                            />
+                            ) : (
+                              <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                                {file.name}
+                              </h4>
+                            )}
+                            {file.scanStatus === 'TooLargeToScan' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
+                                <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                              </span>
+                            )}
+                            {/* Trang thai Kho chung. Dieu kien giu giong het List View ben duoi:
+                                mot muc chi thuoc mot trong hai ca theo driveKind, khong bao gio
+                                hien ca hai. */}
+                            {driveKind !== 'DepartmentShared' && file.isSharedToDepartment && (
+                              <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] rounded font-medium mt-0.5">
+                                Đã chia sẻ vào Kho chung
+                              </span>
+                            )}
+                            {driveKind === 'DepartmentShared' && file.isSharedLink && (
+                              <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] rounded font-medium mt-0.5">
+                                Liên kết
+                              </span>
+                            )}
+                            {driveKind === 'DepartmentShared' && file.authorName && (
+                              <div className="text-[10px] text-slate-500 mt-0.5 truncate">{file.authorName}</div>
+                            )}
                           </div>
-                          )}
                         </div>
 
-                        {/* Tags */}
-                        {file.tags && file.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {file.tags.slice(0, 2).map((t) => (
-                              <span
-                                key={t}
-                                className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded font-medium"
-                              >
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Card Footer */}
-                      <div className="px-4 py-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                        <span className="font-mono">{file.sizeFormatted}</span>
-
-                        <div className="flex items-center gap-1.5">
-                          {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Hanh dong Kho chung. Thieu khoi nay thi o che do Grid nhan vien
+                              khong con duong nao share tep len Kho chung — ho khong co quyen
+                              upload vao do, nen share LA duong duy nhat. Dieu kien va thu tu
+                              giu giong het List View; the card co onClick rieng nen moi nut
+                              phai stopPropagation. */}
+                          {!isReadOnly && driveKind !== 'DepartmentShared' && !file.isSharedToDepartment && onShareToDepartment && (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onShareItem(file);
-                              }}
-                              className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
-                              title="Chia sẻ liên kết"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onShareToDepartment(file); }}
+                              className="p-1 rounded-lg text-slate-500 hover:text-green-600 hover:bg-green-50 transition-colors cursor-pointer"
+                              title="Chia sẻ vào Kho chung"
                             >
-                              <Share2 className="w-3.5 h-3.5" />
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {!isReadOnly && driveKind !== 'DepartmentShared' && file.isSharedToDepartment && onUnshareFromDepartment && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void onUnshareFromDepartment(file); }}
+                              className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Gỡ khỏi Kho chung"
+                            >
+                              <Share2 className="w-4 h-4" />
                             </button>
                           )}
                           {!isReadOnly && driveKind === 'DepartmentShared' && file.isSharedLink && onUnshareFromDepartment && (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onUnshareFromDepartment(file);
-                              }}
-                              className="p-1 hover:text-rose-600 hover:bg-white rounded transition-colors cursor-pointer"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void onUnshareFromDepartment(file); }}
+                              className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                               title="Gỡ khỏi Kho chung"
                             >
-                              <Share2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {!isReadOnly && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                docModals.openDetails(file.id);
-                              }}
-                              className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
-                              title="Xem chi tiết siêu dữ liệu tài liệu"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
+                              <Share2 className="w-4 h-4" />
                             </button>
                           )}
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!downloadsDisabled) onDownloadItem(file, confirmUnscanned);
+                              docModals.openDetails(file.id);
                             }}
-                            disabled={downloadsDisabled}
-                            className="p-1 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={downloadsDisabled ? downloadsDisabledReason : 'Tải về máy'}
+                            className="p-1 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                            title="Xem chi tiết thông tin về tệp"
                           >
-                            <Download className="w-3.5 h-3.5" />
+                            <FileText className="w-4 h-4" />
                           </button>
-                          {!isReadOnly && !(driveKind === 'DepartmentShared' && file.isSharedLink) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteFile(file.id);
-                              }}
-                              className="p-1 hover:text-rose-600 hover:bg-white rounded transition-colors cursor-pointer"
-                              title="Chuyển vào thùng rác"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+
+                          <DocumentContextMenu
+                            file={file}
+                            docModals={docModals}
+                            onOpenPreview={() => onOpenFilePreview(file)}
+                            onDownload={() => onDownloadItem(file)}
+                            onShare={() => onShareItem(file)}
+                            onRename={() => {
+                              setRenameFileValue(file.name);
+                              setRenamingFileId(file.id);
+                            }}
+                            onToggleStar={() => onToggleStar(file.id)}
+                            onDelete={() => onDeleteFile(file.id)}
+                          />
                         </div>
+                      </div>
+
+                      {/* Card Body: White A4 Document Preview Sheet */}
+                      <div className="bg-white mx-3 mb-3 rounded-xl p-3.5 shadow-2xs border border-slate-200/90 h-44 overflow-hidden flex flex-col justify-start relative select-none group-hover:border-blue-200 transition-colors">
+                        {file.fileType === 'sheet' ? (
+                          <div className="w-full h-full text-[10px] font-mono text-slate-600">
+                            <div className="grid grid-cols-3 gap-1 border-b pb-1 font-bold text-slate-800 bg-emerald-50/50 p-1 rounded">
+                              <div>Hạng mục</div>
+                              <div className="text-right">Dự toán</div>
+                              <div className="text-right">Duyệt</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
+                              <div className="truncate">Cloud Storage</div>
+                              <div className="text-right">12.5M</div>
+                              <div className="text-right text-emerald-600 font-bold">OK</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
+                              <div className="truncate">Bản quyền phần mềm</div>
+                              <div className="text-right">5.0M</div>
+                              <div className="text-right text-emerald-600 font-bold">OK</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
+                              <div className="truncate">Bảo trì hệ thống</div>
+                              <div className="text-right">3.2M</div>
+                              <div className="text-right text-emerald-600 font-bold">OK</div>
+                            </div>
+                          </div>
+                        ) : file.fileType === 'code' ? (
+                          <div className="w-full h-full text-[10px] font-mono bg-slate-900 text-slate-200 p-2.5 rounded-lg overflow-hidden leading-relaxed">
+                            <div className="text-slate-400 text-[9px] mb-1">// ASP.NET Core Action Result</div>
+                            <div className="text-blue-400">public IActionResult <span className="text-amber-300">CheckStatus</span>(int id)</div>
+                            <div className="text-slate-300">{'{'}</div>
+                            <div className="text-emerald-400 pl-3">if (id == 0) return NotFound();</div>
+                            <div className="text-purple-400 pl-3">return View(); // Render UI</div>
+                            <div className="text-slate-300">{'}'}</div>
+                          </div>
+                        ) : (
+                          file.metadata ? (
+                            <div className="w-full h-full flex flex-col justify-between text-left">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-1 border-b border-emerald-100 pb-1">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-[10px] font-bold text-emerald-700">
+                                    <Tag className="w-3 h-3" />
+                                    Thông tin về tệp
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    Năm {file.metadata.releaseYear}
+                                  </span>
+                                </div>
+                                <h5 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug">
+                                  {file.metadata.title}
+                                </h5>
+                                <p className="text-[10px] text-slate-500 truncate">
+                                  Tác giả: <span className="font-semibold text-slate-700">{file.metadata.author}</span>
+                                </p>
+                                {file.metadata.abstract && (
+                                  <p className="text-[10px] text-slate-600 line-clamp-2 italic leading-relaxed">
+                                    "{file.metadata.abstract}"
+                                  </p>
+                                )}
+                                {file.metadata.keywords && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {file.metadata.keywords.split(',').slice(0, 2).map((k: string) => (
+                                      <span key={k} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[9px] rounded font-medium truncate max-w-[100px]">
+                                        #{k.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  docModals.openDetails(file.id);
+                                }}
+                                className="mt-1 w-full py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Thông tin về tệp</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="w-full h-full flex flex-col justify-between text-left">
+                              <div className="overflow-hidden">
+                                <div className="text-center font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-1.5 mb-2 uppercase tracking-tight">
+                                  {file.name.replace('.gdoc', '')}
+                                </div>
+                                <p className="text-[10px] text-slate-600 line-clamp-4 whitespace-pre-line leading-relaxed">
+                                  {file.contentSnippet || 'Nội dung tệp tin đã được đồng bộ hóa và lưu trữ an toàn trên máy chủ CloudDMS.'}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  docModals.openDetails(file.id);
+                                }}
+                                className="mt-1 w-full py-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-50 hover:bg-emerald-50 border border-slate-200/80 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Thông tin về tệp</span>
+                              </button>
+                            </div>
+                          )
+                        )}
+
+                        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" />
                       </div>
                     </div>
                   ))}
@@ -1290,8 +1291,8 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => docModals.openDetails(file.id)}
-                                    className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
-                                    title="Xem chi tiết siêu dữ liệu tài liệu"
+                                    className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+                                    title="Xem chi tiết thông tin về tệp"
                                   >
                                     <FileText className="w-4 h-4" />
                                   </button>
@@ -1319,6 +1320,10 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                   onOpenPreview={() => onOpenFilePreview(file)}
                                   onDownload={() => onDownloadItem(file)}
                                   onShare={() => onShareItem(file)}
+                                  onRename={() => {
+                                    setRenameFileValue(file.name);
+                                    setRenamingFileId(file.id);
+                                  }}
                                   onToggleStar={() => onToggleStar(file.id)}
                                   onDelete={() => onDeleteFile(file.id)}
                                 />
@@ -1339,7 +1344,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
     
       {/* Bộ Modals quản lý tài liệu và thông tin tệp tập trung */}
       <DocumentModalsContainer
-        parentFolderId={currentFolderId}
+        parentFolderId={currentFolderId && !currentFolderId.startsWith('drive-') ? currentFolderId : null}
         {...docModals.containerProps}
       />
     </div>

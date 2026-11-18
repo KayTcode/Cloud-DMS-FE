@@ -16,7 +16,11 @@ import { StorageProviderItem } from '../types';
 import { ConnectProviderModal } from '../components/ConnectProviderModal';
 import { EditProviderModal } from '../components/EditProviderModal';
 import { StorageMigrationPanel } from '../components/StorageMigrationPanel';
-import { getStorageProvidersApi } from '../api/systemAdminQueries';
+import {
+  getStorageProvidersApi,
+  getPendingCloudDeletesApi,
+  type PendingCloudDelete,
+} from '../api/systemAdminQueries';
 import { deleteStorageProviderApi } from '../api/systemAdminCommands';
 import { formatBytes } from '../../department-admin/utils/quotaUtils';
 
@@ -37,6 +41,9 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
   const [editingProvider, setEditingProvider] = useState<StorageProviderItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
+  // Tệp đã yêu cầu xoá vĩnh viễn nhưng cloud chưa xoá xong: vẫn chiếm dung lượng thật. Không
+  // hiện ra thì một tệp kẹt có thể nằm im hàng chục giờ mà không ai biết.
+  const [pendingDeletes, setPendingDeletes] = useState<PendingCloudDelete[]>([]);
 
   useEffect(() => {
     setProviders(initialProviders);
@@ -52,6 +59,12 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
       // Keep existing
     } finally {
       setIsLoading(false);
+    }
+    // Danh sách tệp kẹt lấy riêng: lỗi ở đây không được làm trắng danh sách provider.
+    try {
+      setPendingDeletes(await getPendingCloudDeletesApi());
+    } catch {
+      // Giữ danh sách đang có; lần làm mới sau sẽ thử lại.
     }
   };
 
@@ -142,6 +155,60 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
         />
       )}
 
+      {/* Tệp chưa xoá được trên cloud — vẫn chiếm dung lượng thật */}
+      {pendingDeletes.length > 0 && (
+        <div className="p-5 bg-amber-50/60 border border-amber-200/80 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <Trash2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-amber-900">
+                {pendingDeletes.length} tệp chưa xoá được khỏi kho lưu trữ đám mây
+              </h3>
+              <p className="text-xs text-amber-800/80 mt-0.5">
+                Người dùng đã yêu cầu xoá vĩnh viễn, nhưng các tệp này vẫn còn trên provider và
+                vẫn đang chiếm dung lượng thật. Hệ thống tự thử lại định kỳ; nếu mã lỗi không đổi
+                thì cần sửa cấu hình provider.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-amber-900/70 border-b border-amber-200/80">
+                      <th className="py-1.5 pr-4 font-semibold">Tệp</th>
+                      <th className="py-1.5 pr-4 font-semibold">Kho</th>
+                      <th className="py-1.5 pr-4 font-semibold">Dung lượng</th>
+                      <th className="py-1.5 pr-4 font-semibold">Lỗi lần gần nhất</th>
+                      <th className="py-1.5 font-semibold">Số lần thử</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingDeletes.map((row) => (
+                      <tr key={row.fileId} className="border-b border-amber-200/40 last:border-0">
+                        <td className="py-1.5 pr-4 font-medium text-amber-950 truncate max-w-[220px]" title={row.fileName}>
+                          {row.fileName}
+                        </td>
+                        <td className="py-1.5 pr-4 text-amber-900/80">
+                          {row.providerName ?? '—'}
+                          {row.providerAccountEmail && (
+                            <span className="block font-mono text-[11px] text-amber-900/60">
+                              {row.providerAccountEmail}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-4 font-mono text-amber-900/80">{formatBytes(row.sizeBytes)}</td>
+                        <td className="py-1.5 pr-4 font-mono text-[11px] text-rose-700">
+                          {row.failureCode ?? 'chưa có lần thử nào'}
+                        </td>
+                        <td className="py-1.5 text-amber-900/80">{row.attemptCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. DANH SÁCH CÁC THẺ KHO LƯU TRỮ (GOOGLE ONE STYLE) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {providers.map((p) => {
@@ -191,6 +258,13 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                 <p className="text-xs text-slate-400 font-mono mt-0.5">
                   {p.type} • {p.region}
                 </p>
+                {/* Tài khoản sở hữu kho: khi dung lượng gần hết, người vận hành cần biết phải mở
+                    Drive của ai. Lấy từ provider lúc đồng bộ dung lượng, không có với Local/S3. */}
+                {p.accountEmail && (
+                  <p className="text-xs text-slate-500 font-mono mt-1 truncate" title={p.accountEmail}>
+                    {p.accountEmail}
+                  </p>
+                )}
 
                 {/* Thanh tiến trình dung lượng Google Drive style */}
                 {showBar && (

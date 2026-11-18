@@ -16,6 +16,9 @@ import { useAuth } from '@/context/AuthContext';
 import { documentApi } from '../api/documentApi';
 import { formatBytes } from '@/features/user/api/driveApi';
 import { DocumentSubmissionResultDto } from '../types/document.types';
+import { createTransport } from '@/services/upload/large/createTransport';
+import { LargeFileUploader } from '@/services/upload/large/LargeFileUploader';
+import type { LargeSession } from '@/services/upload/large/largeUploadApi';
 
 interface DocumentSubmissionModalProps {
   isOpen: boolean;
@@ -147,26 +150,112 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
       return;
     }
 
+    const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50 MB
     setIsSubmitting(true);
     setUploadPercent(0);
     setErrorMessage('');
 
     try {
-      const result = await documentApi.uploadWithMetadata(
-        {
-          file: selectedFile,
-          parentFolderId: parentFolderId || null,
-          retentionDays: effectiveRetentionDays,
+      let result: DocumentSubmissionResultDto;
+
+      if (selectedFile.size > LARGE_FILE_THRESHOLD) {
+        // ── NHÁNH 2: TỆP DUNG LƯỢNG LỚN (Session-First Architecture) ──────────────
+        const year = releaseYear || new Date().getFullYear();
+        const month = releaseMonth || (new Date().getMonth() + 1);
+        const day = releaseDay || new Date().getDate();
+
+        const isGuid = (val?: string | null): boolean => {
+          if (!val) return false;
+          return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+        };
+
+        const initRes = await documentApi.initSubmission({
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          contentType: selectedFile.type || 'application/octet-stream',
           title: title.trim(),
-          releaseYear: releaseYear || new Date().getFullYear(),
-          releaseMonth: releaseMonth || (new Date().getMonth() + 1),
-          releaseDay: releaseDay || new Date().getDate(),
+          issueYear: year,
+          issueMonth: month,
+          issueDay: day,
           keywords: keywords.trim() || null,
           abstract: abstract.trim() || null,
           description: description.trim() || null,
-        },
-        (percent) => setUploadPercent(percent)
-      );
+          retentionDays: effectiveRetentionDays,
+          folderId: isGuid(parentFolderId) ? parentFolderId!.trim() : null,
+        });
+
+        const session: LargeSession = {
+          sessionId: initRes.sessionId,
+          fileId: initRes.fileId,
+          documentVersion: 1,
+          expiresAt: initRes.expiresAt,
+          reservedBytes: initRes.fileSizeBytes,
+          protocol: initRes.protocol as any,
+          directUploadUrl: initRes.directUploadUrl || undefined,
+          recommendedChunkSizeBytes: initRes.partSizeBytes,
+          isLargeFile: true,
+          partSizeBytes: initRes.partSizeBytes,
+          totalParts: initRes.totalParts,
+          maxConcurrency: 1,
+          idleExpiresAt: initRes.expiresAt,
+          absoluteExpiresAt: initRes.expiresAt,
+        };
+
+        const baseTransport = createTransport(session, {} as any, `doc-sub-${initRes.sessionId}`);
+        let completedResult: DocumentSubmissionResultDto | null = null;
+
+        const submissionTransport = {
+          ...baseTransport,
+          complete: async () => {
+            completedResult = await documentApi.completeSubmission(session.sessionId);
+            return { fileId: completedResult.fileId, documentVersion: 1 };
+          },
+        };
+
+        await new Promise<void>((resolve, reject) => {
+          const uploader = new LargeFileUploader(
+            selectedFile,
+            session,
+            submissionTransport,
+            (event) => {
+              if (event.type === 'progress') {
+                const pct = Math.round((event.uploaded * 100) / event.total);
+                setUploadPercent(pct);
+              } else if (event.type === 'state') {
+                if (event.state === 'done') {
+                  resolve();
+                } else if (event.state === 'error') {
+                  reject(new Error(event.error?.message || 'Tải lên tệp lớn thất bại.'));
+                }
+              }
+            }
+          );
+          uploader.start().catch(reject);
+        });
+
+        if (!completedResult) {
+          throw new Error('Không thể hoàn tất nộp tài liệu dung lượng lớn.');
+        }
+
+        result = completedResult;
+      } else {
+        // ── NHÁNH 1: TỆP NHỎ (Upload trực tiếp 1 bước có quét ClamAV) ──────────────
+        result = await documentApi.uploadWithMetadata(
+          {
+            file: selectedFile,
+            parentFolderId: parentFolderId || null,
+            retentionDays: effectiveRetentionDays,
+            title: title.trim(),
+            releaseYear: releaseYear || new Date().getFullYear(),
+            releaseMonth: releaseMonth || (new Date().getMonth() + 1),
+            releaseDay: releaseDay || new Date().getDate(),
+            keywords: keywords.trim() || null,
+            abstract: abstract.trim() || null,
+            description: description.trim() || null,
+          },
+          (percent) => setUploadPercent(percent)
+        );
+      }
 
       resetForm();
       if (onSuccess) {
