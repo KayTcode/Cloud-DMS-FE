@@ -29,7 +29,17 @@ const viDate = (raw?: string) =>
  * Khong dung node folder gia: endpoint nay da tra dung con cua folder hien tai,
  * va ten folder vat ly tren storage khong con duoc API tra ve nua.
  */
-export function mapDriveChildrenToItems(res: DriveChildrenResponseLike): DriveItem[] {
+export interface MapDriveChildrenOptions {
+  /** Nhan hien thi khi file/folder khong co tac gia rieng. Vi du "Phòng ban" o Kho chung. */
+  ownerFallback?: string;
+}
+
+export function mapDriveChildrenToItems(
+  res: DriveChildrenResponseLike,
+  opts: MapDriveChildrenOptions = {}
+): DriveItem[] {
+  const ownerFallback = opts.ownerFallback ?? 'Kho riêng của tôi';
+
   const folders: DriveItem[] = (res?.folders ?? []).map((f: any) => ({
     id: f.id,
     name: f.name,
@@ -38,7 +48,7 @@ export function mapDriveChildrenToItems(res: DriveChildrenResponseLike): DriveIt
     sizeFormatted: '0 mục',
     updatedAt: viDate(f.createdAt),
     createdAt: viDate(f.createdAt),
-    owner: { name: 'Kho riêng của tôi', email: '' },
+    owner: { name: ownerFallback, email: '' },
     parentId: f.parentFolderId ?? null,
     starred: false,
     trashed: false,
@@ -64,7 +74,7 @@ export function mapDriveChildrenToItems(res: DriveChildrenResponseLike): DriveIt
       sizeFormatted: formatBytes(size),
       updatedAt: viDate(f.createdAt),
       createdAt: viDate(f.createdAt),
-      owner: { name: f.authorName || 'Kho riêng của tôi', email: '' },
+      owner: { name: f.authorName || ownerFallback, email: '' },
       parentId: f.folderId ?? null,
       starred: false,
       trashed: false,

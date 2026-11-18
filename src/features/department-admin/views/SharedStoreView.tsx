@@ -7,8 +7,8 @@ import { DriveTrashView } from '@/features/user/views/DriveTrashView';
 import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import { MoveFolderModal } from '@/features/user/components/MoveFolderModal';
 import { folderApi } from '@/features/user/api/folderApi';
+import { mapDriveChildrenToItems } from './departmentDriveItems';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
-import { getDepartmentFilesApi } from '@/features/tenants/api/fileApi';
 import { FolderDto, BreadcrumbItem } from '@/features/user/types/folder.types';
 import { DriveItem, DriveFilter, FileType, UserProfile } from '@/features/user/types';
 import { uploadSelection } from '@/services/upload/large/uploadSelection';
@@ -49,7 +49,10 @@ export const SharedStoreView: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Fetch folders
+  // Nap Kho chung bang MOT request duy nhat: GET api/drive/children?drive=shared
+  // tra ca folder va file cua kho chung, da scoped theo DriveKind + DriveOwnerId.
+  // Truoc day file lay tu getDepartmentFilesApi (listing cap phong ban), nen folder
+  // va file co the lech nhau ve folder hien tai.
   const fetchFolders = useCallback(async (folderId: string | null) => {
     if (!deptId) return;
     try {
@@ -63,59 +66,19 @@ export const SharedStoreView: React.FC = () => {
       }
       setApiFolders(res.folders);
       setIsReadOnly(res.isReadOnly ?? false);
+      setDriveItems(
+        mapDriveChildrenToItems(res, { ownerFallback: 'Phòng ban' }).filter((i) => i.type === 'file')
+      );
     } catch (err) {
-      console.error('Lỗi nạp thư mục kho chung:', err);
+      console.error('Lỗi nạp kho chung:', err);
+      setDriveItems([]);
     }
   }, [deptId]);
 
-  // Fetch drive items (files)
-  const fetchDriveItems = useCallback(async (folderId: string | null) => {
-    if (!deptId) return;
-    try {
-      const res = await getDepartmentFilesApi(deptId, folderId || undefined, 1, 100, searchQuery.trim() || undefined);
-      const files: DriveItem[] = (res.files || []).map((f) => {
-        const ext = f.name.split('.').pop()?.toLowerCase() || '';
-        let fType: FileType = 'other';
-        if (ext === 'pdf') fType = 'pdf';
-        else if (['xlsx', 'xls', 'csv'].includes(ext)) fType = 'sheet';
-        else if (['docx', 'doc', 'txt'].includes(ext)) fType = 'docx';
-        else if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) fType = 'image';
-        else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) fType = 'archive';
-        else if (['cs', 'ts', 'tsx', 'js', 'json', 'py', 'java', 'html', 'css', 'sql'].includes(ext)) fType = 'code';
-        else if (['ppt', 'pptx'].includes(ext)) fType = 'slide';
-        return {
-          id: f.id,
-          archiveKind: f.archiveKind,
-          originalSizeBytes: f.originalSizeBytes,
-          name: f.name,
-          type: 'file' as const,
-          fileType: f.archiveKind === 'folder' || f.archiveKind === 'batch' ? 'folder' : fType,
-          extension: ext || 'file',
-          size: f.originalSizeBytes ?? f.sizeBytes,
-          sizeFormatted: formatBytes(f.originalSizeBytes ?? f.sizeBytes),
-          updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          owner: { name: f.ownerName || 'Phòng ban', email: '' },
-          parentId: f.folderId || null,
-          starred: false,
-          trashed: false,
-          sharedWith: [],
-          tags: [],
-          contentSnippet: '',
-          scanStatus: (f as any).scanStatus ?? null,
-        };
-      });
-      setDriveItems(files);
-    } catch (err) {
-      console.error('Lỗi nạp files kho chung:', err);
-      setDriveItems([]);
-    }
-  }, [deptId, searchQuery]);
 
   useEffect(() => {
     fetchFolders(currentFolderId);
-    fetchDriveItems(currentFolderId);
-  }, [currentFolderId, fetchFolders, fetchDriveItems]);
+  }, [currentFolderId, fetchFolders]);
 
   const handleNavigateFolder = (id: string | null) => {
     setCurrentFolderId(id);
@@ -165,7 +128,7 @@ export const SharedStoreView: React.FC = () => {
     }
     try {
       await driveApi.renameFile(fileId, name.trim());
-      await fetchDriveItems(currentFolderId);
+      await fetchFolders(currentFolderId);
       showNotification('Đã đổi tên tệp thành công!', 'success');
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Đổi tên tệp thất bại.';
@@ -197,7 +160,7 @@ export const SharedStoreView: React.FC = () => {
   const handleUploadFiles = async (fileList: FileList, directories: string[] = []) => {
     try {
       const result = await uploadSelection(Array.from(fileList), directories, { folderId: currentFolderId }, uploadSelectionDeps);
-      await fetchDriveItems(currentFolderId);
+      await fetchFolders(currentFolderId);
       if (result.error) {
         showNotification(result.error.message, 'error');
       } else if (result.items.some((i) => !i.ok)) {
@@ -214,7 +177,7 @@ export const SharedStoreView: React.FC = () => {
     try {
       // Đi qua cùng bộ phân luồng F6 (file nhỏ -> đường zip, file lớn -> F5).
       const result = await uploadSelection(Array.from(fileList), [], { folderId: currentFolderId }, uploadSelectionDeps);
-      await fetchDriveItems(currentFolderId);
+      await fetchFolders(currentFolderId);
       if (result.error) {
         showNotification(result.error.message, 'error');
       } else if (result.items.some((i) => !i.ok)) {
@@ -348,7 +311,7 @@ export const SharedStoreView: React.FC = () => {
           onDeleteFile={async (id) => {
             try {
               await driveApi.moveToTrash(id);
-              await fetchDriveItems(currentFolderId);
+              await fetchFolders(currentFolderId);
               showNotification('Đã chuyển tệp vào thùng rác.', 'info');
             } catch {
               showNotification('Không thể xoá tệp.', 'error');
@@ -379,7 +342,7 @@ export const SharedStoreView: React.FC = () => {
           onUnshareFromDepartment={async (item) => {
             try {
               await driveApi.unshareFromDepartment(item.id);
-              await fetchDriveItems(currentFolderId);
+              await fetchFolders(currentFolderId);
               showNotification('Đã gỡ khỏi Kho chung.', 'success');
             } catch (err: any) {
               showNotification(err?.response?.data?.message || err?.message || 'Không thể gỡ khỏi Kho chung.', 'error');

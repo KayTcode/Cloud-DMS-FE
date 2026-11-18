@@ -87,6 +87,24 @@ describe('mapDriveChildrenToItems', () => {
     expect(items[0].isPendingHandover).toBe(true);
   });
 
+  it('dung nhan chu so huu mac dinh khi file khong co authorName', () => {
+    const [item] = mapDriveChildrenToItems(children({ files: [file()] }), {
+      ownerFallback: 'Phòng ban',
+    });
+
+    expect(item.owner.name).toBe('Phòng ban');
+  });
+
+  it('uu tien authorName cua file duoc share vao kho chung', () => {
+    const [item] = mapDriveChildrenToItems(
+      children({ files: [file({ authorName: 'Nguyen Van A', isSharedLink: true })] }),
+      { ownerFallback: 'Phòng ban' }
+    );
+
+    expect(item.owner.name).toBe('Nguyen Van A');
+    expect(item.isSharedLink).toBe(true);
+  });
+
   it('tra mang rong khi khong co gi', () => {
     expect(mapDriveChildrenToItems(children())).toEqual([]);
   });
