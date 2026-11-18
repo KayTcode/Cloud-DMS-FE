@@ -176,7 +176,7 @@ apiClient.interceptors.response.use(
       }
 
       const errorData = data as any;
-      const errorMessage = errorData?.message || errorData?.error || data?.detail || data?.title || error.message || 'Lỗi kết nối máy chủ';
+      const errorMessage = errorData?.detail || errorData?.message || errorData?.error || (typeof data === 'string' ? data : null) || data?.title || error.message || 'Lỗi kết nối máy chủ';
       return Promise.reject(new Error(errorMessage));
     }
 

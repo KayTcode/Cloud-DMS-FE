@@ -1046,7 +1046,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               )}
             </div>
 
-            {/* Nút Nộp tài liệu kèm siêu dữ liệu (Metadata) cho Department Admin */}
+            {/* Nút Nộp tài liệu cho Department Admin */}
             {activeTab === 'files' && (
               <button
                 onClick={() => docModals.openSubmission()}
@@ -1055,9 +1055,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               >
                 <FileText className="w-4 h-4 stroke-[2.2]" />
                 <span>Nộp tài liệu</span>
-                <span className="text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-full tracking-wide">
-                  Metadata
-                </span>
               </button>
             )}
 
