@@ -19,6 +19,11 @@ import { DepartmentDetail, DepartmentMember } from '@/features/tenants/types';
 import { getDepartmentDetail } from '@/features/tenants/api/tenantQueries';
 import { InterimManagementPanel, DepartmentExpiringFilesTable } from '../components';
 import { TransferEmployeeDepartmentModal } from '@/features/tenants/components/TransferEmployeeDepartmentModal';
+import {
+  PendingInvitationsTable,
+  resendToastMessage,
+  cancelToastMessage,
+} from '@/features/invitations';
 
 interface TenantDepartmentDetailViewProps {
   tenantId?: string;
@@ -354,6 +359,22 @@ export const TenantDepartmentDetailView: React.FC<TenantDepartmentDetailViewProp
           </div>
         )}
       </div>
+
+      {/* Danh sách lời mời đang chờ của phòng ban */}
+      <section className="space-y-3" aria-labelledby="pending-invitations-heading">
+        <h3 id="pending-invitations-heading" className="text-sm font-bold text-slate-900">
+          Lời mời đang chờ ({detail.name})
+        </h3>
+        <PendingInvitationsTable
+          tenantId={tenantId}
+          departmentId={detail.id}
+          onResent={(r) => showToast('success', resendToastMessage(r))}
+          onCancelled={(r) => {
+            showToast('success', cancelToastMessage(r));
+            loadDetail();
+          }}
+        />
+      </section>
 
       {/* Danh sách tệp tin sắp hết hạn của phòng ban */}
       <DepartmentExpiringFilesTable

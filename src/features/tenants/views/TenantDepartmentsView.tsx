@@ -3,6 +3,11 @@ import { UserPlus, Building2, Crown, Mail, ShieldAlert, RefreshCw, Loader2, Hard
 import { useTenantContext } from '@/context/TenantContext';
 import { Department } from '@/features/tenants/types';
 import { AllocateDepartmentQuotaModal, OffboardDepartmentAdminModal, AssignVacantDepartmentLeadModal } from '@/features/tenants/components';
+import {
+  PendingInvitationsTable,
+  resendToastMessage,
+  cancelToastMessage,
+} from '@/features/invitations';
 
 interface TenantDepartmentsViewProps {
   onBackToOverview: () => void;
@@ -19,6 +24,7 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
   const [selectedDeptForQuota, setSelectedDeptForQuota] = useState<Department | null>(null);
   const [selectedDeptForOffboard, setSelectedDeptForOffboard] = useState<Department | null>(null);
   const [selectedDeptForAssignLead, setSelectedDeptForAssignLead] = useState<Department | null>(null);
+  const [invitationReloadToken, setInvitationReloadToken] = useState(0);
 
   // Find Department Admins who are not yet assigned to any specific department
   const unassignedAdmins = users.filter(
@@ -49,6 +55,11 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
                   <div className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5">
                     <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span className="truncate">{admin.name}</span>
+                    {admin.status === 'Pending' && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        Chờ kích hoạt
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-400 font-mono truncate">{admin.email}</div>
                 </div>
@@ -90,6 +101,7 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
               onClick={() => {
                 refreshDepartments();
                 refreshTenantData();
+                setInvitationReloadToken((t) => t + 1);
               }}
               disabled={isLoadingDepartments}
               className="text-xs font-semibold text-slate-700 hover:text-slate-900 px-3.5 py-1.5 rounded-full border border-slate-200/80 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
@@ -272,6 +284,24 @@ export const TenantDepartmentsView: React.FC<TenantDepartmentsViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* 3. KHỐI LỜI MỜI ĐANG CHỜ CỦA TOÀN DOANH NGHIỆP */}
+      <section className="space-y-3" aria-labelledby="pending-invitations-heading">
+        <h3 id="pending-invitations-heading" className="text-sm font-bold text-slate-900">
+          Lời mời đang chờ ({tenant?.name || 'Doanh nghiệp'})
+        </h3>
+        <PendingInvitationsTable
+          tenantId={tenant?.id}
+          reloadToken={invitationReloadToken}
+          onResent={(r) => addToast('success', resendToastMessage(r))}
+          onCancelled={(r) => {
+            addToast('success', cancelToastMessage(r));
+            refreshDepartments();
+            refreshTenantData();
+            setInvitationReloadToken((t) => t + 1);
+          }}
+        />
+      </section>
 
       {/* Modal điều chỉnh Quota phòng ban */}
       <AllocateDepartmentQuotaModal
