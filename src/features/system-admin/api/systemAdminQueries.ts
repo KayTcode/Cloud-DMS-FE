@@ -266,6 +266,7 @@ export const getStorageProvidersApi = async (): Promise<StorageProviderItem[]> =
         migrationRetainedBytes: p.migrationRetainedBytes,
         availableToGrantBytes: p.availableToGrantBytes,
         rootFolderId: p.rootFolderId,
+        accountEmail: p.accountEmail ?? null,
         tenantsCount: p.tenantsCount || 0,
         createdAt: p.createdAt,
         lastSyncAt: p.lastSyncAt,
@@ -321,3 +322,28 @@ export const getAuditLogsApi = async (pageNumber: number = 1, pageSize: number =
  */
 export const getTenantQuotaAllocationsApi = (tenantId: string): Promise<TenantStorageQuotaResponse> =>
   axiosClient.get(API_ENDPOINTS.ADMIN_QUOTA_ALLOC.GET(tenantId));
+
+/**
+ * Tệp đã yêu cầu xoá vĩnh viễn nhưng kho lưu trữ đám mây chưa xoá xong — vẫn chiếm dung lượng
+ * thật. `failureCode` cho biết phải sửa gì: STORAGE_CREDENTIAL_INVALID là credential provider
+ * sai, STORAGE_DELETE_FORBIDDEN là thiếu quyền xoá.
+ * Backend Endpoint: GET /api/admin/storage-providers/pending-deletes
+ */
+export interface PendingCloudDelete {
+  fileId: string;
+  tenantId: string;
+  fileName: string;
+  sizeBytes: number;
+  deletedAt?: string | null;
+  providerName?: string | null;
+  providerAccountEmail?: string | null;
+  failureCode?: string | null;
+  attemptCount: number;
+  lastAttemptAt?: string | null;
+}
+
+export const getPendingCloudDeletesApi = async (): Promise<PendingCloudDelete[]> => {
+  const response: any = await axiosClient.get('/admin/storage-providers/pending-deletes');
+  const items = response?.value ?? response?.data ?? response;
+  return Array.isArray(items) ? items : [];
+};
