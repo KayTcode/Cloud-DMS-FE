@@ -84,6 +84,53 @@ export const documentApi = {
   },
 
   /**
+   * Khởi tạo phiên nộp tài liệu dung lượng lớn (Session-First)
+   */
+  initSubmission: async (payload: {
+    fileName: string;
+    fileSize: number;
+    contentType?: string;
+    title: string;
+    otherTitle?: string | null;
+    issueYear: number;
+    issueMonth?: number | null;
+    issueDay?: number | null;
+    author?: string | null;
+    keywords?: string | null;
+    abstract?: string | null;
+    description?: string | null;
+    retentionDays?: number | null;
+    folderId?: string | null;
+  }): Promise<{
+    sessionId: string;
+    fileId: string;
+    fileName: string;
+    fileSizeBytes: number;
+    partSizeBytes: number;
+    totalParts: number;
+    protocol: string;
+    directUploadUrl?: string | null;
+    expiresAt: string;
+  }> => {
+    const res: any = await apiClient.post('/documents/init-submission', payload);
+    return res?.value ?? res?.data ?? res;
+  },
+
+  /**
+   * Hoàn tất phiên nộp tài liệu dung lượng lớn (ghép tệp và kích hoạt FileMetadata)
+   */
+  completeSubmission: async (
+    sessionId: string,
+    payload?: {
+      parts?: Array<{ number: number; eTag: string }>;
+      externalCloudFileId?: string | null;
+    }
+  ): Promise<DocumentSubmissionResultDto> => {
+    const res: any = await apiClient.post(`/documents/submissions/${sessionId}/complete`, payload || {});
+    return res?.value ?? res?.data ?? res;
+  },
+
+  /**
    * Thay thế tệp vật lý mới, xóa sạch tệp cũ trên Cloud S3, giữ nguyên 100% siêu dữ liệu
    */
   replaceFile: async (
