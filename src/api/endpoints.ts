@@ -79,21 +79,16 @@ export const API_ENDPOINTS = {
   },
   DRIVE: {
     CHILDREN: '/drive/children',
+    // GET trả cả thư mục và tệp ở tầng trên cùng của thùng rác; DELETE dọn sạch.
+    TRASH: '/drive/trash',
   },
   FOLDERS: {
-    CHILDREN: (folderId: string) => `/folders/${folderId}/children`,
-    ROOT: (driveKind: string, driveOwnerId: string) =>
-      `/folders/root?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
+    // Liệt kê nội dung thư mục dùng DRIVE.CHILDREN; backend không có /folders/{id}/children.
     CREATE: '/folders',
-    RENAME: (folderId: string) => `/folders/${folderId}/rename`,
+    RENAME: (folderId: string) => `/folders/${folderId}/name`,
     MOVE: (folderId: string) => `/folders/${folderId}/move`,
-    TRASH: (folderId: string) => `/folders/${folderId}/trash`,
-    RESTORE: (folderId: string) => `/folders/${folderId}/restore`,
-    PURGE: (folderId: string) => `/folders/${folderId}`,
-    TRASH_LIST: (driveKind: string, driveOwnerId: string) =>
-      `/folders/trash?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
-    EMPTY_TRASH: (driveKind: string, driveOwnerId: string) =>
-      `/folders/trash/empty?driveKind=${driveKind}&driveOwnerId=${driveOwnerId}`,
+    // Xoá mềm: DELETE /folders/{id}. Xoá vĩnh viễn dùng driveTrashApi.purgeFolder.
+    TRASH: (folderId: string) => `/folders/${folderId}`,
     CONFIRM_HANDOVER: (id: string) => `/folders/${id}/confirm-handover`,
   },
   ADMIN_QUOTA_ALLOC: {

@@ -3,7 +3,6 @@ import { API_ENDPOINTS } from '@/api/endpoints';
 import {
   FolderChildrenResponse,
   FolderDto,
-  TrashFolderItem,
   CreateFolderPayload,
   RenameFolderPayload,
   MoveFolderPayload,
@@ -46,26 +45,17 @@ export const folderApi = {
       .then((r: any) => r?.value ?? r),
 
   renameFolder: (folderId: string, payload: RenameFolderPayload) =>
-    apiClient.put<FolderDto>(API_ENDPOINTS.FOLDERS.RENAME(folderId), payload)
+    apiClient.patch<FolderDto>(API_ENDPOINTS.FOLDERS.RENAME(folderId), payload)
       .then((r: any) => r?.value ?? r),
 
   moveFolder: (folderId: string, payload: MoveFolderPayload) =>
-    apiClient.put<FolderDto>(API_ENDPOINTS.FOLDERS.MOVE(folderId), payload)
+    apiClient.post<FolderDto>(API_ENDPOINTS.FOLDERS.MOVE(folderId), payload)
       .then((r: any) => r?.value ?? r),
 
+  // DELETE /folders/{id} là xoá mềm (vào thùng rác); xoá vĩnh viễn là {id}/purge.
   trashFolder: (folderId: string) =>
-    apiClient.put(API_ENDPOINTS.FOLDERS.TRASH(folderId)),
+    apiClient.delete(API_ENDPOINTS.FOLDERS.TRASH(folderId)),
 
-  restoreFolder: (folderId: string) =>
-    apiClient.put(API_ENDPOINTS.FOLDERS.RESTORE(folderId)),
-
-  purgeFolder: (folderId: string) =>
-    apiClient.delete(API_ENDPOINTS.FOLDERS.PURGE(folderId)),
-
-  getTrash: (driveKind: string, driveOwnerId: string) =>
-    apiClient.get<TrashFolderItem[]>(API_ENDPOINTS.FOLDERS.TRASH_LIST(driveKind, driveOwnerId))
-      .then((r: any) => r?.value ?? r),
-
-  emptyTrash: (driveKind: string, driveOwnerId: string) =>
-    apiClient.delete(API_ENDPOINTS.FOLDERS.EMPTY_TRASH(driveKind, driveOwnerId)),
+  // Thùng rác (liệt kê, khôi phục, xoá vĩnh viễn, dọn sạch) nằm ở `driveTrashApi`:
+  // backend phục vụ api/drive/trash và api/folders/{id}/purge, không phải api/folders/trash.
 };

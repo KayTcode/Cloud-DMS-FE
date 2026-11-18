@@ -13,10 +13,9 @@ import {
   RefreshCw,
   AlertTriangle,
 } from 'lucide-react';
-import { folderApi } from '../api/folderApi';
+import { driveTrashApi, DriveTrashItem } from '../api/driveTrashApi';
 import { driveApi } from '../api/driveApi';
-import { TrashFolderItem } from '../types/folder.types';
-import { DriveItem, FileType } from '../types';
+import { FileType } from '../types';
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 
 interface DriveTrashViewProps {
@@ -24,20 +23,25 @@ interface DriveTrashViewProps {
   driveOwnerId: string;
 }
 
-interface TrashDisplayItem {
-  id: string;
-  name: string;
-  type: 'folder' | 'file';
-  deletedAt: string;
-  daysLeft: number;
-  lockedByParent: boolean;
-  fileType?: FileType;
-  size?: number;
-  sizeFormatted?: string;
-}
+type TrashDisplayItem = DriveTrashItem;
 
-const getFileIcon = (fileType?: FileType) => {
-  switch (fileType) {
+/** Suy ra loại tệp từ phần mở rộng của tên: TrashItemDto không mang contentType. */
+const fileTypeFromName = (name: string): FileType | undefined => {
+  const ext = name.split('.').pop()?.toLowerCase();
+  if (!ext) return undefined;
+  if (ext === 'pdf') return 'pdf';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'sheet';
+  if (['doc', 'docx'].includes(ext)) return 'docx';
+  if (['ppt', 'pptx'].includes(ext)) return 'slide';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'archive';
+  if (['ts', 'tsx', 'js', 'jsx', 'cs', 'py', 'java', 'json', 'xml', 'sql'].includes(ext))
+    return 'code';
+  return undefined;
+};
+
+const getFileIcon = (name: string) => {
+  switch (fileTypeFromName(name)) {
     case 'pdf':
       return <FileText className="w-5 h-5 text-red-500" />;
     case 'sheet':
@@ -74,6 +78,7 @@ const DaysLeftBadge: React.FC<{ days: number }> = ({ days }) => {
 export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, driveOwnerId }) => {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<TrashDisplayItem[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Confirm dialogs
   const [confirmPurgeItem, setConfirmPurgeItem] = useState<TrashDisplayItem | null>(null);
@@ -86,49 +91,22 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
     setTimeout(() => setNotification(null), 4000);
   };
 
+  // GET api/drive/trash trả cả thư mục và tệp ở tầng trên cùng của thùng rác
+  // cho cả ổ cá nhân và Kho chung, nên chỉ cần một request.
   const loadTrash = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [folderTrash, fileTrashRaw] = await Promise.all([
-        folderApi.getTrash(driveKind, driveOwnerId),
-        driveKind === 'Personal' ? driveApi.getTrashFiles(1, 100) : Promise.resolve({ items: [], totalCount: 0 }),
-      ]);
-      const fileTrash = fileTrashRaw as { items: DriveItem[]; totalCount: number };
-
-      const folderItems: TrashDisplayItem[] = (folderTrash as TrashFolderItem[]).map((f) => ({
-        id: f.id,
-        name: f.name,
-        type: 'folder',
-        deletedAt: f.deletedAt,
-        daysLeft: f.daysLeft,
-        lockedByParent: f.trashedWithFolderId !== null,
-      }));
-
-      const fileItems: TrashDisplayItem[] = fileTrash.items.map((f: DriveItem) => {
-        const deletedAtRaw = (f as any).deletedAtRaw || f.deletedAt || new Date().toISOString();
-        const daysLeft = Math.max(
-          0,
-          30 - Math.floor((Date.now() - new Date(deletedAtRaw).getTime()) / 86400000)
-        );
-        return {
-          id: f.id,
-          name: f.name,
-          type: 'file',
-          deletedAt: f.deletedAt || deletedAtRaw,
-          daysLeft,
-          lockedByParent: (f as any).trashedWithFolderId !== null && (f as any).trashedWithFolderId !== undefined,
-          fileType: f.fileType,
-          size: f.size,
-          sizeFormatted: f.sizeFormatted,
-        };
-      });
-
-      const merged = [...folderItems, ...fileItems].sort(
-        (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
+      const trash = await driveTrashApi.getTrash(driveKind, driveOwnerId);
+      setItems(
+        [...trash].sort(
+          (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
+        )
       );
-      setItems(merged);
-    } catch (e) {
-      console.error('Lỗi nạp thùng rác:', e);
+    } catch (e: any) {
+      // Không im lặng trả danh sách rỗng: thùng rác có dữ liệu sẽ trông như đang trống.
+      setItems([]);
+      setLoadError(e?.message || 'Không nạp được thùng rác. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -140,8 +118,8 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
 
   const handleRestore = async (item: TrashDisplayItem) => {
     try {
-      if (item.type === 'folder') {
-        await folderApi.restoreFolder(item.id);
+      if (item.kind === 'folder') {
+        await driveTrashApi.restoreFolder(item.id);
       } else {
         await driveApi.restoreFile(item.id);
       }
@@ -156,8 +134,8 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
     if (!confirmPurgeItem) return;
     setActionLoading(true);
     try {
-      if (confirmPurgeItem.type === 'folder') {
-        await folderApi.purgeFolder(confirmPurgeItem.id);
+      if (confirmPurgeItem.kind === 'folder') {
+        await driveTrashApi.purgeFolder(confirmPurgeItem.id);
       } else {
         await driveApi.deletePermanently(confirmPurgeItem.id);
       }
@@ -174,12 +152,8 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
   const handleEmptyTrash = async () => {
     setActionLoading(true);
     try {
-      await folderApi.emptyTrash(driveKind, driveOwnerId);
-      if (driveKind === 'Personal') {
-        // Also delete all individual file items
-        const fileItems = items.filter((i) => i.type === 'file' && !i.lockedByParent);
-        await Promise.allSettled(fileItems.map((f) => driveApi.deletePermanently(f.id)));
-      }
+      // DELETE api/drive/trash dọn cả thư mục và tệp của ổ đĩa trong một lệnh.
+      await driveTrashApi.emptyTrash(driveKind, driveOwnerId);
       showNotification('Đã dọn sạch thùng rác!', 'success');
       await loadTrash();
     } catch (e: any) {
@@ -238,6 +212,21 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
           <RefreshCw className="w-8 h-8 text-rose-500 animate-spin mb-3" />
           <p className="text-sm font-semibold text-slate-700">Đang nạp thùng rác...</p>
         </div>
+      ) : loadError ? (
+        <div className="bg-white rounded-2xl border border-rose-200 p-12 text-center flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
+            <AlertTriangle className="w-8 h-8 text-rose-500 stroke-[1.8]" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900">Không nạp được thùng rác</h3>
+          <p className="text-xs text-rose-700 mt-1">{loadError}</p>
+          <button
+            onClick={loadTrash}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-full text-xs font-semibold cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Thử lại</span>
+          </button>
+        </div>
       ) : items.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center flex flex-col items-center justify-center">
           <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
@@ -266,23 +255,18 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
                     <td className="py-3 px-4 text-slate-400 font-mono">{idx + 1}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {item.type === 'folder' ? (
+                        {item.kind === 'folder' ? (
                           <Folder className="w-5 h-5 text-amber-500 fill-amber-100 shrink-0" />
                         ) : (
-                          <span className="shrink-0">{getFileIcon(item.fileType)}</span>
+                          <span className="shrink-0">{getFileIcon(item.name)}</span>
                         )}
                         <span className="font-semibold text-slate-800 truncate max-w-[220px]" title={item.name}>
                           {item.name}
                         </span>
-                        {item.lockedByParent && (
-                          <span title="Bị xoá theo thư mục cha" className="shrink-0">
-                            <Lock className="w-3.5 h-3.5 text-slate-400" />
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-slate-500">
-                      {item.type === 'folder' ? 'Thư mục' : 'Tệp tin'}
+                      {item.kind === 'folder' ? 'Thư mục' : 'Tệp tin'}
                     </td>
                     <td className="py-3 px-4 text-slate-500">
                       {item.deletedAt
@@ -301,9 +285,7 @@ export const DriveTrashView: React.FC<DriveTrashViewProps> = ({ driveKind, drive
                       <DaysLeftBadge days={item.daysLeft} />
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {item.lockedByParent ? (
-                        <span className="text-[11px] text-slate-400 italic">Bị xoá theo thư mục cha</span>
-                      ) : (
+                      {(
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => handleRestore(item)}
