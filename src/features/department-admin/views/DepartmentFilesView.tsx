@@ -50,13 +50,12 @@ import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
 import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
 import {
-  getDepartmentFilesApi,
   downloadTenantFileApi,
   deleteTenantFileApi,
-  TenantStorageSummaryDto,
 } from '@/features/tenants/api/fileApi';
 import { driveApi, formatBytes } from '@/features/user/api/driveApi';
 import { folderApi } from '@/features/user/api/folderApi';
+import { mapDriveChildrenToItems, mapBreadcrumb, BreadcrumbCrumb } from './departmentDriveItems';
 import { DocumentModalsContainer, useDocumentModals, DocumentContextMenu } from '@/features/document-submission';
 import { DocumentDetailsDto } from '@/features/document-submission';
 import { Edit3 } from 'lucide-react';
@@ -98,9 +97,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const { enqueueLarge, reportPendingCount } = useUploadManager();
   const [activeTab, setActiveTab] = useState<'files' | 'trash'>(initialTab);
   const [items, setItems] = useState<DriveItem[]>([]);
+  const [apiBreadcrumb, setApiBreadcrumb] = useState<BreadcrumbCrumb[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [storageSummary, setStorageSummary] = useState<TenantStorageSummaryDto | null>(null);
 
   // Trash states
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
@@ -145,7 +144,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [newFolderType, setNewFolderType] = useState<'shared' | 'personal'>('shared');
   const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
@@ -192,127 +190,17 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     try {
       setIsLoading(true);
       setErrorMessage(null);
-      const isVirtualRoot = currentFolderId === 'drive-shared' || currentFolderId === 'drive-personal';
-      const actualFolderId = currentFolderId && !isVirtualRoot ? currentFolderId : undefined;
 
-      const res = await getDepartmentFilesApi(
-        department.id || '',
-        actualFolderId,
-        1,
-        100,
-        searchQuery.trim() || undefined
-      );
-      setStorageSummary(res);
-
-      const ROOT_SHARED_ID = 'drive-shared';
-      const ROOT_PERSONAL_ID = 'drive-personal';
-
-      // 2 Thư mục gốc đại diện cho 2 kho vật lý thực tế trên Google Drive
-      const rootSharedFolder: DriveItem = {
-        id: ROOT_SHARED_ID,
-        name: res.sharedFolderName || `FPR-${department.code || department.name}-shared`,
-        type: 'folder',
-        size: 0,
-        sizeFormatted: 'Kho chung',
-        updatedAt: 'Hệ thống',
-        createdAt: 'Hệ thống',
-        owner: {
-          name: 'Kho dùng chung phòng ban',
-          email: department.adminEmail || '',
-        },
-        parentId: null,
-        starred: false,
-        trashed: false,
-        sharedWith: [],
-        tags: ['Kho chung phòng ban', 'Google Drive'],
-      };
-
-      const rootPersonalFolder: DriveItem = {
-        id: ROOT_PERSONAL_ID,
-        name: res.personalFolderName || `FPR-${department.code || department.name}-personal`,
-        type: 'folder',
-        size: 0,
-        sizeFormatted: 'Kho riêng',
-        updatedAt: 'Hệ thống',
-        createdAt: 'Hệ thống',
-        owner: {
-          name: 'Kho riêng cá nhân',
-          email: department.adminEmail || '',
-        },
-        parentId: null,
-        starred: false,
-        trashed: false,
-        sharedWith: [],
-        tags: ['Thư mục cá nhân', 'Google Drive'],
-      };
-
-      const apiFiles: DriveItem[] = (res.files || []).map((f: any) => {
-        const ext = f.name.split('.').pop()?.toLowerCase() || '';
-        let fType: FileType = 'other';
-        if (ext === 'pdf') fType = 'pdf';
-        else if (['xlsx', 'xls', 'csv'].includes(ext)) fType = 'sheet';
-        else if (['docx', 'doc', 'txt'].includes(ext)) fType = 'docx';
-        else if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) fType = 'image';
-        else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) fType = 'archive';
-        else if (['cs', 'ts', 'tsx', 'js', 'json', 'py', 'java', 'html', 'css', 'sql'].includes(ext)) fType = 'code';
-        else if (['ppt', 'pptx'].includes(ext)) fType = 'slide';
-
-        const isPersonal = f.driveKind === 'Personal';
-        const effectiveParentId = f.folderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
-
-        return {
-          id: f.id, archiveKind: f.archiveKind, originalSizeBytes: f.originalSizeBytes,
-          name: f.name,
-          type: 'file',
-          fileType: f.archiveKind === 'folder' || f.archiveKind === 'batch' ? 'folder' : fType,
-          extension: ext || 'file',
-          size: f.originalSizeBytes ?? f.sizeBytes,
-          sizeFormatted: formatBytes(f.originalSizeBytes ?? f.sizeBytes),
-          updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          owner: {
-            name: f.ownerName || department.adminName || 'Thành viên phòng',
-            email: department.adminEmail || '',
-          },
-          parentId: effectiveParentId,
-          starred: false,
-          trashed: false,
-          sharedWith: [],
-          tags: [f.storageProviderName || 'Google Drive', isPersonal ? 'Thư mục cá nhân' : 'Kho chung'],
-          contentSnippet: `Tài liệu lưu trữ thuộc ${department.name}. Dung lượng: ${formatBytes(f.sizeBytes)}. Trạng thái bảo mật ClamAV: ${f.scanStatus || 'Clean'}. Khóa lưu trữ: ${f.storageKey}`,
-          metadata: f.metadata || null,
-          scanStatus: f.scanStatus ?? null,
-        };
+      // Nav "Tai lieu & Upload" chi la kho rieng cua chinh Truong phong.
+      // Kho chung cua phong thuoc nav "Kho chung" (SharedStoreView) de khong trung lap,
+      // va endpoint nay da scoped theo DriveKind + DriveOwnerId nen khong the ro kho
+      // rieng cua nhan vien khac.
+      const res = await folderApi.getDriveChildren('personal', {
+        folderId: currentFolderId ?? undefined,
       });
 
-      const apiFolders: DriveItem[] = (res.folders || []).map((f: any) => {
-        const isPersonal = f.isPersonal || f.driveKind === 'Personal';
-        const effectiveParentId = f.parentFolderId || (isPersonal ? ROOT_PERSONAL_ID : ROOT_SHARED_ID);
-
-        return {
-          id: f.id, archiveKind: f.archiveKind, originalSizeBytes: f.originalSizeBytes,
-          name: f.name,
-          type: 'folder',
-          size: 0,
-          sizeFormatted: '0 mục',
-          updatedAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          createdAt: f.createdAt ? new Date(f.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật',
-          owner: {
-            name: f.ownerName || (isPersonal ? 'Cá nhân tôi' : (department.adminName || 'Phòng ban')),
-            email: department.adminEmail || '',
-          },
-          parentId: effectiveParentId,
-          starred: false,
-          trashed: false,
-          sharedWith: [],
-          tags: [isPersonal ? 'Thư mục cá nhân' : 'Thư mục chung phòng ban'],
-          isPendingHandover: f.isPendingHandover ?? false,
-        };
-      });
-
-      // Nếu đang ở thư mục con cụ thể trong DB (actualFolderId), ta chỉ cần render apiFolders + apiFiles
-      // Nếu đang ở Root (currentFolderId === null) hoặc ở 2 root ảo, ta cần cả 2 root folders
-      setItems([rootSharedFolder, rootPersonalFolder, ...apiFolders, ...apiFiles]);
+      setItems(mapDriveChildrenToItems(res));
+      setApiBreadcrumb(mapBreadcrumb(res));
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách tệp của phòng ban:', err);
       const msg = err?.response?.data?.detail 
@@ -363,14 +251,16 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     fetchTrashFiles();
   }, [department.id, currentFolderId]);
 
-  // Reload when switching tab or searching
+  // Thung rac loc o server nen phai nap lai theo tu khoa.
   useEffect(() => {
-    if (activeTab === 'trash') {
-      fetchTrashFiles(searchQuery);
-    } else {
-      fetchDepartmentFiles();
-    }
+    if (activeTab === 'trash') fetchTrashFiles(searchQuery);
   }, [activeTab, searchQuery]);
+
+  // Tab tai lieu loc client-side tren items, nen khong nap lai theo tu khoa:
+  // lam vay la moi ky tu mot request va mot lan nhay spinner.
+  useEffect(() => {
+    if (activeTab !== 'trash') fetchDepartmentFiles();
+  }, [activeTab]);
 
   const handleSwitchTab = (tab: 'files' | 'trash') => {
     setActiveTab(tab);
@@ -419,20 +309,10 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
-  // Current folder hierarchy & breadcrumbs
-  const currentFolder = items.find((i) => i.id === currentFolderId && i.type === 'folder');
-
-  const getBreadcrumbs = () => {
-    const crumbs: DriveItem[] = [];
-    let curr = currentFolder;
-    while (curr) {
-      crumbs.unshift(curr);
-      if (!curr.parentId) break;
-      curr = items.find((i) => i.id === curr?.parentId && i.type === 'folder');
-    }
-    return crumbs;
-  };
-  const breadcrumbs = getBreadcrumbs();
+  // Breadcrumb do backend tra ve, da xep tu goc toi folder hien tai.
+  // Khong tu suy bang parentId nua: endpoint chi tra con truc tiep nen folder hien tai
+  // va to tien cua no khong nam trong items.
+  const breadcrumbs = apiBreadcrumb;
 
   // Filtered items
   const filteredItems = items.filter((item) => {
@@ -612,7 +492,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         {
           uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
           enqueueLarge,
-          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'personal'),
           reportPendingCount,
           readHead: readFileHead,
         }
@@ -672,7 +552,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
         {
           uploadZip: (files, dirs, target) => driveApi.uploadFiles(files, target.folderId, dirs),
           enqueueLarge,
-          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'shared', department.id),
+          createFolder: (name, parentId) => driveApi.createFolder(name, parentId, 'personal'),
           reportPendingCount,
           readHead: readFileHead,
         }
@@ -715,31 +595,12 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     try {
       setIsCreatingFolder(true);
 
-      let targetDrive = newFolderType;
-      let targetParentId: string | null = null;
-
-      if (currentFolderId === 'drive-shared') {
-        targetDrive = 'shared';
-        targetParentId = null;
-      } else if (currentFolderId === 'drive-personal') {
-        targetDrive = 'personal';
-        targetParentId = null;
-      } else if (currentFolderId) {
-        targetParentId = currentFolderId;
-      }
-
-      await driveApi.createFolder(
-        newFolderName.trim(),
-        targetParentId,
-        targetDrive,
-        targetDrive === 'shared' ? department.id : undefined
-      );
+      // Man hinh nay la kho rieng cua chinh Truong phong, nen moi thu muc tao o day
+      // deu thuoc drive personal. Tao thu muc trong Kho chung thuoc nav "Kho chung".
+      await driveApi.createFolder(newFolderName.trim(), currentFolderId ?? null, 'personal');
 
       if (onAddToast) {
-        onAddToast(
-          'success',
-          `Đã tạo ${targetDrive === 'shared' ? 'thư mục chung phòng ban' : 'thư mục cá nhân'} "${newFolderName.trim()}" thành công!`
-        );
+        onAddToast('success', `Đã tạo thư mục cá nhân "${newFolderName.trim()}" thành công!`);
       }
       setNewFolderName('');
       setIsNewFolderModalOpen(false);
@@ -880,11 +741,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
             <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
               Phòng ban: {department.name}
             </span>
-            {storageSummary?.storageProviderName && (
-              <span className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200">
-                {storageSummary.storageProviderName}
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -2025,36 +1881,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
             <h3 className="text-base font-bold text-slate-900 mb-4">Tạo thư mục mới</h3>
             
-            {/* Lựa chọn loại thư mục: Kho chung hoặc Cá nhân */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Loại thư mục</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setNewFolderType('shared')}
-                  className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    newFolderType === 'shared'
-                      ? 'bg-blue-50 border-blue-600 text-blue-700 ring-1 ring-blue-600/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Kho chung</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewFolderType('personal')}
-                  className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    newFolderType === 'personal'
-                      ? 'bg-emerald-50 border-emerald-600 text-emerald-700 ring-1 ring-emerald-600/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>Riêng tôi</span>
-                </button>
-              </div>
-            </div>
 
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên thư mục</label>
             <input

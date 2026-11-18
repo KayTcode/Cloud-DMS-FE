@@ -150,10 +150,13 @@ export const DepartmentStorageReportView: React.FC<DepartmentStorageReportViewPr
 
       if (res) {
         setSummaryData(res);
-        const fileList = res.files || [];
+        // Bao cao dung luong PHONG BAN chi tinh Kho chung. Endpoint con tra kem kho rieng
+        // cua chinh nguoi dang dang nhap; neu khong loc thi dung luong ca nhan cua Truong
+        // phong bi cong vao so cua phong va ten tep ca nhan cua ho hien trong bao cao.
+        const fileList = (res.files || []).filter((f: any) => f.driveKind !== 'Personal');
         setFiles(fileList);
         setHasMore(Boolean(res.hasMore));
-        setTotalFilesCount(res.totalCount || fileList.length);
+        setTotalFilesCount(fileList.length);
       }
     } catch (err: any) {
       console.error('[DepartmentStorageReportView] Lỗi tải báo cáo tệp tin:', err);
