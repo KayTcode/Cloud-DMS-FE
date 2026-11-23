@@ -532,6 +532,10 @@ export const driveApi = {
     anchor.href = url; anchor.download = name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
+  getShareCandidates: async (fileId: string, query: string, signal?: AbortSignal): Promise<ShareCandidate[]> => {
+    const res: any = await apiClient.get(`/files/${fileId}/share-candidates`, { params: { q: query }, signal });
+    return res?.value ?? res?.data ?? res;
+  },
   getFileShares: async (fileId: string): Promise<FileShareRecipient[]> => {
     const res: any = await apiClient.get(`/files/${fileId}/shares`);
     return res?.value ?? res?.data ?? res;
@@ -576,6 +580,8 @@ export const driveApi = {
     }
   },
 };
+
+export interface ShareCandidate { id: string; email: string; name: string; }
 
 export interface FileShareRecipient {
   recipientId: string;
