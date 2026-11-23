@@ -29,6 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenantContext } from '@/context/TenantContext';
 import { bytesToGB, gbToBytes } from './utils/quotaUtils';
 import { formatQuotaAuto } from '@/utils/quotaUnitUtils';
+import { DepartmentSharedFilesView } from './views/DepartmentSharedFilesView';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
@@ -74,6 +75,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('logs');
     } else if (activeNav === 'storage-providers') {
       setActiveTab('quota');
+    } else if (activeNav === 'shared') {
+      setActiveTab('shared');
     } else if (activeNav === 'shared-store') {
       setActiveTab('shared-store');
     }
@@ -93,6 +96,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('audit-logs');
     } else if (tab === 'quota') {
       setActiveNav('storage-providers');
+    } else if (tab === 'shared') {
+      setActiveNav('shared');
     } else if (tab === 'shared-store') {
       setActiveNav('shared-store');
     }
@@ -264,7 +269,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
             department={departmentInfo}
             availableQuotaGB={availableDeptGB}
             initialTab={activeTab === 'trash' ? 'trash' : 'files'}
-            onBackToHub={() => handleNavigateTab('hub')}
             onQuotaUpdated={refreshData}
             onAddToast={showNotification}
             onTabChange={(tab) => {
@@ -320,6 +324,10 @@ const DepartmentAdminPortalContent: React.FC = () => {
             onQuotaUpdated={refreshData}
             onShowToast={showNotification}
           />
+        )}
+
+        {activeTab === 'shared' && (
+          <DepartmentSharedFilesView onShowToast={(message, type = 'info') => showNotification(type, message)} />
         )}
 
         {/* 7. CHỨC NĂNG 6: KHO CHUNG PHÒNG BAN */}

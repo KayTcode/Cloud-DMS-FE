@@ -107,7 +107,6 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
           tenant={tenant}
           onNavigateTab={(tab) => setActiveTab(tab)}
           onOpenCreateDepartmentUser={() => handleOpenCreateDepartmentUser()}
-          onOpenSubscriptionModal={() => setIsSubscriptionModalOpen(true)}
           onDownloadBackup={handleDownloadBackup}
         />
       )}

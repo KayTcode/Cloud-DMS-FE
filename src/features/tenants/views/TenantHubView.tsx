@@ -4,14 +4,10 @@ import {
   LayoutGrid,
   Settings,
   UserPlus,
-  CreditCard,
   Download,
   ArrowRight,
   Sparkles,
-  ShieldCheck,
-  Briefcase,
-  Layers,
-  Database
+  Database,
 } from 'lucide-react';
 import { ActiveTab, TenantInfo } from '@/features/tenants/types';
 
@@ -19,7 +15,6 @@ interface TenantHubViewProps {
   tenant: TenantInfo;
   onNavigateTab: (tab: ActiveTab) => void;
   onOpenCreateDepartmentUser: () => void;
-  onOpenSubscriptionModal: () => void;
   onDownloadBackup: () => void;
 }
 
@@ -37,7 +32,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
   tenant,
   onNavigateTab,
   onOpenCreateDepartmentUser,
-  onOpenSubscriptionModal,
   onDownloadBackup,
 }) => {
   const cards: TenantCardConfig[] = [
@@ -112,14 +106,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
           </button>
 
           <button
-            onClick={onOpenSubscriptionModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold border border-slate-200/80 shadow-2xs transition-colors cursor-pointer"
-          >
-            <CreditCard className="w-4 h-4 text-slate-500" />
-            <span>Gói cước</span>
-          </button>
-
-          <button
             onClick={onDownloadBackup}
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-semibold border border-slate-200/80 shadow-2xs transition-colors cursor-pointer"
             title="Sao lưu dữ liệu doanh nghiệp"
@@ -180,25 +166,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
         </div>
       </div>
 
-      {/* 3. THANH THÔNG TIN VẬN HÀNH */}
-      <div className="p-4 rounded-xl bg-slate-100/70 border border-slate-200/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <Briefcase className="w-4 h-4 text-indigo-600 shrink-0" />
-          <span>Gói dịch vụ: <strong>{tenant.plan || 'ENTERPRISE'}</strong></span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Không gian lưu trữ độc lập theo Tenant</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>Hỗ trợ phân quyền phân cấp 3 tầng (Tenant/Dept/User)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>Tải dữ liệu tức thời On-Demand</span>
-        </div>
-      </div>
     </div>
   );
 };

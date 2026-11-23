@@ -17,7 +17,6 @@ import {
   ChevronRight,
   ArrowUpDown,
   Search,
-  ArrowLeft,
   Grid,
   List,
   Info,
@@ -73,7 +72,6 @@ interface DepartmentFilesViewProps {
   department: DepartmentInfo;
   availableQuotaGB: number;
   initialTab?: 'files' | 'trash';
-  onBackToHub: () => void;
   onQuotaUpdated?: () => void;
   onAddToast?: (type: 'success' | 'error' | 'info', message: string) => void;
   onTabChange?: (tab: 'files' | 'trash') => void;
@@ -86,7 +84,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   department,
   availableQuotaGB,
   initialTab = 'files',
-  onBackToHub,
   onQuotaUpdated,
   onAddToast,
   onTabChange,
@@ -653,11 +650,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   };
 
 
-  const handleManualRefresh = () => {
-    fetchDepartmentFiles();
-    if (onQuotaUpdated) onQuotaUpdated();
-  };
-
   // Xác nhận tiếp nhận bàn giao (C1) — cho thư mục trong Personal drive
   const [confirmingHandoverFolderId, setConfirmingHandoverFolderId] = useState<string | null>(null);
   const handleConfirmHandover = async (folderId: string) => {
@@ -727,36 +719,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
 
       {/* TOP NAVIGATION & GOOGLE DRIVE HEADER */}
       <div className="flex flex-col gap-4">
-        {/* Row 1: Header bar with Back button & Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              onClick={onBackToHub}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-blue-600 border border-slate-200 rounded-lg shadow-2xs transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>← Quay lại Trung tâm điều khiển</span>
-            </button>
-
-            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
-              Phòng ban: {department.name}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <button
-              onClick={handleManualRefresh}
-              disabled={isLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
-              title="Làm mới dung lượng và danh sách tệp tin"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
-              <span>Làm mới dữ liệu</span>
-            </button>
-
-          </div>
-        </div>
-
         {/* Row 1.5: Segmented Navigation: Tài liệu phòng ban VS Thùng rác phòng ban */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2 flex-wrap">
           <div className="flex items-center gap-2">

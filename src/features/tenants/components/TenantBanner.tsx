@@ -56,9 +56,6 @@ export const TenantBanner: React.FC<TenantBannerProps> = ({
                 {isActive ? 'Đang hoạt động' : 'Tạm dừng'}
               </span>
 
-              <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60">
-                Gói {tenant.plan || 'Doanh nghiệp'}
-              </span>
             </div>
           </div>
         </div>

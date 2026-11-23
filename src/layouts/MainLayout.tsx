@@ -86,6 +86,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           return 'Trung tâm điều khiển';
         case 'dashboard':
           return 'Kho tài liệu & Upload';
+        case 'shared-store':
+          return 'Kho Chung';
+        case 'shared':
+          return 'Được chia sẻ';
         case 'tenants':
           return 'Quản lý nhân viên';
         case 'audit-logs':
@@ -122,8 +126,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         return 'Storage Providers';
       case 'quota-requests':
         return 'Duyệt yêu cầu Quota';
-      case 'quota-approvals':
-        return 'Duyệt yêu cầu quota';
       case 'audit-logs':
         return 'System Audit Logs';
       case 'dashboard':

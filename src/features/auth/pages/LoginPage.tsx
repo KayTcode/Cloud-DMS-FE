@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheck,
-  Building2,
   Lock,
   Mail,
   Eye,
   EyeOff,
   ArrowRight,
-  Sparkles,
   Cloud,
-  CheckCircle2,
   AlertCircle,
   Loader2,
-  Server
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { googleStartUrl } from '@/features/auth/api/authApi';
@@ -114,43 +109,15 @@ export const LoginPage: React.FC = () => {
               <h2 className="text-lg font-bold text-slate-100 leading-snug">
                 Nền tảng Quản trị & Lưu trữ Tài liệu Đa Doanh nghiệp
               </h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Hệ thống bảo mật cao cấp với kiến trúc CQRS & Clean Architecture, phân quyền chặt chẽ theo Role & Phòng ban.
-              </p>
-
-              <div className="pt-4 space-y-2.5">
-                <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span>Phân quyền RBAC & Dynamic Permission Claim</span>
-                </div>
-                <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Multi-Tenant cô lập dữ liệu an toàn</span>
-                </div>
-                <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" />
-                  <span>Quản lý kho tài liệu & phân phối dung lượng</span>
-                </div>
-              </div>
             </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-            <span>© 2026 CloudDMS Inc.</span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              API Server Online
-            </span>
-          </div>
         </div>
 
         {/* Right column: Login form */}
         <div className="lg:col-span-7 p-6 sm:p-10 flex flex-col justify-center bg-slate-900/60">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-white tracking-tight">Đăng nhập tài khoản</h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Nhập thông tin xác thực để truy cập cổng làm việc tương ứng
-            </p>
           </div>
 
           {/* Error Banner */}

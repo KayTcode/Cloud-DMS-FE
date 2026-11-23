@@ -7,11 +7,7 @@ import {
   Settings, 
   Plus, 
   ArrowRight, 
-  ShieldCheck, 
   Sparkles,
-  Server,
-  Activity,
-  Layers,
   ClipboardCheck
 } from 'lucide-react';
 import { NavItem } from '@/features/tenants/types';
@@ -178,21 +174,6 @@ export const AdminHubView: React.FC<AdminHubViewProps> = ({
         </div>
       </div>
 
-      {/* 3. THANH THÔNG TIN BẢO ĐẢM HỆ THỐNG */}
-      <div className="p-4 rounded-xl bg-slate-100/70 border border-slate-200/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <Server className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Kiến trúc đa người thuê (Multi-Tenant)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>Bảo mật phân quyền RBAC & Mã hóa dữ liệu</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>Kho lưu trữ đám mây lai (Hybrid Cloud Storage)</span>
-        </div>
-      </div>
     </div>
   );
 };
