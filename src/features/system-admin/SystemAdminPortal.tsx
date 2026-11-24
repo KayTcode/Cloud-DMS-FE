@@ -324,7 +324,7 @@ export const SystemAdminPortal: React.FC = () => {
       {/* --------------------------------------------------------------------------------- */}
       {/* SUB-VIEW 3b: Màn hình Phê duyệt Yêu cầu Quota của Tenant (Quota Requests)          */}
       {/* --------------------------------------------------------------------------------- */}
-      {(activeNav === 'quota-requests' || activeNav === 'quota-approvals') && (
+      {activeNav === 'quota-requests' && (
         <QuotaRequestsView />
       )}
 

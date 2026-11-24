@@ -3,6 +3,7 @@ import { X, Share2 } from 'lucide-react';
 import { DriveItem } from '../types';
 import { driveApi, FileShareRecipient } from '../api/driveApi';
 import { useAuth } from '@/context/AuthContext';
+import { ShareRecipientPicker, normalizeRecipientEmail, recipientInputError } from './ShareRecipientPicker';
 
 interface ShareModalProps {
   item: DriveItem | null;
@@ -20,6 +21,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
   const { user } = useAuth();
   const sharingExcluded = user?.role?.toLowerCase() === 'tenantadmin';
   const [email, setEmail] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [recipientErrors, setRecipientErrors] = useState<Record<string, string>>({});
   const [role, setRole] = useState<'Viewer' | 'Editor'>('Viewer');
   const [recipients, setRecipients] = useState<FileShareRecipient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,11 +30,17 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const currentFile = useRef(item?.id);
+  const generation = useRef(0);
+  const operationBusy = useRef(false);
   currentFile.current = item?.id;
 
   useEffect(() => {
     let cancelled = false;
+    generation.current++;
+    operationBusy.current = false;
     setEmail('');
+    setSelected([]);
+    setRecipientErrors({});
     setRole('Viewer');
     setRecipients([]);
     setError('');
@@ -41,7 +50,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
     if (sharingExcluded) {
       setLoadError('TenantAdmin không được tham gia chia sẻ tài liệu.');
       setLoading(false);
-      return () => { cancelled = true; };
+      return () => { cancelled = true; generation.current++; };
     }
     if (item) {
       driveApi.getFileShares(item.id).then((data) => {
@@ -52,35 +61,75 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
         if (!cancelled) setLoading(false);
       });
     }
-    return () => { cancelled = true; };
+    return () => { cancelled = true; generation.current++; };
   }, [item?.id, sharingExcluded]);
 
   if (!item) return null;
 
   const mutate = async (action: () => Promise<unknown>, message: string) => {
-    if (busy || sharingExcluded) return;
+    if (operationBusy.current || sharingExcluded) return;
     const fileId = item.id;
+    const version = generation.current;
+    const isCurrent = () => generation.current === version && currentFile.current === fileId;
+    operationBusy.current = true;
     setBusy(true);
     setError('');
     try {
       await action();
+      if (!isCurrent()) return;
       onChanged?.();
       onShareSuccess(message);
-      if (currentFile.current !== fileId) return;
-      setEmail('');
       try {
         const data = await driveApi.getFileShares(fileId);
-        if (currentFile.current === fileId) {
+        if (isCurrent()) {
           setRecipients(data);
           setLoadError('');
         }
       } catch {
-        if (currentFile.current === fileId) setLoadError('Đã lưu thay đổi nhưng chưa thể tải lại danh sách. Hãy mở lại cửa sổ chia sẻ.');
+        if (isCurrent()) setLoadError('Đã lưu thay đổi nhưng chưa thể tải lại danh sách. Hãy mở lại cửa sổ chia sẻ.');
       }
     } catch (err) {
-      if (currentFile.current === fileId) setError(errorMessage(err));
+      if (isCurrent()) setError(errorMessage(err));
     } finally {
-      if (currentFile.current === fileId) setBusy(false);
+      if (isCurrent()) { setBusy(false); operationBusy.current = false; }
+    }
+  };
+
+  const shareSelected = async () => {
+    if (operationBusy.current || sharingExcluded || loading || loadError) return;
+    const emails = [...selected];
+    if (email.trim()) {
+      const message = recipientInputError(email, emails, recipients.map(recipient => recipient.email));
+      if (message) { setError(message); return; }
+      emails.push(normalizeRecipientEmail(email));
+    }
+    if (!emails.length) return;
+    const fileId = item.id, version = generation.current;
+    const isCurrent = () => generation.current === version && currentFile.current === fileId;
+    operationBusy.current = true;
+    setBusy(true); setError(''); setRecipientErrors({}); setSelected(emails); setEmail('');
+    const failures: Record<string, string> = {};
+    let succeeded = 0;
+    try {
+      for (const recipient of emails) {
+        if (!isCurrent()) return;
+        try { await driveApi.shareFile(fileId, recipient, role); succeeded++; }
+        catch (err) { failures[recipient] = errorMessage(err); }
+      }
+      if (!isCurrent()) return;
+      setSelected(Object.keys(failures)); setRecipientErrors(failures);
+      if (succeeded) {
+        onChanged?.();
+        onShareSuccess(`Đã chia sẻ tài liệu cho ${succeeded}/${emails.length} người nhận.`);
+        try {
+          const data = await driveApi.getFileShares(fileId);
+          if (isCurrent()) { setRecipients(data); setLoadError(''); }
+        } catch {
+          if (isCurrent()) setLoadError('Đã lưu thay đổi nhưng chưa thể tải lại danh sách. Hãy mở lại cửa sổ chia sẻ.');
+        }
+      }
+    } finally {
+      if (isCurrent()) { setBusy(false); operationBusy.current = false; }
     }
   };
 
@@ -111,17 +160,20 @@ export const ShareModal: React.FC<ShareModalProps> = ({ item, onClose, onShareSu
         {loadError && <p role="alert" className="mt-3 text-sm text-red-600">{loadError}</p>}
         <form className="mt-4 space-y-3" onSubmit={(event) => {
           event.preventDefault();
-          const normalized = email.trim();
-          if (normalized) void mutate(() => driveApi.shareFile(item.id, normalized, role), 'Đã chia sẻ tài liệu thành công.');
+          void shareSelected();
         }}>
-          <label htmlFor="share-email" className="block text-xs font-semibold">Email người nhận</label>
-          <input id="share-email" required type="email" maxLength={254} disabled={busy || loading || !!loadError} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dongnghiep@congty.vn" className="w-full border rounded-lg px-3 py-2 text-sm" />
+          <ShareRecipientPicker key={item.id} fileId={item.id} value={email} onValueChange={setEmail}
+            selected={selected} onSelectedChange={emails => {
+              setSelected(emails); setError('');
+              setRecipientErrors(previous => Object.fromEntries(Object.entries(previous).filter(([email]) => emails.includes(email))));
+            }} existing={recipients.map(recipient => recipient.email)} disabled={busy || loading || !!loadError || sharingExcluded}
+            recipientErrors={recipientErrors} />
           <div className="flex gap-2">
             <select aria-label="Quyền người nhận" disabled={busy} value={role} onChange={(e) => setRole(e.target.value as 'Viewer' | 'Editor')} className="border rounded-lg px-3 py-2 text-sm">
               <option value="Viewer">Xem</option>
               <option value="Editor">Chỉnh sửa</option>
             </select>
-            <button type="submit" disabled={busy || loading || !!loadError || !email.trim()} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Đang lưu…' : 'Chia sẻ'}</button>
+            <button type="submit" disabled={busy || loading || !!loadError || sharingExcluded || (!selected.length && !email.trim())} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Đang lưu…' : 'Chia sẻ'}</button>
           </div>
         </form>
         <div className="mt-5 border-t pt-4" aria-busy={loading || busy}>

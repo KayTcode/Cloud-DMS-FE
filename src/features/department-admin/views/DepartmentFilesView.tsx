@@ -72,7 +72,6 @@ interface DepartmentFilesViewProps {
   department: DepartmentInfo;
   availableQuotaGB: number;
   initialTab?: 'files' | 'trash';
-  onBackToHub: () => void;
   onQuotaUpdated?: () => void;
   onAddToast?: (type: 'success' | 'error' | 'info', message: string) => void;
   onTabChange?: (tab: 'files' | 'trash') => void;
@@ -85,7 +84,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   department,
   availableQuotaGB,
   initialTab = 'files',
-  onBackToHub,
   onQuotaUpdated,
   onAddToast,
   onTabChange,
@@ -672,11 +670,6 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
     }
   };
 
-
-  const handleManualRefresh = () => {
-    fetchDepartmentFiles();
-    if (onQuotaUpdated) onQuotaUpdated();
-  };
 
   // Xác nhận tiếp nhận bàn giao (C1) — cho thư mục trong Personal drive
   const [confirmingHandoverFolderId, setConfirmingHandoverFolderId] = useState<string | null>(null);

@@ -27,8 +27,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenantContext } from '@/context/TenantContext';
 import { bytesToGB, gbToBytes } from './utils/quotaUtils';
 import { formatQuotaAuto } from '@/utils/quotaUnitUtils';
-import { SharedFilesView } from '@/features/user/views';
-import { driveApi } from '@/features/user/api/driveApi';
+import { DepartmentSharedFilesView } from './views/DepartmentSharedFilesView';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
@@ -74,6 +73,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('logs');
     } else if (activeNav === 'storage-providers') {
       setActiveTab('quota');
+    } else if (activeNav === 'shared') {
+      setActiveTab('shared');
     } else if (activeNav === 'shared-store') {
       setActiveTab('shared-store');
     } else if (activeNav === 'shared') {
@@ -95,6 +96,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('audit-logs');
     } else if (tab === 'quota') {
       setActiveNav('storage-providers');
+    } else if (tab === 'shared') {
+      setActiveNav('shared');
     } else if (tab === 'shared-store') {
       setActiveNav('shared-store');
     } else if (tab === 'shared') {
@@ -256,7 +259,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
             department={departmentInfo}
             availableQuotaGB={availableDeptGB}
             initialTab={activeTab === 'trash' ? 'trash' : 'files'}
-            onBackToHub={() => handleNavigateTab('hub')}
             onQuotaUpdated={refreshData}
             onAddToast={showNotification}
             onTabChange={(tab) => {
@@ -314,22 +316,13 @@ const DepartmentAdminPortalContent: React.FC = () => {
           />
         )}
 
+        {activeTab === 'shared' && (
+          <DepartmentSharedFilesView onShowToast={(message, type = 'info') => showNotification(type, message)} />
+        )}
+
         {/* 7. CHỨC NĂNG 6: KHO CHUNG PHÒNG BAN */}
         {activeTab === 'shared-store' && (
           <SharedStoreView />
-        )}
-
-        {/* 8. CHỨC NĂNG 7: TÀI LIỆU ĐƯỢC CHIA SẺ VỚI TÔI */}
-        {activeTab === 'shared' && (
-          <SharedFilesView
-            onOpenFilePreview={(file) => {
-              void driveApi.downloadFile(file.id, file.name);
-            }}
-            onDownloadItem={(file) => {
-              void driveApi.downloadFile(file.id, file.name);
-            }}
-            onShowToast={(msg, type) => showNotification(type === 'error' ? 'error' : 'success', msg)}
-          />
         )}
       </div>
 
