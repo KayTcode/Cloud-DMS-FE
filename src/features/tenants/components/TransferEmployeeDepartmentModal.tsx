@@ -94,9 +94,18 @@ export const TransferEmployeeDepartmentModal: React.FC<TransferEmployeeDepartmen
           /* Success view */
           <div className="space-y-4">
             <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-800">
-              Đã chuyển <span className="font-semibold">{successResult.transferredFilesCount} tệp</span>{' '}
-              ({transferredGB} GB) sang phòng{' '}
-              <span className="font-semibold">{targetDept?.name ?? successResult.toDepartmentId}</span>.
+              {successResult.transferredFilesCount === 0 ? (
+                <>
+                  Đã bàn giao xong sang phòng{' '}
+                  <span className="font-semibold">{targetDept?.name ?? successResult.toDepartmentId}</span>.
+                </>
+              ) : (
+                <>
+                  Đã chuyển <span className="font-semibold">{successResult.transferredFilesCount} tệp</span>{' '}
+                  ({transferredGB} GB) sang phòng{' '}
+                  <span className="font-semibold">{targetDept?.name ?? successResult.toDepartmentId}</span>.
+                </>
+              )}
             </div>
             <div className="flex justify-end">
               <button

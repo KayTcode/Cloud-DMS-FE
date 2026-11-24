@@ -195,7 +195,7 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                   {result.handoverFolderId != null && (
                     <div className="col-span-2">Thư mục bàn giao: <strong className="text-slate-900">{result.handoverFolderName}</strong></div>
                   )}
-                  <div>Tệp đã chuyển giao: <strong className="text-slate-900">{result.transferredFilesCount} files, {result.transferredFoldersCount} folders ({formatBytes(result.transferredBytes)})</strong></div>
+                  <div>Tệp đã chuyển giao: <strong className="text-slate-900">{result.transferredFilesCount === 0 ? 'Đã bàn giao xong' : `${result.transferredFilesCount} files, ${result.transferredFoldersCount} folders (${formatBytes(result.transferredBytes)})`}</strong></div>
                   <div>Tệp đã chia sẻ: <strong className="text-slate-900">{result.sharedFilesCount} files ({formatBytes(result.sharedBytes)})</strong></div>
                   <div>Quota → Trưởng phòng mới: <strong className="text-emerald-700">{formatBytes(result.quotaToNewLeadBytes)}</strong></div>
                   <div>Quota → Kho chung: <strong className="text-blue-700">{formatBytes(result.quotaToSharedBytes)}</strong></div>

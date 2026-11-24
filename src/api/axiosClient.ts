@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { ProblemDetails } from '@/types/common.types';
 import { getAuthClient } from './authClient';
-import { waitForOperation } from './pendingOperation';
+import { operationStatusPath, waitForOperation } from './pendingOperation';
 
 // Lấy URL của backend từ biến môi trường của Vite (mặc định /api khi qua Gateway/Proxy, hoặc fallback URL cấu hình)
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -100,13 +100,15 @@ apiClient.interceptors.response.use(
   async (response: AxiosResponse) => {
     // Xử lý 202 Accepted với operationId (tác vụ bất đồng bộ)
     if (response.status === 202 && (response.data as any)?.operationId) {
-      const operationId = (response.data as any).operationId as string;
+      const statusPath = operationStatusPath(response.data as any);
+      const isLongRunningAdmin = statusPath.includes('/admin-operations/');
       await waitForOperation(
-        operationId,
+        statusPath,
         {
           get: (path: string) => apiClient.get(path) as Promise<any>,
           sleep: (ms: number) => new Promise(resolve => setTimeout(resolve, ms)),
-        }
+        },
+        isLongRunningAdmin ? { maxAttempts: 120 } : undefined
       );
       return response.data;
     }

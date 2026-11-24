@@ -231,9 +231,25 @@ export const StorageProvidersView: React.FC<StorageProvidersViewProps> = ({
                     <Cloud className="w-5 h-5" />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      {p.status || 'Active'}
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                      p.status === 'Pending'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                        : p.status === 'Degraded'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                        : p.status === 'Offline'
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200/60'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        p.status === 'Pending'
+                          ? 'bg-amber-500 animate-pulse'
+                          : p.status === 'Degraded'
+                          ? 'bg-amber-500'
+                          : p.status === 'Offline'
+                          ? 'bg-rose-500'
+                          : 'bg-emerald-500'
+                      }`} />
+                      {p.status === 'Pending' ? 'Đang kiểm tra kết nối' : (p.status || 'Active')}
                     </span>
                     <button
                       onClick={() => setEditingProvider(p)}

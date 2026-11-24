@@ -253,10 +253,14 @@ export const AssignVacantDepartmentLeadModal: React.FC<AssignVacantDepartmentLea
 
                   <div className="bg-white p-2.5 rounded-lg border border-slate-100">
                     <span className="text-[11px] text-slate-400 block">Tài liệu bàn giao:</span>
-                    <strong className="text-slate-900 block">{result.transferredFilesCount} files</strong>
-                    <span className="text-[10px] text-slate-500">
-                      {(result.transferredBytes / (1024 * 1024)).toFixed(2)} MB
-                    </span>
+                    <strong className="text-slate-900 block">
+                      {result.transferredFilesCount === 0 ? 'Đã bàn giao xong' : `${result.transferredFilesCount} files`}
+                    </strong>
+                    {result.transferredFilesCount > 0 && (
+                      <span className="text-[10px] text-slate-500">
+                        {(result.transferredBytes / (1024 * 1024)).toFixed(2)} MB
+                      </span>
+                    )}
                   </div>
 
                   <div className="bg-white p-2.5 rounded-lg border border-slate-100">

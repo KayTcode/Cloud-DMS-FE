@@ -157,7 +157,7 @@ export interface StorageProviderItem {
   id: string;
   name: string;
   type: string;
-  status: 'Connected' | 'Degraded' | 'Offline';
+  status: 'Connected' | 'Degraded' | 'Offline' | 'Pending';
   storageUsed: string;
   capacity: string;
   latency: string;

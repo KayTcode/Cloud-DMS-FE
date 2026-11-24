@@ -174,10 +174,12 @@ export const StoragePoolDistributionCard: React.FC<StoragePoolDistributionCardPr
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                                 : p.status === 'Degraded'
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                                : p.status === 'Pending'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
                                 : 'bg-rose-50 text-rose-700 border border-rose-200/60'
                             }`}
                           >
-                            {p.status === 'Connected' ? 'Đã kết nối' : p.status}
+                            {p.status === 'Connected' ? 'Đã kết nối' : p.status === 'Pending' ? 'Đang kiểm tra kết nối' : p.status}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">

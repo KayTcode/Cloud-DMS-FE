@@ -28,6 +28,8 @@ export const API_ENDPOINTS = {
     ACTIVITY: (tenantId: string) => `/tenants/${tenantId}/activity`,
     SETTINGS: (tenantId: string) => `/tenants/${tenantId}/settings`,
     TENANT_UNSCANNED_DOWNLOAD: (tenantId: string) => `/tenants/${tenantId}/settings/unscanned-download`,
+    FILES_SUMMARY: (tenantId: string) => `/tenant/${tenantId}/files/summary`,
+    OVERVIEW_SUMMARY: (tenantId: string) => `/tenant/${tenantId}/overview-summary`,
   },
   FILES: {
     UPLOAD: '/files/upload',
@@ -56,6 +58,7 @@ export const API_ENDPOINTS = {
     SETUP_INFO: '/department/setup-info',
     RETENTION_POLICY: '/department/retention-policy',
     QUOTA_USERS: (deptId: string) => `/department/${deptId}/quota/users`,
+    OWNER_FILE_STATS: (deptId: string) => `/department/${deptId}/files/owner-stats`,
     ALLOCATE_USER_QUOTA: (deptId: string, userId: string) => `/department/${deptId}/quota/users/${userId}`,
     EMPLOYEES: (deptId: string) => `/department/${deptId}/employees`,
     EMPLOYEES_OFFBOARD: (deptId: string) => `/department/${deptId}/employees/offboard`,

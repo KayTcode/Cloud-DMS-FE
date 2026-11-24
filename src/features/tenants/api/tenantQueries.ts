@@ -82,6 +82,24 @@ export async function getTenantStorageQuota(tenantId: string): Promise<TenantQuo
   }
 }
 
+export interface FileCategoryBreakdownDto {
+  documentsBytes?: number;
+  documentsCount?: number;
+  mediaBytes?: number;
+  mediaCount?: number;
+  archivesBytes?: number;
+  archivesCount?: number;
+  othersBytes?: number;
+  othersCount?: number;
+}
+
+export interface TenantFilesSummaryDto {
+  tenantId?: string;
+  totalFilesCount?: number;
+  actualFilesBytes?: number;
+  fileCategories?: FileCategoryBreakdownDto;
+}
+
 export interface TenantOverviewSummary {
   tenantId: string;
   tenantName: string;
@@ -112,15 +130,54 @@ export interface TenantOverviewSummary {
 }
 
 /**
+ * Gộp phần tệp (từ File service) vào tổng quan tenant (từ Core service).
+ */
+export function mergeTenantFilesSummary(
+  overview: TenantOverviewSummary | null,
+  filesSummary?: TenantFilesSummaryDto | null
+): TenantOverviewSummary | null {
+  if (!overview) return null;
+  const categories = filesSummary?.fileCategories;
+  return {
+    ...overview,
+    actualStorageUsedBytes: Math.max(
+      overview.actualStorageUsedBytes,
+      Number(filesSummary?.actualFilesBytes ?? 0)
+    ),
+    totalFilesCount: Number(filesSummary?.totalFilesCount ?? overview.totalFilesCount ?? 0),
+    fileCategories: {
+      documentsBytes: Number(categories?.documentsBytes ?? overview.fileCategories?.documentsBytes ?? 0),
+      documentsCount: Number(categories?.documentsCount ?? overview.fileCategories?.documentsCount ?? 0),
+      mediaBytes: Number(categories?.mediaBytes ?? overview.fileCategories?.mediaBytes ?? 0),
+      mediaCount: Number(categories?.mediaCount ?? overview.fileCategories?.mediaCount ?? 0),
+      archivesBytes: Number(categories?.archivesBytes ?? overview.fileCategories?.archivesBytes ?? 0),
+      archivesCount: Number(categories?.archivesCount ?? overview.fileCategories?.archivesCount ?? 0),
+      othersBytes: Number(categories?.othersBytes ?? overview.fileCategories?.othersBytes ?? 0),
+      othersCount: Number(categories?.othersCount ?? overview.fileCategories?.othersCount ?? 0),
+    },
+  };
+}
+
+/**
  * Query: Lấy toàn bộ số liệu tổng quan của Tenant trong 1 API duy nhất (Single Overview Summary BFF API)
- * Khớp BE: GET /api/tenant/{tenantId}/overview-summary
+ * Khớp BE: Core GET /api/tenant/{tenantId}/overview-summary song song File GET /api/tenant/{tenantId}/files/summary
  */
 export async function getTenantOverviewSummary(tenantId: string): Promise<TenantOverviewSummary | null> {
   try {
-    const res: any = await apiClient.get(`/tenant/${tenantId}/overview-summary`);
+    const [resOverview, resFiles] = await Promise.allSettled([
+      apiClient.get(`/tenant/${tenantId}/overview-summary`),
+      apiClient.get(API_ENDPOINTS.TENANTS.FILES_SUMMARY(tenantId)),
+    ]);
+
+    if (resOverview.status === 'rejected') {
+      console.warn('[Tenant] Không thể nạp /overview-summary từ BE:', resOverview.reason);
+      return null;
+    }
+
+    const res: any = resOverview.value;
     const data = res?.value || res?.data || res;
     if (data && (typeof data.storageQuotaBytes === 'number' || data.tenantId)) {
-      return {
+      const overview: TenantOverviewSummary = {
         tenantId: data.tenantId,
         tenantName: data.tenantName,
         tenantCode: data.tenantCode,
@@ -159,6 +216,14 @@ export async function getTenantOverviewSummary(tenantId: string): Promise<Tenant
             }))
           : [],
       };
+
+      let filesSummary: TenantFilesSummaryDto | null = null;
+      if (resFiles.status === 'fulfilled') {
+        const rawFiles: any = resFiles.value;
+        filesSummary = rawFiles?.value || rawFiles?.data || rawFiles;
+      }
+
+      return mergeTenantFilesSummary(overview, filesSummary);
     }
     return null;
   } catch (error) {

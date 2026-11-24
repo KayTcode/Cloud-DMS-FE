@@ -37,6 +37,7 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
+    status?: string;
     totalGB?: number;
     usedGB?: number;
     availableGB?: number;
@@ -100,9 +101,11 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
       const usedGB = res.usedCapacityBytes ? Math.round(res.usedCapacityBytes / (1024 * 1024 * 1024)) : 0;
       const availableGB = res.availableCapacityBytes ? Math.round(res.availableCapacityBytes / (1024 * 1024 * 1024)) : 0;
 
+      const isPending = (res as any)?.status === 'Pending' || res?.message?.toLowerCase?.().includes('pending');
       setTestResult({
-        success: res.success,
-        message: res.message,
+        success: res.success || isPending,
+        status: isPending ? 'Pending' : (res.status ?? (res.success ? 'Success' : 'Failed')),
+        message: isPending ? 'Đang kiểm tra kết nối' : res.message,
         totalGB,
         usedGB,
         availableGB,
@@ -259,23 +262,30 @@ export const EditProviderModal: React.FC<EditProviderModalProps> = ({
             {testResult && (
               <div
                 className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 animate-in fade-in duration-200 ${
-                  testResult.success
+                  testResult.status === 'Pending'
+                    ? 'bg-amber-50/80 border-amber-200 text-amber-800'
+                    : testResult.success
                     ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
                     : 'bg-rose-50/80 border-rose-200 text-rose-800'
                 }`}
               >
-                {testResult.success ? (
+                {testResult.status === 'Pending' ? (
+                  <Loader2 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-spin" />
+                ) : testResult.success ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 ) : (
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 )}
                 <div className="flex-1 space-y-1">
                   <p className="font-semibold">{testResult.message}</p>
-                  {testResult.success && testResult.totalGB !== undefined && (
+                  {(testResult.success || testResult.status === 'Pending') && testResult.totalGB !== undefined && testResult.totalGB > 0 && (
                     <div className="flex flex-wrap gap-x-4 text-[11px] text-emerald-700 font-mono pt-1">
                       <span>Tổng: <strong>{testResult.totalGB} GB</strong></span>
+                      <span>•</span>
                       <span>Đã dùng: <strong>{testResult.usedGB} GB</strong></span>
+                      <span>•</span>
                       <span>Khả dụng: <strong>{testResult.availableGB} GB</strong></span>
+                      <span>•</span>
                       <span>Độ trễ: <strong>{testResult.latencyMs}ms</strong></span>
                     </div>
                   )}

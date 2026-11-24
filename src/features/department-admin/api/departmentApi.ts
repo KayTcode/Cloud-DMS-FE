@@ -16,6 +16,34 @@ import {
   OffboardEmployeeResultDto,
 } from '../types';
 
+export interface OwnerFileStatsDto {
+  userId: string;
+  fileCount: number;
+  totalBytes?: number;
+}
+
+/**
+ * Gộp số file theo từng nhân viên (nếu thiếu hoặc không tìm thấy, mặc định 0).
+ */
+export function mergeOwnerFileStats(
+  users: UserStorageQuotaDto[],
+  stats?: OwnerFileStatsDto[] | null
+): UserStorageQuotaDto[] {
+  const map = new Map<string, number>();
+  if (Array.isArray(stats)) {
+    for (const s of stats) {
+      if (s && s.userId) {
+        map.set(String(s.userId).toLowerCase(), Number(s.fileCount || 0));
+      }
+    }
+  }
+
+  return users.map((u) => ({
+    ...u,
+    fileCount: map.get(String(u.userId || '').toLowerCase()) ?? 0,
+  }));
+}
+
 export const departmentApi = {
   /**
    * Lấy danh sách nhật ký hoạt động của nhân viên thuộc phòng ban
@@ -41,11 +69,38 @@ export const departmentApi = {
 
   /**
    * Lấy tổng quan Quota phòng ban và danh sách Quota của từng nhân viên
-   * Khớp BE: GET /api/department/{departmentId}/quota/users
+   * Khớp BE: Core GET /api/department/{departmentId}/quota/users song song File GET /api/department/{departmentId}/files/owner-stats
    */
   getQuotaSummary: async (departmentId: string): Promise<DepartmentUsersQuotaSummaryDto> => {
-    const res: any = await apiClient.get(API_ENDPOINTS.DEPARTMENT.QUOTA_USERS(departmentId));
-    return res?.value ?? res?.data ?? res;
+    const [resQuota, resStats] = await Promise.allSettled([
+      apiClient.get(API_ENDPOINTS.DEPARTMENT.QUOTA_USERS(departmentId)),
+      apiClient.get(API_ENDPOINTS.DEPARTMENT.OWNER_FILE_STATS(departmentId)),
+    ]);
+
+    if (resQuota.status === 'rejected') {
+      throw resQuota.reason;
+    }
+
+    const quotaRaw: any = resQuota.value;
+    const quotaData: DepartmentUsersQuotaSummaryDto = quotaRaw?.value ?? quotaRaw?.data ?? quotaRaw;
+
+    let statsList: OwnerFileStatsDto[] = [];
+    if (resStats.status === 'fulfilled') {
+      const statsRaw: any = resStats.value;
+      const unwrapped = statsRaw?.value ?? statsRaw?.data ?? statsRaw;
+      if (Array.isArray(unwrapped)) {
+        statsList = unwrapped;
+      }
+    }
+
+    if (quotaData && Array.isArray(quotaData.users)) {
+      return {
+        ...quotaData,
+        users: mergeOwnerFileStats(quotaData.users, statsList),
+      };
+    }
+
+    return quotaData;
   },
 
   /**

@@ -51,6 +51,7 @@ export const ConnectProviderModal: React.FC<ConnectProviderModalProps> = ({
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
+    status?: string;
     totalGB?: number;
     usedGB?: number;
     availableGB?: number;
@@ -262,9 +263,11 @@ export const ConnectProviderModal: React.FC<ConnectProviderModalProps> = ({
       const usedGB = res.usedCapacityBytes ? Math.round(res.usedCapacityBytes / (1024 * 1024 * 1024)) : 0;
       const availableGB = res.availableCapacityBytes ? Math.round(res.availableCapacityBytes / (1024 * 1024 * 1024)) : 0;
 
+      const isPending = (res as any)?.status === 'Pending' || res?.message?.toLowerCase?.().includes('pending');
       setTestResult({
-        success: res.success,
-        message: res.message,
+        success: res.success || isPending,
+        status: isPending ? 'Pending' : (res.status ?? (res.success ? 'Success' : 'Failed')),
+        message: isPending ? 'Đang kiểm tra kết nối' : res.message,
         totalGB,
         usedGB,
         availableGB,
@@ -599,19 +602,23 @@ export const ConnectProviderModal: React.FC<ConnectProviderModalProps> = ({
           {testResult && (
             <div
               className={`p-3.5 rounded-xl border flex items-start gap-3 ${
-                testResult.success
+                testResult.status === 'Pending'
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : testResult.success
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                   : 'bg-rose-50 border-rose-200 text-rose-900'
               }`}
             >
-              {testResult.success ? (
+              {testResult.status === 'Pending' ? (
+                <Loader2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-spin" />
+              ) : testResult.success ? (
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               ) : (
                 <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               )}
               <div className="text-xs space-y-1">
                 <div className="font-bold">{testResult.message}</div>
-                {testResult.success && (
+                {(testResult.success || testResult.status === 'Pending') && testResult.totalGB !== undefined && testResult.totalGB > 0 && (
                   <div className="text-emerald-700 space-x-3">
                     <span>Tổng dung lượng: <strong>{testResult.totalGB} GB</strong></span>
                     <span>•</span>

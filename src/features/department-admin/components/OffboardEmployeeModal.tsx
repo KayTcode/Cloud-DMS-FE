@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   UserX,
@@ -211,7 +211,9 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                   </div>
                   <div>
                     Tệp tin đã chuyển giao:{' '}
-                    <strong className="text-slate-900">{result.transferredFilesCount} files</strong>
+                    <strong className="text-slate-900">
+                      {result.transferredFilesCount === 0 ? 'Đã bàn giao xong' : `${result.transferredFilesCount} files`}
+                    </strong>
                   </div>
                   <div>
                     Thư mục đã chuyển giao:{' '}

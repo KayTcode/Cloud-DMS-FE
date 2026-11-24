@@ -248,7 +248,7 @@ export const getStorageProvidersApi = async (): Promise<StorageProviderItem[]> =
         id: p.id,
         name: p.name,
         type: p.typeName || (p.type === 1 ? 'Google Drive' : p.type === 2 ? 'OneDrive' : 'Local Storage'),
-        status: (p.status || 'Connected') as 'Connected' | 'Degraded' | 'Offline',
+        status: (p.status || 'Connected') as 'Connected' | 'Degraded' | 'Offline' | 'Pending',
         storageUsed: formatBytes(p.usedCapacityBytes || 0),
         capacity: formatBytes(p.totalCapacityBytes || 0),
         latency: '28ms',
