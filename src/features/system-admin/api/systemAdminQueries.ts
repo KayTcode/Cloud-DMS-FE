@@ -9,15 +9,26 @@ import {
   AdminUserDto,
   PaginatedResult,
   GetUsersQueryFilter,
+  GetTenantsQueryFilter,
   TenantQuotaAllocationListResponse,
   TenantStorageQuotaResponse,
 } from '../types';
 import {
   INITIAL_SYSTEM_TENANTS,
   SYSTEM_ACTIVITIES,
-  STORAGE_PROVIDERS,
-  AUDIT_LOGS
+  STORAGE_PROVIDERS
 } from '@/data/sysAdminMockData';
+
+/**
+ * Định dạng dung lượng byte sang chuỗi hiển thị dễ đọc (KB, MB, GB, TB)
+ */
+export function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 GB';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 /**
  * Get paginated and filterable list of all system users directly from database
@@ -109,88 +120,86 @@ export const getAdminUserByIdApi = async (id: string): Promise<AdminUserDto | nu
 };
 
 /**
- * Get all tenants for SysAdmin management
+ * Get all tenants for SysAdmin management with pagination, search and status filter.
+ * Backend Endpoint: GET /api/admin/tenants
  */
-export const getSystemTenantsApi = async (): Promise<SystemTenant[]> => {
-  // 1. Ưu tiên gọi API Backend chuẩn /api/admin/tenants
+export const getSystemTenantsApi = async (
+  query?: GetTenantsQueryFilter
+): Promise<PaginatedResult<SystemTenant>> => {
   try {
-    const response: any = await axiosClient.get('/admin/tenants');
-    const items = response?.value?.items || response?.value || response?.data?.items || response?.data || response?.items || response;
-    if (Array.isArray(items) && items.length > 0) {
-      return items.map((t: any) => {
-        const qBytes = Number(t.storageQuotaBytes || 0);
-        const uBytes = Number(t.storageUsedBytes || 0);
-        const usagePct = qBytes > 0 ? Math.round((uBytes / qBytes) * 100) : 0;
-        return {
-          id: t.id,
-          name: t.name,
-          tenantCode: t.code || t.tenantCode,
-          plan: 'Enterprise',
-          usersAssigned: t.usersCount || 1,
-          storageQuotaBytes: qBytes,
-          actualStorageUsedBytes: uBytes,
-          storageAllocated: formatBytes(qBytes),
-          storageUsed: formatBytes(uBytes),
-          storageDisplay: `${formatBytes(uBytes)} / ${formatBytes(qBytes)}`,
-          createdDate: t.createdAt ? new Date(t.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo',
-          status: t.isActive ? 'Active' : 'Suspended',
-          adminEmail: t.adminEmail,
-          adminId: t.adminId,
-          adminFullName: t.adminFullName,
-          storageProviderName: t.storageProviderName || 'Cloud Storage Pool',
-          usagePercentage: usagePct,
-        };
-      });
-    }
-  } catch {
-    // Backend endpoint chưa khởi động lại hoặc chưa nạp route
-  }
+    const params = new URLSearchParams();
+    if (query?.pageNumber) params.append('PageNumber', String(query.pageNumber));
+    if (query?.pageSize) params.append('PageSize', String(query.pageSize));
+    if (query?.searchTerm) params.append('SearchTerm', query.searchTerm.trim());
+    if (query?.statusFilter && query.statusFilter !== 'All') params.append('StatusFilter', query.statusFilter.trim());
 
-  // 2. Fallback thông minh: Trích xuất các Tenant thực tế từ danh sách Users trong Database
-  try {
-    const usersRes: any = await axiosClient.get('/admin/users?PageSize=100');
-    const uItems = usersRes?.value?.items || usersRes?.data?.items || usersRes?.items || [];
-    if (Array.isArray(uItems) && uItems.length > 0) {
-      const tenantMap = new Map<string, SystemTenant>();
-      uItems.forEach((u: any) => {
-        // Chỉ trích xuất khi user gắn với tenantId cụ thể
-        const tId = u.tenantId;
-        if (tId) {
-          const tName = u.tenantName || 'Doanh nghiệp Mặc định';
-          const tCode = u.tenantCode || 'TENANT';
-          if (!tenantMap.has(tId)) {
-            tenantMap.set(tId, {
-              id: tId,
-              name: tName,
-              tenantCode: tCode,
-              plan: 'Enterprise',
-              usersAssigned: 1,
-              storageUsed: '0 GB',
-              storageAllocated: '100 GB',
-              storageDisplay: '0 GB / 100 GB',
-              createdDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo',
-              status: u.isActive ? 'Active' : 'Suspended',
-              adminEmail: u.email,
-              adminId: u.id,
-              adminFullName: u.fullName,
-              storageProviderName: 'Google Drive Enterprise',
-              usagePercentage: 0,
-            });
-          } else {
-            const existing = tenantMap.get(tId)!;
-            existing.usersAssigned += 1;
-          }
-        }
-      });
-      if (tenantMap.size > 0) {
-        return Array.from(tenantMap.values());
-      }
-    }
-  } catch {
-    // Tiếp tục fallback sang INITIAL_SYSTEM_TENANTS nếu không kết nối được DB
-  }
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const response: any = await axiosClient.get(`/admin/tenants${queryString}`);
 
-  return INITIAL_SYSTEM_TENANTS;
+    const rawData = response?.value ?? response?.data ?? response;
+    const items = rawData?.items ?? (Array.isArray(rawData) ? rawData : []);
+
+    const mappedItems: SystemTenant[] = items.map((t: any) => {
+      const qBytes = Number(t.storageQuotaBytes || 0);
+      const uBytes = Number(t.storageUsedBytes || 0);
+      const usagePct = qBytes > 0 ? Math.round((uBytes / qBytes) * 100) : 0;
+      return {
+        id: t.id,
+        name: t.name,
+        tenantCode: t.code || t.tenantCode,
+        plan: 'Enterprise',
+        usersAssigned: t.usersCount || 0,
+        storageQuotaBytes: qBytes,
+        actualStorageUsedBytes: uBytes,
+        storageAllocated: formatBytes(qBytes),
+        storageUsed: formatBytes(uBytes),
+        storageDisplay: `${formatBytes(uBytes)} / ${formatBytes(qBytes)}`,
+        createdDate: t.createdAt ? new Date(t.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo',
+        status: t.isActive ? 'Active' : 'Suspended',
+        adminEmail: t.adminEmail,
+        adminId: t.adminId,
+        adminFullName: t.adminFullName,
+        adminPhoneNumber: t.adminPhoneNumber,
+        storageProviderName: t.storageProviderName || 'Cloud Storage Pool',
+        usagePercentage: usagePct,
+        isInterimManaged: !!t.isInterimManaged,
+        vacantAdminUserId: t.vacantAdminUserId || null,
+        interimManagedByUserId: t.interimManagedByUserId || null,
+        interimStartedAt: t.interimStartedAt || null,
+        departmentsCount: t.departmentsCount || 0,
+        hasPendingInvitation: !!t.hasPendingInvitation,
+      };
+    });
+
+    return {
+      items: mappedItems,
+      pageNumber: rawData?.pageNumber || query?.pageNumber || 1,
+      totalPages: rawData?.totalPages || 1,
+      totalCount: rawData?.totalCount !== undefined ? rawData.totalCount : mappedItems.length,
+      hasPreviousPage: !!rawData?.hasPreviousPage,
+      hasNextPage: !!rawData?.hasNextPage,
+    };
+  } catch (error) {
+    console.error('Lỗi tải danh sách Tenants:', error);
+    return {
+      items: INITIAL_SYSTEM_TENANTS,
+      pageNumber: 1,
+      totalPages: 1,
+      totalCount: INITIAL_SYSTEM_TENANTS.length,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    };
+  }
+};
+
+/**
+ * Lấy danh sách tenants dạng phẳng (array) cho các widget Dashboard
+ */
+export const getSystemTenantsListApi = async (
+  query?: GetTenantsQueryFilter
+): Promise<SystemTenant[]> => {
+  const result = await getSystemTenantsApi(query);
+  return result.items;
 };
 
 /**
@@ -226,14 +235,6 @@ export const getSystemActivitiesApi = async (): Promise<SystemActivityItem[]> =>
     // Fallback
   }
   return SYSTEM_ACTIVITIES;
-};
-
-const formatBytes = (bytes: number): string => {
-  if (!bytes || bytes === 0) return '0 GB';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 /**
@@ -299,21 +300,42 @@ export const getTenantStorageQuotaApi = async (
 };
 
 /**
- * Get system audit logs
+ * Get system audit logs directly from backend
+ * Backend Endpoint: GET /api/admin/audit-logs
  */
-export const getAuditLogsApi = async (pageNumber: number = 1, pageSize: number = 50, searchTerm?: string): Promise<AuditLogEntry[]> => {
-  try {
-    const response: any = await axiosClient.get('/admin/audit-logs', {
-      params: { pageNumber, pageSize, searchTerm: searchTerm || undefined }
-    });
-    if (response?.items && Array.isArray(response.items)) return response.items;
-    if (response?.value?.items && Array.isArray(response.value.items)) return response.value.items;
-    if (response?.data?.items && Array.isArray(response.data.items)) return response.data.items;
-    if (Array.isArray(response)) return response;
-  } catch (error) {
-    console.warn('Backend API /admin/audit-logs error, falling back to cached logs.', error);
+export const getAuditLogsApi = async (
+  pageNumber: number = 1,
+  pageSize: number = 50,
+  searchTerm?: string
+): Promise<AuditLogEntry[]> => {
+  const response: any = await axiosClient.get('/admin/audit-logs', {
+    params: { pageNumber, pageSize, searchTerm: searchTerm || undefined }
+  });
+
+  let items: any[] = [];
+  if (response?.items && Array.isArray(response.items)) {
+    items = response.items;
+  } else if (response?.value?.items && Array.isArray(response.value.items)) {
+    items = response.value.items;
+  } else if (response?.data?.items && Array.isArray(response.data.items)) {
+    items = response.data.items;
+  } else if (Array.isArray(response)) {
+    items = response;
+  } else if (response?.value && Array.isArray(response.value)) {
+    items = response.value;
+  } else if (response?.isFailure) {
+    throw new Error(response.error || 'Không thể tải nhật ký kiểm toán hệ thống.');
   }
-  return AUDIT_LOGS;
+
+  return items.map((item: any) => ({
+    id: String(item.id || ''),
+    timestamp: item.timestamp || item.createdAt || '',
+    action: item.action || '',
+    actor: item.actor || item.actorEmail || 'Hệ thống',
+    ipAddress: item.ipAddress || 'Unknown',
+    status: (item.status === 'FAILED' ? 'FAILED' : item.status === 'WARNING' ? 'WARNING' : 'SUCCESS') as 'SUCCESS' | 'WARNING' | 'FAILED',
+    details: item.details || '',
+  }));
 };
 
 /**

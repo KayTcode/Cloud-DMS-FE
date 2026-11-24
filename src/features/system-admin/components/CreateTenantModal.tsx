@@ -1,13 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, Mail, User, ShieldCheck, HardDrive, Database, Sparkles } from 'lucide-react';
-import { CreateAdminUserPayload, StorageProviderItem } from '../types';
+import { X, Building2, Mail, User, ShieldCheck, HardDrive, Database, Sparkles, AlertTriangle } from 'lucide-react';
+import { CreateSystemTenantPayload, StorageProviderItem } from '../types';
 import { QuotaUnitInput } from '@/components/common';
-import { QuotaUnit, unitToBytes, formatQuotaWithUnit } from '@/utils/quotaUnitUtils';
+import { QuotaUnit, unitToBytes, formatQuotaWithUnit, formatQuotaAuto } from '@/utils/quotaUnitUtils';
+
+const getAvailableQuotaBytes = (p: StorageProviderItem): number => {
+  if (typeof p.availableToGrantBytes === 'number') {
+    return Math.max(0, p.availableToGrantBytes);
+  }
+  if (typeof p.unallocatedCapacityBytes === 'number') {
+    return Math.max(0, p.unallocatedCapacityBytes);
+  }
+  if (p.totalCapacityBytes) {
+    const allocated = p.allocatedToTenantsBytes ?? 0;
+    const external = p.externalUsedBytes ?? 0;
+    return Math.max(0, p.totalCapacityBytes - allocated - external);
+  }
+  return 0;
+};
+
+const formatDisplayQuota = (bytes: number | null | undefined): string => {
+  if (!bytes || bytes <= 0) return '0 GB';
+  return formatQuotaAuto(bytes, 1);
+};
 
 interface CreateTenantModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (payload: CreateAdminUserPayload) => Promise<void>;
+  onCreate: (payload: CreateSystemTenantPayload) => Promise<void>;
   providers?: StorageProviderItem[];
 }
 
@@ -58,17 +78,25 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
       return;
     }
 
+    if (selectedProvider && isOverQuota) {
+      setErrorMessage(
+        `Hạn mức Quota yêu cầu (${quotaValue} ${quotaUnit}) vượt quá số Quota chưa cấp còn lại của kho lưu trữ (${formatDisplayQuota(selectedAvailableQuota)}).`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const quotaBytes = selectedProviderId && quotaValue > 0 ? unitToBytes(quotaValue, quotaUnit) : undefined;
-      const payload: CreateAdminUserPayload = {
-        tenantName: tenantName.trim(),
-        email: email.trim(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phoneNumber: phoneNumber.trim() || undefined,
+      const payload: CreateSystemTenantPayload = {
+        name: tenantName.trim(),
+        adminEmail: email.trim(),
+        adminFirstName: firstName.trim(),
+        adminLastName: lastName.trim(),
+        adminPhoneNumber: phoneNumber.trim() || undefined,
         storageProviderId: selectedProviderId ? selectedProviderId : undefined,
         storageQuotaBytes: quotaBytes,
+        storageAllocated: `${quotaValue} ${quotaUnit}`,
       };
 
       await onCreate(payload);
@@ -83,6 +111,11 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
   const activeProviders = providers.filter(
     (p) => !p.status || p.status.toLowerCase() === 'active' || p.status.toLowerCase() === 'connected'
   );
+
+  const selectedProvider = activeProviders.find((p) => p.id === selectedProviderId);
+  const selectedAvailableQuota = selectedProvider ? getAvailableQuotaBytes(selectedProvider) : 0;
+  const requestedQuotaBytes = selectedProviderId && quotaValue > 0 ? unitToBytes(quotaValue, quotaUnit) : 0;
+  const isOverQuota = Boolean(selectedProvider && requestedQuotaBytes > selectedAvailableQuota);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
@@ -150,11 +183,15 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
                   className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 >
                   <option value="">-- Chưa gán (Thiết lập sau) --</option>
-                  {activeProviders.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.storageUsed || '0 GB'} / {p.capacity || 'N/A'})
-                    </option>
-                  ))}
+                  {activeProviders.map((p) => {
+                    const availableBytes = getAvailableQuotaBytes(p);
+                    const unallocatedDisplay = formatDisplayQuota(availableBytes);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (Quota chưa cấp: {unallocatedDisplay} | Thực tế: {p.storageUsed || '0 GB'} / {p.capacity || 'N/A'})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -173,14 +210,58 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
               </div>
             </div>
 
-            {!selectedProviderId ? (
+            {selectedProvider && (
+              <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200/80 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-blue-900 flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5 text-blue-600" />
+                    Trạng thái Quota & Lưu trữ của kho:
+                  </span>
+                  <span className="font-mono text-slate-500 font-medium px-2 py-0.5 rounded-full bg-white border border-blue-200/60 text-[10px]">
+                    {selectedProvider.type}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                  <div className="p-2 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Quota chưa cấp</span>
+                    <strong className="text-xs font-bold text-emerald-600 font-mono">
+                      {formatDisplayQuota(selectedAvailableQuota)}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Đã cấp cho Tenant</span>
+                    <strong className="text-xs font-bold text-blue-700 font-mono">
+                      {formatDisplayQuota(selectedProvider.allocatedToTenantsBytes || 0)}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Đã lưu / Tổng kho</span>
+                    <strong className="text-xs font-bold text-slate-700 font-mono">
+                      {selectedProvider.storageUsed || '0 GB'} / {selectedProvider.capacity || 'N/A'}
+                    </strong>
+                  </div>
+                </div>
+
+                {isOverQuota ? (
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-medium">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      Hạn mức yêu cầu ({quotaValue} {quotaUnit}) vượt quá số Quota chưa cấp còn lại của kho này ({formatDisplayQuota(selectedAvailableQuota)}). Vui lòng điều chỉnh lại hạn mức.
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-emerald-600 flex items-center gap-1 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    Sẽ cấp phát ngay {quotaValue} {quotaUnit} từ kho lưu trữ đã chọn cho Tenant này.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!selectedProviderId && (
               <p className="text-[11px] text-slate-500 italic">
                 * Nếu chưa gán Storage Provider, Tenant sẽ được tạo với Quota = 0 GB và bạn có thể gán sau tại mục &quot;Gán Quota&quot;.
-              </p>
-            ) : (
-              <p className="text-[11px] text-emerald-600 flex items-center gap-1 font-medium">
-                <Sparkles className="w-3 h-3" />
-                Sẽ cấp phát ngay {quotaValue} {quotaUnit} từ kho lưu trữ đã chọn cho Tenant này.
               </p>
             )}
           </div>
@@ -297,8 +378,8 @@ export const CreateTenantModal: React.FC<CreateTenantModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-xs hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer disabled:opacity-50"
+              disabled={isSubmitting || isOverQuota}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-xs hover:shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Đang tạo & Gửi email...' : 'Khởi tạo Tenant & Gửi thư mời'}</span>

@@ -69,11 +69,29 @@ const DEFAULT_USER_PROFILE: UserProfile = {
   lastLogin: 'Hôm nay',
 };
 
+const loadUserActivities = (userId?: string): UserActivity[] => {
+  try {
+    const key = `dms_user_activities_${userId || 'default'}`;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveUserActivities = (userId: string | undefined, list: UserActivity[]) => {
+  try {
+    const key = `dms_user_activities_${userId || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
+  } catch { }
+};
+
 export const UserPortal: React.FC = () => {
   const { user: authUser } = useAuth();
   const { enqueueLarge, reportPendingCount } = useUploadManager();
   const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
   const [activeTab, setActiveTab] = useState<UserNavTab>('documents');
+  const [profileActiveTab, setProfileActiveTab] = useState<'info' | 'storage' | 'security' | 'activity'>('info');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => ({
     ...DEFAULT_USER_PROFILE,
@@ -102,7 +120,29 @@ export const UserPortal: React.FC = () => {
   // DriveView dùng cờ này để không lọc lại theo tên và ném mất kết quả tìm theo nội dung.
   const [isServerSearch, setIsServerSearch] = useState(false);
   const [departmentQuotas, setDepartmentQuotas] = useState<DepartmentQuota[]>([]);
-  const [activities, setActivities] = useState<UserActivity[]>([]);
+  const [activities, setActivities] = useState<UserActivity[]>(() => loadUserActivities(authUser?.id));
+
+  useEffect(() => {
+    if (authUser?.id) {
+      setActivities(loadUserActivities(authUser.id));
+    }
+  }, [authUser?.id]);
+
+  const addActivity = useCallback((action: UserActivity['action'], targetName: string) => {
+    const newActivity: UserActivity = {
+      id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      action,
+      targetName,
+      timestamp: new Date().toLocaleString('vi-VN'),
+      ipAddress: '127.0.0.1 (Local Client)',
+      device: navigator.userAgent.includes('Windows') ? 'Windows Web Client' : 'Web Browser',
+    };
+    setActivities((prev) => {
+      const updated = [newActivity, ...prev];
+      saveUserActivities(authUser?.id, updated);
+      return updated;
+    });
+  }, [authUser?.id]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [apiFolders, setApiFolders] = useState<FolderDto[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([]);
@@ -290,6 +330,10 @@ export const UserPortal: React.FC = () => {
       setActiveTab('storage');
     } else if (activeNav === 'settings') {
       setActiveTab('profile');
+      setProfileActiveTab('info');
+    } else if (activeNav === 'audit-logs') {
+      setActiveTab('profile');
+      setProfileActiveTab('activity');
     } else if (activeNav === 'shared') {
       setActiveTab('shared');
       setActiveFilter('all');
@@ -379,15 +423,7 @@ export const UserPortal: React.FC = () => {
         }
       }
 
-      const newActivity: UserActivity = {
-        id: `act-${Date.now()}`,
-        action: 'upload',
-        targetName: fileList.length === 1 ? fileList[0].name : `${fileList.length} tệp tin`,
-        timestamp: 'Vừa xong',
-        ipAddress: 'Client IP',
-        device: 'Trình duyệt Web',
-      };
-      setActivities((prev) => [newActivity, ...prev]);
+      addActivity('upload', fileList.length === 1 ? fileList[0].name : `${fileList.length} tệp tin`);
     } catch (error: any) {
       console.error('Lỗi upload file:', error);
       const errMsg = error?.response?.data?.message || error?.message || 'Tải lên tệp tin thất bại.';
@@ -402,6 +438,7 @@ export const UserPortal: React.FC = () => {
       await driveApi.createFolder(name, folderId);
       await fetchDriveItems(currentFolderId);
       await fetchFolders(currentFolderId);
+      addActivity('share', `Tạo thư mục: ${name}`);
       showNotification(`Đã tạo thư mục "${name}" thành công!`, 'success');
     } catch (error: any) {
       const message = error?.response?.data?.detail || error?.response?.data?.error
@@ -435,6 +472,7 @@ export const UserPortal: React.FC = () => {
       await driveApi.moveToTrash(id);
       // Loại bỏ khỏi danh sách My Drive
       setDriveItems((prev) => prev.filter((item) => item.id !== id));
+      addActivity('delete', 'Chuyển tài liệu vào thùng rác');
       showNotification('Đã chuyển tài liệu vào thùng rác.', 'info');
       await fetchPersonalQuota();
     } catch (error: any) {
@@ -449,6 +487,7 @@ export const UserPortal: React.FC = () => {
     try {
       showNotification(`Đang chuẩn bị tải xuống "${item.name}"...`, 'info');
       await driveApi.downloadFile(item.id, item.name, item.archiveKind, confirmUnscanned);
+      addActivity('download', item.name);
       showNotification(`Tải xuống "${item.name}" thành công!`, 'success');
     } catch (error: any) {
       console.error('Lỗi tải tệp tin:', error);
@@ -511,6 +550,7 @@ export const UserPortal: React.FC = () => {
 
   const handleUpdateUserProfile = (updated: Partial<UserProfile>) => {
     setCurrentUser((prev) => ({ ...prev, ...updated }));
+    addActivity('edit_profile', 'Cập nhật thông tin tài khoản');
   };
 
   return (
@@ -518,13 +558,12 @@ export const UserPortal: React.FC = () => {
       {/* Toast Alert */}
       {notification && (
         <div
-          className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in zoom-in-95 ${
-            notification.type === 'success'
+          className={`p-4 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in zoom-in-95 ${notification.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : notification.type === 'error'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200'
-          }`}
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200'
+            }`}
         >
           <span>{notification.message}</span>
           <button
@@ -535,124 +574,6 @@ export const UserPortal: React.FC = () => {
           </button>
         </div>
       )}
-
-      {/* User Tabs Navigation Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3 rounded-2xl shadow-xs">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => {
-              setActiveTab('documents');
-              setActiveFilter('all');
-              setActiveNav('dashboard');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-              activeTab === 'documents' && activeFilter !== 'trash'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <FolderLock className="w-3.5 h-3.5 text-blue-600" />
-            <span>Tài liệu của tôi</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('shared');
-              setActiveNav('shared');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-              activeTab === 'shared'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Share2 className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Được chia sẻ</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('shared-store');
-              setActiveNav('shared-store');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-              activeTab === 'shared-store'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5 text-teal-600" />
-            <span>Kho chung phòng</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('storage');
-              setActiveNav('storage-providers');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-              activeTab === 'storage'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <HardDrive className="w-3.5 h-3.5 text-amber-500" />
-            <span>Bộ nhớ lưu trữ</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('documents');
-              setActiveFilter('trash');
-              setActiveNav('trash');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-              (activeTab === 'documents' && activeFilter === 'trash') || activeTab === 'trash'
-                ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
-                : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50/50'
-            }`}
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-            <span>Thùng rác</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('profile');
-              setActiveNav('settings');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-              activeTab === 'profile'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <User className="w-3.5 h-3.5 text-slate-500" />
-            <span>Hồ sơ & Bảo mật</span>
-          </button>
-        </div>
-
-        {/* Search input in toolbar */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder={activeFilter === 'trash' ? "Tìm trong thùng rác..." : "Tìm kiếm tài liệu..."}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-full text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-              title="Xóa tìm kiếm"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Main Tab View */}
       <div className="tab-content-area">
@@ -729,6 +650,7 @@ export const UserPortal: React.FC = () => {
             activities={activities}
             onShowToast={showNotification}
             onGoToDrive={() => setActiveTab('documents')}
+            initialTab={profileActiveTab}
           />
         )}
       </div>

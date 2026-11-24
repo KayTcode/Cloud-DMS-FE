@@ -34,11 +34,12 @@ vi.mock('@/features/invitations/api/invitationsApi', () => ({
 const mockDeptDetail: DepartmentDetail = {
   id: 'd1',
   name: 'Phòng Kỹ thuật',
+  code: 'KT',
   description: 'Mô tả phòng kỹ thuật',
-  tenantId: 't1',
   quotaBytes: 10 * 1024 ** 3,
   usedBytes: 2 * 1024 ** 3,
   isVacant: false,
+  hasHeldLeadFiles: false,
   lead: {
     id: 'u-lead',
     fullName: 'Lead Name',
@@ -51,8 +52,6 @@ const mockDeptDetail: DepartmentDetail = {
       fullName: 'Nhân viên 1',
       email: 'e1@example.com',
       isActive: true,
-      usedSpaceBytes: 1024,
-      allocatedQuotaBytes: 1024 * 1024,
     },
   ],
 };

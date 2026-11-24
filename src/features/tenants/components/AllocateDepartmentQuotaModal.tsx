@@ -46,8 +46,11 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
   const unallocatedQuotaGB = Number((unallocatedBytes / (1024 ** 3)).toFixed(1));
   // Hạn mức tối đa có thể cấp cho phòng ban này = hạn mức hiện tại + quota còn trống chưa phân bổ
   const maxPossibleBytes = currentDeptBytes + unallocatedBytes;
+  const usedDeptBytes = department.storageUsedBytes || 0;
 
   const currentQuotaBytes = unitToBytes(quotaValue, quotaUnit);
+  const isBelowUsed = usedDeptBytes > 0 && currentQuotaBytes < usedDeptBytes;
+  const isOverMax = currentQuotaBytes > maxPossibleBytes;
 
   const presets: Array<{ val: number; unit: QuotaUnit }> = [
     { val: 10, unit: 'GB' },
@@ -62,6 +65,11 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
     e.preventDefault();
     if (currentQuotaBytes <= 0) {
       setErrorMsg('Hạn mức Quota phải lớn hơn 0.');
+      return;
+    }
+
+    if (usedDeptBytes > 0 && currentQuotaBytes < usedDeptBytes) {
+      setErrorMsg(`Không thể hạ Quota thấp hơn dung lượng phòng ban đã sử dụng (${formatQuotaAuto(usedDeptBytes)}).`);
       return;
     }
 
@@ -122,6 +130,12 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
               <span className="text-slate-500">Hạn mức hiện tại:</span>
               <span className="font-semibold text-slate-900">{formatQuotaAuto(currentDeptBytes)}</span>
             </div>
+            {usedDeptBytes > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Dung lượng đã sử dụng:</span>
+                <span className="font-semibold text-blue-700 font-mono">{formatQuotaAuto(usedDeptBytes)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500">Quota chưa phân bổ (Unallocated):</span>
               <span className="font-semibold text-emerald-600">{formatQuotaAuto(unallocatedBytes)}</span>
@@ -169,13 +183,22 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
               onChange={(val, u) => {
                 setQuotaValue(val);
                 setQuotaUnit(u);
+                setErrorMsg(null);
               }}
               maxBytes={maxPossibleBytes}
+              minBytes={usedDeptBytes}
               label="Hạn mức Quota mới"
               required
-              helperText={`Dung lượng này sẽ được cấp cho phòng ban. Tối đa có thể cấp: ${formatQuotaAuto(maxPossibleBytes)}.`}
             />
           </div>
+
+          {/* Cảnh báo không thể hạ thấp hơn dung lượng đã dùng */}
+          {isBelowUsed && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-700 text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Không thể hạ Quota thấp hơn dung lượng phòng ban đã sử dụng ({formatQuotaAuto(usedDeptBytes)}).</span>
+            </div>
+          )}
 
           {/* Preset Buttons */}
           <div>
@@ -216,7 +239,7 @@ export const AllocateDepartmentQuotaModal: React.FC<AllocateDepartmentQuotaModal
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isBelowUsed || isOverMax || currentQuotaBytes <= 0}
               className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
             >
               {isSubmitting ? (

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { apiErrorMessage } from './utils/apiErrorMessage';
 import {
   DepartmentHubView,
@@ -16,7 +15,6 @@ import {
   EditQuotaModal,
   OffboardEmployeeModal,
   DepartmentBanner,
-  DepartmentTabs,
 } from './components';
 import {
   DepartmentMember,
@@ -79,6 +77,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('shared');
     } else if (activeNav === 'shared-store') {
       setActiveTab('shared-store');
+    } else if (activeNav === 'shared') {
+      setActiveTab('shared');
     }
   }, [activeNav]);
 
@@ -100,6 +100,8 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('shared');
     } else if (tab === 'shared-store') {
       setActiveNav('shared-store');
+    } else if (tab === 'shared') {
+      setActiveNav('shared');
     }
   };
 
@@ -224,27 +226,15 @@ const DepartmentAdminPortalContent: React.FC = () => {
         </div>
       )}
 
-      {/* Top Banner & Tabs Navigation (Khi đã vào chức năng con) */}
+      {/* Top Banner (Khi đã vào chức năng con) */}
       {activeTab !== 'hub' && (
-        <div className="space-y-3 mb-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => handleNavigateTab('hub')}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Trung tâm điều khiển phòng ban</span>
-            </button>
-          </div>
-
+        <div className="mb-4">
           <DepartmentBanner
             department={departmentInfo}
             membersCount={members.length}
             onOpenAddMember={() => setIsAddMemberOpen(true)}
             onNavigateToHub={() => handleNavigateTab('hub')}
           />
-
-          <DepartmentTabs activeTab={activeTab} onTabChange={handleNavigateTab} />
         </div>
       )}
 

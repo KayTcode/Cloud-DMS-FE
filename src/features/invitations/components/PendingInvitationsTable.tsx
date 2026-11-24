@@ -29,6 +29,11 @@ interface PendingInvitationsTableProps {
    * behind. The value itself is never read, only its change.
    */
   reloadToken?: number | string;
+  /**
+   * Emits the loaded pending invitations list whenever it changes,
+   * allowing parent views to sync pending status in other tables.
+   */
+  onItemsLoaded?: (items: PendingInvitationDto[]) => void;
 }
 
 const cooldownMs = (inv: PendingInvitationDto, now: Date) =>
@@ -41,6 +46,7 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
   onResent,
   onCancelled,
   reloadToken,
+  onItemsLoaded,
 }) => {
   const {
     items,
@@ -56,6 +62,11 @@ export const PendingInvitationsTable: React.FC<PendingInvitationsTableProps> = (
     resend,
     cancel,
   } = usePendingInvitations({ tenantId, departmentId });
+
+  // Sync loaded items with host view
+  useEffect(() => {
+    onItemsLoaded?.(items);
+  }, [items, onItemsLoaded]);
 
   // `reload` is re-created whenever the filter changes, so the effect must key off the
   // token alone; the ref keeps the mount run and unrelated re-renders from refetching.

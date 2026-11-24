@@ -142,6 +142,9 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
+  const [renameFolderModal, setRenameFolderModal] = useState<{ id: string; name: string } | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState('');
+  const [isRenamingFolder, setIsRenamingFolder] = useState<boolean>(false);
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
@@ -610,6 +613,24 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       }
     } finally {
       setIsCreatingFolder(false);
+    }
+  };
+
+  const handleRenameFolder = async () => {
+    if (!renameFolderModal || !renameFolderName.trim() || isRenamingFolder) return;
+    try {
+      setIsRenamingFolder(true);
+      await folderApi.renameFolder(renameFolderModal.id, { name: renameFolderName.trim() });
+      if (onAddToast) onAddToast('success', `Đã đổi tên thư mục thành "${renameFolderName.trim()}" thành công!`);
+      setRenameFolderModal(null);
+      setRenameFolderName('');
+      await fetchDepartmentFiles();
+    } catch (err: any) {
+      console.error('Lỗi khi đổi tên thư mục:', err);
+      const errMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể đổi tên thư mục.';
+      if (onAddToast) onAddToast('error', errMsg);
+    } finally {
+      setIsRenamingFolder(false);
     }
   };
 
@@ -1457,6 +1478,19 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                               <Star className="w-3.5 h-3.5 text-amber-500" />
                               <span>{folder.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
                             </button>
+                            {folder.id !== 'drive-shared' && folder.id !== 'drive-personal' && (
+                              <button
+                                onClick={() => {
+                                  setRenameFolderModal({ id: folder.id, name: folder.name });
+                                  setRenameFolderName(folder.name);
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left hover:bg-slate-100 flex items-center gap-2.5 text-slate-700"
+                              >
+                                <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                                <span>Đổi tên</span>
+                              </button>
+                            )}
                             <div className="h-px bg-slate-100 my-1" />
                             {folder.id !== 'drive-shared' && folder.id !== 'drive-personal' ? (
                               <button
@@ -1873,6 +1907,49 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               >
                 {isCreatingFolder && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>{isCreatingFolder ? 'Đang tạo...' : 'Tạo'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Đổi tên thư mục */}
+      {renameFolderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+            <h3 className="text-base font-bold text-slate-900 mb-4">Đổi tên thư mục</h3>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tên thư mục mới</label>
+            <input
+              type="text"
+              autoFocus
+              value={renameFolderName}
+              onChange={(e) => setRenameFolderName(e.target.value)}
+              placeholder="Nhập tên mới..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameFolder();
+              }}
+              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 mb-6"
+            />
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameFolderName('');
+                  setRenameFolderModal(null);
+                }}
+                disabled={isRenamingFolder}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleRenameFolder}
+                disabled={!renameFolderName.trim() || isRenamingFolder}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                {isRenamingFolder && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isRenamingFolder ? 'Đang lưu...' : 'Lưu'}</span>
               </button>
             </div>
           </div>

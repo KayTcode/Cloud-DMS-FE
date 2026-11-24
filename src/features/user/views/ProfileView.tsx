@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
+import { useTenantContext } from '@/context/TenantContext';
 import {
   User,
   Mail,
   Briefcase,
   Building,
   Phone,
-  MapPin,
   Clock,
   Shield,
   Key,
@@ -24,6 +24,7 @@ interface ProfileViewProps {
   activities: UserActivity[];
   onShowToast: (message: string, type: 'success' | 'info' | 'error') => void;
   onGoToDrive: () => void;
+  initialTab?: 'info' | 'storage' | 'security' | 'activity';
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -32,17 +33,28 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   activities,
   onShowToast,
   onGoToDrive,
+  initialTab = 'info',
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'storage' | 'security' | 'activity'>('info');
+  const { departments } = useTenantContext();
+  const [activeTab, setActiveTab] = useState<'info' | 'storage' | 'security' | 'activity'>(initialTab);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Form State
   const [fullName, setFullName] = useState(currentUser.fullName);
   const [jobTitle, setJobTitle] = useState(currentUser.jobTitle);
   const [department, setDepartment] = useState(currentUser.department);
+
+  React.useEffect(() => {
+    if (currentUser.department) {
+      setDepartment(currentUser.department);
+    }
+  }, [currentUser.department]);
   const [phone, setPhone] = useState(currentUser.phone);
-  const [location, setLocation] = useState(currentUser.location);
-  const [timezone, setTimezone] = useState(currentUser.timezone);
-  const [language, setLanguage] = useState(currentUser.language);
   const [twoFactor, setTwoFactor] = useState(currentUser.twoFactorEnabled);
 
   // Password state
@@ -58,9 +70,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       jobTitle,
       department,
       phone,
-      location,
-      timezone,
-      language,
     });
     onShowToast('Cập nhật hồ sơ người dùng thành công!', 'success');
   };
@@ -192,44 +201,40 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex items-center gap-1.5 mt-6 pt-4 border-t border-slate-100 overflow-x-auto">
           <button
             onClick={() => setActiveTab('info')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'info'
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'info'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <User className="w-3.5 h-3.5" />
             <span>Thông tin cá nhân</span>
           </button>
           <button
             onClick={() => setActiveTab('storage')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'storage'
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'storage'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <HardDrive className="w-3.5 h-3.5" />
             <span>Bộ nhớ & Dung lượng Drive</span>
           </button>
           <button
             onClick={() => setActiveTab('security')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'security'
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'security'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <Shield className="w-3.5 h-3.5" />
             <span>Bảo mật & Đăng nhập</span>
           </button>
           <button
             onClick={() => setActiveTab('activity')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'activity'
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'activity'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <Activity className="w-3.5 h-3.5" />
             <span>Nhật ký hoạt động</span>
@@ -306,14 +311,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     onChange={(e) => setDepartment(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                   >
-                    <option value="Engineering">Engineering (Bộ phận Kỹ thuật)</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Sales">Sales</option>
-                    <option value="HR">HR (Nhân sự)</option>
-                    <option value="Finance">Finance (Tài chính)</option>
-                    <option value="Legal">Legal (Pháp chế)</option>
-                    <option value="Operations">Operations (Vận hành)</option>
-                    <option value="Design">Design (Thiết kế)</option>
+                    {departments.length > 0 ? (
+                      departments.map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={currentUser.department || 'Phòng ban'}>
+                        {currentUser.department || 'Phòng ban'}
+                      </option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -331,54 +339,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Vị trí văn phòng
-                </label>
-                <div className="relative">
-                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Múi giờ làm việc
-                </label>
-                <div className="relative">
-                  <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                  >
-                    <option value="GMT+7 (Asia/Ho_Chi_Minh)">GMT+7 (Asia/Ho_Chi_Minh)</option>
-                    <option value="GMT+8 (Asia/Singapore)">GMT+8 (Asia/Singapore)</option>
-                    <option value="GMT+9 (Asia/Tokyo)">GMT+9 (Asia/Tokyo)</option>
-                    <option value="GMT-7 (America/Los_Angeles)">GMT-7 (America/Los_Angeles)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Ngôn ngữ giao diện
-                </label>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                >
-                  <option value="Tiếng Việt (Vietnamese)">Tiếng Việt (Vietnamese)</option>
-                  <option value="English (United States)">English (United States)</option>
-                </select>
               </div>
             </div>
 
@@ -399,48 +359,49 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {activeTab === 'storage' && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6">
-            <h3 className="text-base font-bold text-slate-900 mb-1">
-              Chi tiết phân bổ dung lượng cá nhân
-            </h3>
-            <p className="text-xs text-slate-500 mb-6">
-              Bạn đang sử dụng {currentUser.storageUsedGB} GB trên tổng số {currentUser.storageQuotaGB} GB được cấp phát
-            </p>
-
-            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex mb-3">
-              <div style={{ width: '45%' }} className="bg-red-500 h-full" title="Tài liệu PDF & Văn bản (14.2 GB)" />
-              <div style={{ width: '25%' }} className="bg-amber-500 h-full" title="Dữ liệu nén & Bản sao lưu (7.8 GB)" />
-              <div style={{ width: '18%' }} className="bg-blue-500 h-full" title="Bảng tính & Slides (5.2 GB)" />
-              <div style={{ width: '12%' }} className="bg-violet-500 h-full" title="Hình ảnh & Khác (1.4 GB)" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Chi tiết phân bổ dung lượng cá nhân
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Bạn đang sử dụng {currentUser.storageUsedGB} GB trên tổng số {currentUser.storageQuotaGB} GB được cấp phát
+                </p>
+              </div>
+              <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 self-start sm:self-auto">
+                {usagePercent}% đã dùng
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-slate-100 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-red-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800">Tài liệu & PDF</p>
-                  <p className="text-slate-400 text-[11px]">14.2 GB (45%)</p>
-                </div>
+            {/* Thanh tiến độ dung lượng thực tế */}
+            <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex mb-4">
+              <div
+                style={{ width: `${Math.min(100, Math.max(usagePercent, 2))}%` }}
+                className={`h-full transition-all duration-300 ${usagePercent >= 90
+                    ? 'bg-rose-500'
+                    : usagePercent >= 75
+                      ? 'bg-amber-500'
+                      : 'bg-blue-600'
+                  }`}
+                title={`Đã sử dụng: ${currentUser.storageUsedGB} GB (${usagePercent}%)`}
+              />
+            </div>
+
+            {/* 3 chỉ số thực tế */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 text-xs">
+              <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                <p className="text-slate-500 text-[11px]">Đã sử dụng</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{currentUser.storageUsedGB} GB</p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-amber-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800">Bản sao lưu & Zip</p>
-                  <p className="text-slate-400 text-[11px]">7.8 GB (25%)</p>
-                </div>
+              <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                <p className="text-slate-500 text-[11px]">Còn trống khả dụng</p>
+                <p className="text-sm font-bold text-emerald-600 mt-0.5">
+                  {Math.max(0, Number((currentUser.storageQuotaGB - currentUser.storageUsedGB).toFixed(2)))} GB
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-blue-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800">Bảng tính & Slides</p>
-                  <p className="text-slate-400 text-[11px]">5.2 GB (18%)</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-violet-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-800">Hình ảnh & Media</p>
-                  <p className="text-slate-400 text-[11px]">1.4 GB (12%)</p>
-                </div>
+              <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                <p className="text-slate-500 text-[11px]">Tổng hạn mức được cấp</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{currentUser.storageQuotaGB} GB</p>
               </div>
             </div>
           </div>
@@ -511,11 +472,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 setTwoFactor(!twoFactor);
                 onShowToast(twoFactor ? 'Đã tắt 2FA' : 'Đã kích hoạt 2FA thành công!', 'info');
               }}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                twoFactor
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${twoFactor
                   ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
-              }`}
+                }`}
             >
               {twoFactor ? 'Quản lý 2FA' : 'Bật 2FA ngay'}
             </button>
@@ -590,36 +550,58 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* Tab 4: Activity Log */}
       {activeTab === 'activity' && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6">
-          <h3 className="text-base font-bold text-slate-900 mb-1">Nhật ký hoạt động tài khoản</h3>
-          <p className="text-xs text-slate-500 mb-6">
-            Ghi lại các thao tác tải lên, tải xuống, chia sẻ và thay đổi bảo mật của bạn
-          </p>
-
-          <div className="divide-y divide-slate-100 text-xs">
-            {activities.map((act) => (
-              <div key={act.id} className="py-3.5 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                    <Activity className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">
-                      {act.action === 'upload' && 'Tải lên tài liệu: '}
-                      {act.action === 'download' && 'Tải xuống tệp: '}
-                      {act.action === 'share' && 'Chia sẻ thư mục: '}
-                      {act.action === 'edit_profile' && 'Cập nhật hồ sơ: '}
-                      {act.action === 'update_quota' && 'Điều chỉnh hạn mức: '}
-                      <span className="text-blue-600">{act.targetName}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {act.device} · IP: {act.ipAddress}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-[11px] shrink-0">{act.timestamp}</span>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 mb-0.5">Nhật ký hoạt động tài khoản</h3>
+              <p className="text-xs text-slate-500">
+                Ghi lại các thao tác tải lên, tải xuống, chia sẻ và cập nhật tài khoản của bạn
+              </p>
+            </div>
+            {activities.length > 0 && (
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full">
+                {activities.length} bản ghi
+              </span>
+            )}
           </div>
+
+          {activities.length === 0 ? (
+            <div className="py-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <Activity className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700">Chưa có hoạt động nào được ghi nhận</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Khi bạn tải lên, tải xuống, tạo thư mục hoặc cập nhật thông tin cá nhân, lịch sử thao tác sẽ được hiển thị tại đây.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 text-xs">
+              {activities.map((act) => (
+                <div key={act.id} className="py-3.5 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {act.action === 'upload' && 'Tải lên tài liệu: '}
+                        {act.action === 'download' && 'Tải xuống tệp: '}
+                        {act.action === 'share' && 'Thao tác tệp / thư mục: '}
+                        {act.action === 'delete' && 'Xóa tài liệu: '}
+                        {act.action === 'edit_profile' && 'Cập nhật hồ sơ: '}
+                        {act.action === 'update_quota' && 'Điều chỉnh hạn mức: '}
+                        <span className="text-blue-600">{act.targetName}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {act.device} · IP: {act.ipAddress}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-slate-400 text-[11px] shrink-0">{act.timestamp}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
