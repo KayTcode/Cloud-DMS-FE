@@ -8,9 +8,8 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
-  FolderSync,
   HardDrive,
-  ArrowRight
+  FolderSync
 } from 'lucide-react';
 import { Department, TenantUser } from '@/features/tenants/types';
 import { offboardDepartmentAdminApi, OffboardDepartmentAdminResult } from '@/features/tenants/api/tenantCommands';
@@ -218,27 +217,11 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Thông tin Trưởng phòng hiện tại sắp nghỉ */}
-              <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80 flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-semibold text-rose-900 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-rose-600" />
-                    <span>Trưởng phòng nghỉ việc: <strong>{department.lead || currentAdmin?.name || 'Chưa xác định'}</strong></span>
-                  </div>
-                  <div className="text-[11px] text-rose-700 font-mono mt-0.5 ml-5.5">
-                    {department.adminEmail || currentAdmin?.email || 'Email chưa cập nhật'}
-                  </div>
-                </div>
-                <div className="text-right text-[11px]">
-                  <div>
-                    Trạng thái:{' '}
-                    <strong className={isAdminActive ? 'text-emerald-700' : 'text-rose-700 font-bold'}>
-                      {isAdminActive ? 'Đang hoạt động' : 'Đã khóa / Chưa kích hoạt'}
-                    </strong>
-                  </div>
-                  <div className={isAdminActive ? 'text-rose-500 font-medium' : 'text-slate-500 font-medium'}>
-                    {isAdminActive ? 'Sẽ bị vô hiệu hóa tức thì' : 'Không thể vô hiệu hóa lại'}
-                  </div>
-                </div>
+              <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200/80 flex items-center gap-2 text-xs">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-semibold text-rose-900">
+                  Trưởng phòng nghỉ việc: <strong>{department.lead || currentAdmin?.name || 'Chưa xác định'}</strong>
+                </span>
               </div>
 
               {/* Lựa chọn Kịch bản bàn giao */}
@@ -265,9 +248,6 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                         <Mail className={`w-3.5 h-3.5 ${scenario === 'INVITE_EMAIL' ? 'text-blue-600' : 'text-slate-500'}`} />
                         <span>Mời Trưởng phòng Mới</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Gửi Gmail mời tài khoản mới bên ngoài tiếp quản và nhận dữ liệu.
-                      </p>
                     </div>
                     <span className="inline-block mt-2 text-[10px] font-semibold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded w-fit">
                       Khuyên dùng
@@ -292,9 +272,6 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                         <UserCheck className={`w-3.5 h-3.5 ${scenario === 'DESIGNATED_EMPLOYEE' ? 'text-indigo-600' : 'text-slate-500'}`} />
                         <span>Thăng chức Nhân viên</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Chỉ định 1 nhân viên cùng phòng lên làm Trưởng phòng mới.
-                      </p>
                     </div>
                     <span className="inline-block mt-2 text-[10px] font-semibold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded w-fit">
                       Nội bộ phòng
@@ -319,9 +296,6 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                         <ShieldAlert className={`w-3.5 h-3.5 ${scenario === 'INTERIM_HOLD' ? 'text-amber-600' : 'text-slate-500'}`} />
                         <span>Tạm khuyết Trưởng phòng</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Lưu trữ dữ liệu vào Kho chung phòng ban khi chưa có Lead mới.
-                      </p>
                     </div>
                     <span className="inline-block mt-2 text-[10px] font-semibold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded w-fit">
                       Tạm khuyết Lead
@@ -390,9 +364,6 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-blue-700 pt-1">
-                    * Hệ thống sẽ gửi email kích hoạt (thời hạn 48 giờ). Sau khi kích hoạt, người này có toàn quyền Trưởng phòng và kế thừa toàn bộ tài liệu bàn giao trong Kho chung phòng ban.
-                  </p>
                 </div>
               )}
 
@@ -420,56 +391,15 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                       ))}
                     </select>
                   )}
-                  <p className="text-[11px] text-indigo-700 pt-1">
-                    * Nhân viên được chọn sẽ ngay lập tức được cấp vai trò Trưởng phòng (DepartmentAdmin) và tiếp quản toàn bộ tài sản số trong Kho chung.
-                  </p>
                 </div>
               )}
 
               {scenario === 'INTERIM_HOLD' && (
-                <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/90 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-amber-950">
-                    <HardDrive className="w-4 h-4 text-amber-600" />
-                    <span>Lưu trữ tài sản vào Kho dùng chung của Phòng ban:</span>
-                  </div>
-                  <div className="text-[11px] text-amber-900/90 space-y-2 pl-4 border-l-2 border-amber-300">
-                    <p>
-                      • Tệp cá nhân chưa chia sẻ của Trưởng phòng cũ được <strong>giữ riêng</strong> cho tới khi bổ nhiệm Trưởng phòng mới — không chuyển vào Kho chung ngay lúc này.
-                    </p>
-                    <p>
-                      • Hạn mức lưu trữ (Quota) được điều chuyển bảo toàn sang Quota Kho chung phòng ban (Zero Quota Leakage).
-                    </p>
-                    <p>
-                      • Phòng ban tạm thời chuyển sang trạng thái <strong>Tạm khuyết Trưởng phòng</strong>. Quản trị viên Tổ chức (TenantAdmin) có toàn quyền quản trị và có thể bổ nhiệm Trưởng phòng mới bất kỳ lúc nào qua tính năng Bổ nhiệm Lead.
-                    </p>
-                  </div>
+                <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/90 flex items-center gap-2 text-xs font-semibold text-amber-950">
+                  <HardDrive className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Lưu trữ tài sản vào Kho dùng chung của Phòng ban</span>
                 </div>
               )}
-
-              {/* Mô tả kịch bản bàn giao */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-[11px] text-slate-600">
-                <div className="font-semibold text-slate-800 text-xs mb-1">Luồng xử lý dữ liệu:</div>
-                <div className="flex items-start gap-1.5">
-                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                  <span>
-                    {scenario === 'INTERIM_HOLD'
-                      ? 'Tệp cá nhân chưa chia sẻ được giữ riêng cho tới khi bổ nhiệm Trưởng phòng mới.'
-                      : 'Tệp cá nhân chưa chia sẻ sẽ vào thư mục [Bàn giao] trong \'Tài liệu của tôi\' của người tiếp nhận.'}
-                  </span>
-                </div>
-                <div className="flex items-start gap-1.5">
-                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                  <span>Tệp đã chia sẻ sẽ vào Kho chung, giữ nguyên thư mục cha.</span>
-                </div>
-                <div className="flex items-start gap-1.5">
-                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                  <span>Hạn mức cá nhân chuyển cho người tiếp nhận; phần của tệp đã chia sẻ chuyển sang Kho chung.</span>
-                </div>
-                <div className="flex items-start gap-1.5">
-                  <ArrowRight className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                  <span>Kho chung hiện có giữ nguyên.</span>
-                </div>
-              </div>
 
               {/* Lý do bàn giao */}
               <div>

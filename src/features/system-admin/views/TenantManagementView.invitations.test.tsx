@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TenantManagementView } from './TenantManagementView';
 import { invitationsApi } from '@/features/invitations/api/invitationsApi';
@@ -143,5 +143,59 @@ describe('TenantManagementView: legacy and new invitation UIs stay in sync', () 
 
     await waitFor(() => expect(onRefreshUsers).toHaveBeenCalled());
     expect(addToast).toHaveBeenCalledWith('success', expect.stringContaining('xóa hoàn toàn'));
+  });
+
+  it('displays "Chờ kích hoạt" badge and action buttons for users with pending invitations even if isActive is true', async () => {
+    const activeUserWithPendingInvite: AdminUserDto = {
+      id: 'user-huy-1',
+      email: 'huynthe180817@fpt.edu.vn',
+      firstName: 'huy',
+      lastName: 'nguyen',
+      fullName: 'huy nguyen',
+      isActive: true, // Backend default isActive = true before activation
+      roles: ['TenantAdmin'],
+      permissions: [],
+      tenantId: 't-huy',
+      tenantName: 'HUY_T',
+      createdAt: '2026-11-24',
+    };
+
+    const pendingInviteForHuy = invitation({
+      userId: 'user-huy-1',
+      email: 'huynthe180817@fpt.edu.vn',
+      fullName: 'huy nguyen',
+      roleName: 'TenantAdmin',
+      tenantId: 't-huy',
+      tenantName: 'HUY_T',
+    });
+
+    vi.mocked(invitationsApi.getPending).mockResolvedValue(page([pendingInviteForHuy]));
+
+    render(
+      <TenantManagementView
+        users={[activeUserWithPendingInvite]}
+        totalCount={1}
+        currentPage={1}
+        totalPages={1}
+        searchQuery=""
+        onPageChange={vi.fn()}
+        onOpenCreateModal={vi.fn()}
+        onSelectUser={vi.fn()}
+        onOpenEditModal={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onDeleteUser={vi.fn()}
+      />
+    );
+
+    // Khi pending invitations table tải xong, tài khoản ở bảng trên phải hiển thị "Chờ kích hoạt"
+    await waitFor(() => {
+      const emailCells = screen.getAllByText('huynthe180817@fpt.edu.vn');
+      expect(emailCells.length).toBeGreaterThanOrEqual(2); // xuất hiện ở cả bảng chính và bảng pending invitations
+      const mainTableRow = emailCells[0].closest('tr')!;
+      expect(within(mainTableRow).getByText('Chờ kích hoạt')).toBeInTheDocument();
+      expect(within(mainTableRow).queryByText('Đang hoạt động')).not.toBeInTheDocument();
+      expect(within(mainTableRow).getByTitle('Gửi lại thư mời kích hoạt qua Email')).toBeInTheDocument();
+      expect(within(mainTableRow).getByTitle('Hủy lời mời')).toBeInTheDocument();
+    });
   });
 });

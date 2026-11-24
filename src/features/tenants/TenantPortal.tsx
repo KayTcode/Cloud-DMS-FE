@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTenantContext } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
-import { TenantBanner, TenantTabs, ImpersonateModal, SubscriptionModal } from '@/features/tenants/components';
+import { TenantBanner, ImpersonateModal, SubscriptionModal } from '@/features/tenants/components';
 import {
   TenantOverviewView,
   CreateDepartmentUserView,
@@ -10,9 +10,9 @@ import {
   TenantSettingsView,
   TenantHubView,
   TenantQuotaView,
+  TenantActivityView,
 } from '@/features/tenants/views';
 import { ActiveTab } from '@/features/tenants/types';
-import { ArrowLeft } from 'lucide-react';
 
 // =========================================================================================
 // TENANT PORTAL (MÀN HÌNH ĐIỀU HÀNH DÀNH CHO QUẢN TRỊ VIÊN CỦA MỘT TENANT)
@@ -69,7 +69,7 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
   // Tenant Admin chỉ quản lý theo Phòng ban (Department), tự động chuyển hướng nếu activeTab là users
   useEffect(() => {
-    if (activeTab === 'users' || activeTab === 'activity') {
+    if (activeTab === 'users') {
       setActiveTab('departments');
     }
   }, [activeTab, setActiveTab]);
@@ -115,17 +115,6 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
       {/* 4.1. CÁC MÀN HÌNH CHI TIẾT KHI ĐÃ CHỌN CHỨC NĂNG */}
       {activeTab !== 'hub' && (
         <div className="space-y-3 mb-4">
-          {/* Nút quay lại Menu chức năng chính */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setActiveTab('hub')}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Trung tâm điều khiển Doanh nghiệp</span>
-            </button>
-          </div>
-
           {/* Khung hiển thị thông tin tóm tắt & các thao tác nhanh của Tenant */}
           <TenantBanner
             tenant={tenant}
@@ -133,9 +122,6 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
             onManageSubscriptions={() => setIsSubscriptionModalOpen(true)}
             onNavigateToTenants={() => setActiveTab('hub')}
           />
-
-          {/* Thanh chuyển Tab điều hướng nhanh giữa các chức năng con */}
-          <TenantTabs activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
         </div>
       )}
 
@@ -183,6 +169,11 @@ export const TenantPortal: React.FC<TenantPortalProps> = ({ tenantId: propTenant
 
           {/* Tab 4B: Quản lý Hạn mức & Phê duyệt Quota */}
           {activeTab === 'quota' && <TenantQuotaView tenant={tenant} onBackToOverview={() => setActiveTab('overview')} />}
+
+          {/* Tab 5: Nhật ký hoạt động (Audit Logs) */}
+          {activeTab === 'activity' && (
+            <TenantActivityView onBackToOverview={() => setActiveTab('overview')} />
+          )}
 
           {/* Tab 6: Cài đặt cấu hình riêng của Tenant (Tên, logo, liên hệ) */}
           {activeTab === 'settings' && (
