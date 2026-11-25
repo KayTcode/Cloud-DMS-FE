@@ -297,7 +297,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       : 'border-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
-                  Siêu dữ liệu mô tả
+                  Mô tả
                 </button>
               </div>
 
@@ -494,7 +494,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                 </div>
               )}
 
-              {/* Tab 2: Siêu Dữ Liệu Mô Tả (DSpace Metadata) */}
+              {/* Tab 2: Thông tin mô tả */}
               {activeTab === 'metadata' && (
                 <div className="space-y-4">
                   {metadata ? (
@@ -582,7 +582,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       {(metadata.lastModifiedAt || details.updatedAt) && (
                         <div className="pt-2 border-t border-slate-100 text-right">
                           <p className="text-[11px] text-slate-400 italic">
-                            Cập nhật hồ sơ mô tả lần cuối:{' '}
+                            Cập nhật mô tả lần cuối:{' '}
                             {formatDateTime(metadata.lastModifiedAt || details.updatedAt)}
                           </p>
                         </div>
