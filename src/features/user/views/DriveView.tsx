@@ -909,9 +909,19 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 className="text-xs font-bold text-slate-900 border border-blue-400 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
                               />
                             ) : (
-                              <h4 className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-                                {file.name}
-                              </h4>
+                              <div>
+                                <h4
+                                  className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors"
+                                  title={file.metadata?.title || file.name}
+                                >
+                                  {file.metadata?.title || file.name}
+                                </h4>
+                                {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                                  <p className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={file.name}>
+                                    {file.name}
+                                  </p>
+                                )}
+                              </div>
                             )}
                             {file.scanStatus === 'TooLargeToScan' && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
@@ -1192,9 +1202,19 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                       )}
                                     </>
                                   ) : (
-                                    <span className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer">
-                                      {file.name}
-                                    </span>
+                                    <div>
+                                      <span
+                                        className="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer block truncate"
+                                        title={file.metadata?.title || file.name}
+                                      >
+                                        {file.metadata?.title || file.name}
+                                      </span>
+                                      {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                                        <span className="text-[10px] text-slate-400 font-mono truncate block" title={file.name}>
+                                          {file.name}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                   {file.tags.length > 0 && (
                                     <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">

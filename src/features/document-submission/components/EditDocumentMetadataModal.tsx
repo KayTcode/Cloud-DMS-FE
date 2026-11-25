@@ -54,15 +54,15 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
         meta.releaseMonth !== undefined && meta.releaseMonth !== null && meta.releaseMonth !== ''
           ? meta.releaseMonth.toString()
           : meta.issueMonth !== undefined && meta.issueMonth !== null && meta.issueMonth !== ''
-          ? meta.issueMonth.toString()
-          : ''
+            ? meta.issueMonth.toString()
+            : ''
       );
       setReleaseDay(
         meta.releaseDay !== undefined && meta.releaseDay !== null && meta.releaseDay !== ''
           ? meta.releaseDay.toString()
           : meta.issueDay !== undefined && meta.issueDay !== null && meta.issueDay !== ''
-          ? meta.issueDay.toString()
-          : ''
+            ? meta.issueDay.toString()
+            : ''
       );
       setKeywords(meta.keywords || '');
       setAbstract(meta.abstract || '');
@@ -214,10 +214,6 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
               </div>
             )}
 
-            <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 leading-relaxed">
-              * Thao tác này chỉ cập nhật thông tin mô tả và từ khóa. Tệp đính kèm và dung lượng lưu trữ của bạn được giữ nguyên không thay đổi.
-            </div>
-
             {/* Tiêu đề */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -233,19 +229,20 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
               />
             </div>
 
-            {/* Thời điểm phát hành */}
+            {/* Thời điểm phát hành (Khóa cứng không cho thay đổi) */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Thời điểm phát hành <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Thời điểm phát hành <span className="text-slate-400 font-normal lowercase">(cố định)</span>
+                </label>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">Năm (*)</label>
+                  <label className="block text-[11px] text-slate-500 mb-1">Năm</label>
                   <select
                     value={releaseYear}
-                    onChange={(e) => setReleaseYear(Number(e.target.value))}
-                    disabled={isSubmitting}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed select-none"
                   >
                     {years.map((y) => (
                       <option key={y} value={y}>
@@ -258,9 +255,8 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
                   <label className="block text-[11px] text-slate-500 mb-1">Tháng</label>
                   <select
                     value={releaseMonth}
-                    onChange={(e) => setReleaseMonth(e.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed select-none"
                   >
                     <option value="">-- Không --</option>
                     {months.map((m) => (
@@ -274,9 +270,8 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
                   <label className="block text-[11px] text-slate-500 mb-1">Ngày</label>
                   <select
                     value={releaseDay}
-                    onChange={(e) => setReleaseDay(e.target.value)}
-                    disabled={isSubmitting || !releaseMonth}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white disabled:bg-slate-100"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed select-none"
                   >
                     <option value="">-- Không --</option>
                     {days.map((d) => (
