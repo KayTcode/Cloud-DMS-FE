@@ -224,11 +224,10 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
             <>
               {/* Thẻ Cảnh Báo Vòng Đời Lưu Trữ (Retention Lifecycle) */}
               <div
-                className={`p-4 rounded-2xl border flex items-center justify-between ${
-                  isExpiringSoon
+                className={`p-4 rounded-2xl border flex items-center justify-between ${isExpiringSoon
                     ? 'bg-amber-50/90 border-amber-200 text-amber-900'
                     : 'bg-slate-50/80 border-slate-200 text-slate-700'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   {isExpiringSoon ? (
@@ -243,11 +242,10 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                       </span>
                       {details.daysRemaining !== null && details.daysRemaining !== undefined && (
                         <span
-                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                            isExpiringSoon
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${isExpiringSoon
                               ? 'bg-amber-200 text-amber-800'
                               : 'bg-blue-100 text-blue-800'
-                          }`}
+                            }`}
                         >
                           Còn {details.daysRemaining} ngày
                         </span>
@@ -280,22 +278,20 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('details')}
-                  className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
-                    activeTab === 'details'
+                  className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'details'
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
+                    }`}
                 >
                   Chi tiết tệp
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('metadata')}
-                  className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
-                    activeTab === 'metadata'
+                  className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'metadata'
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
+                    }`}
                 >
                   Mô tả
                 </button>
@@ -363,11 +359,10 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                             </div>
                           </div>
                           <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                              share.role === 'Editor'
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${share.role === 'Editor'
                                 ? 'bg-purple-100 text-purple-800'
                                 : 'bg-slate-100 text-slate-700'
-                            }`}
+                              }`}
                           >
                             {share.role === 'Editor' ? 'Người chỉnh sửa' : 'Người xem'}
                           </span>
