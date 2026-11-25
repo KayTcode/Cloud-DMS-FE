@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, FolderPlus } from 'lucide-react';
+import { useTenantContext } from '@/context/TenantContext';
 
 interface NewFolderModalProps {
   isOpen: boolean;
@@ -16,10 +17,19 @@ export const NewFolderModal: React.FC<NewFolderModalProps> = ({
   userDepartment,
   parentFolderId,
 }) => {
+  const { departments } = useTenantContext();
   const [folderName, setFolderName] = useState('');
-  const [dept, setDept] = useState(userDepartment || 'Engineering');
+  const [dept, setDept] = useState(userDepartment || (departments[0]?.name ?? ''));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (userDepartment) {
+      setDept(userDepartment);
+    } else if (departments.length > 0 && !dept) {
+      setDept(departments[0].name);
+    }
+  }, [userDepartment, departments]);
 
   if (!isOpen) return null;
 
@@ -80,14 +90,17 @@ export const NewFolderModal: React.FC<NewFolderModalProps> = ({
               onChange={(e) => setDept(e.target.value)}
               className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
             >
-              <option value="Engineering">Engineering</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Sales">Sales</option>
-              <option value="HR">HR</option>
-              <option value="Finance">Finance</option>
-              <option value="Legal">Legal</option>
-              <option value="Operations">Operations</option>
-              <option value="Design">Design</option>
+              {departments.length > 0 ? (
+                departments.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    {d.name}
+                  </option>
+                ))
+              ) : (
+                <option value={userDepartment || 'Chung'}>
+                  {userDepartment || 'Chung'}
+                </option>
+              )}
             </select>
           </div>
 

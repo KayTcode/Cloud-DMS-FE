@@ -28,6 +28,9 @@ export interface SystemTenant {
   vacantAdminUserId?: string | null;
   interimManagedByUserId?: string | null;
   interimStartedAt?: string | null;
+  departmentsCount?: number;
+  adminPhoneNumber?: string | null;
+  hasPendingInvitation?: boolean;
 }
 
 export type TenantAdminOffboardScenario = 'InterimTakeover' | 'InviteNewTenantAdmin';
@@ -256,12 +259,25 @@ export interface StorageGrowthPoint {
   display: string;
 }
 
+export interface GetTenantsQueryFilter {
+  pageNumber?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  statusFilter?: string;
+}
+
 export interface CreateSystemTenantPayload {
   name: string;
-  plan: PlanType;
-  usersAssigned: number;
-  storageAllocated: string;
+  description?: string;
+  plan?: PlanType;
+  usersAssigned?: number;
+  storageAllocated?: string;
+  storageProviderId?: string;
+  storageQuotaBytes?: number;
   adminEmail?: string;
+  adminFirstName?: string;
+  adminLastName?: string;
+  adminPhoneNumber?: string;
   region?: string;
 }
 

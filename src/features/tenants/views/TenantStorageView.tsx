@@ -31,7 +31,6 @@ import {
   FileCheck2,
   File as FileGenericIcon,
   FolderOpen,
-  Server,
   Clock,
   AlertOctagon,
 } from 'lucide-react';
@@ -431,7 +430,7 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
 
     setIsUploading(true);
     try {
-      addToast('info', `Đang tải trực tiếp ${filesToUpload.length} tệp tin lên Cloud Storage...`);
+      addToast('info', `Đang tải lên ${filesToUpload.length} tệp tin...`);
       const res = await uploadDirectTenantFilesApi(
         filesToUpload,
         tenant.id,
@@ -440,14 +439,14 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
       );
 
       if (res.failed && res.failed.length > 0) {
-        addToast('error', `Tải trực tiếp Cloud: ${res.uploaded.length} thành công, ${res.failed.length} thất bại.`);
+        addToast('error', `Tải tệp: ${res.uploaded.length} thành công, ${res.failed.length} thất bại.`);
       } else {
-        addToast('success', `Đã tải trực tiếp thành công ${res.uploaded.length || filesToUpload.length} tệp tin lên Cloud!`);
+        addToast('success', `Đã tải lên thành công ${res.uploaded.length || filesToUpload.length} tệp tin!`);
       }
       setIsUploadModalOpen(false);
       fetchReportFiles();
     } catch (err: any) {
-      addToast('error', err?.response?.data?.error || err.message || 'Tải trực tiếp Cloud thất bại.');
+      addToast('error', err?.response?.data?.error || err.message || 'Tải tệp tin thất bại.');
     } finally {
       setIsUploading(false);
       if (directFileInputRef.current) directFileInputRef.current.value = '';
@@ -1303,8 +1302,8 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
                 </select>
               </div>
 
-              {/* Khu vực chọn file với 2 phương thức tải lên */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Khu vực chọn file tải lên */}
+              <div>
                 <input
                   ref={directFileInputRef}
                   type="file"
@@ -1312,46 +1311,19 @@ export const TenantStorageView: React.FC<TenantStorageViewProps> = ({
                   onChange={handleDirectFileUpload}
                   className="hidden"
                 />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
 
-                {/* Phương pháp 1: Tải trực tiếp Cloud */}
                 <div
                   onClick={() => directFileInputRef.current?.click()}
-                  className="border-2 border-dashed border-blue-300 hover:border-blue-500 rounded-2xl p-5 text-center cursor-pointer transition-all bg-blue-50/40 hover:bg-blue-50/70 group relative"
+                  className="border-2 border-dashed border-blue-300 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition-all bg-blue-50/40 hover:bg-blue-50/70 group"
                 >
-                  <span className="absolute top-2.5 right-2.5 text-[9px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Mới
-                  </span>
-                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                    <UploadCloud className="w-5 h-5" />
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-xs">
+                    <UploadCloud className="w-6 h-6 stroke-[2]" />
                   </div>
-                  <p className="text-xs font-bold text-blue-950">
-                    Tải trực tiếp Cloud
+                  <p className="text-sm font-bold text-blue-950">
+                    Bấm để chọn tệp tải lên
                   </p>
-                  <p className="text-[10px] text-blue-600/80 mt-1">
-                    Bỏ qua Backend, tải thẳng Google Drive / OneDrive / S3
-                  </p>
-                </div>
-
-                {/* Phương pháp 2: Tải qua Server */}
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-2xl p-5 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-slate-100/60 group"
-                >
-                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                    <Server className="w-5 h-5" />
-                  </div>
-                  <p className="text-xs font-bold text-slate-800">
-                    Tải qua Server
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Phương pháp truyền thống qua API backend
+                  <p className="text-xs text-slate-500 mt-1">
+                    Hỗ trợ tải lên nhiều tệp cùng lúc (Hệ thống tự động tối ưu hóa đường truyền và lưu trữ)
                   </p>
                 </div>
               </div>

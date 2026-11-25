@@ -17,27 +17,26 @@ import {
   AlertCircle,
   HardDrive,
   Calendar,
-  Clock,
   User,
+  Users,
   ShieldCheck,
   ShieldAlert,
   ChevronLeft,
   ChevronRight,
-  Filter,
   ArrowUpDown,
-  Building2,
-  Lock,
-  ExternalLink
+  X,
+  Filter,
 } from 'lucide-react';
 import { SharedFileItem, FileType, DriveItem } from '../types';
 import { driveApi } from '../api/driveApi';
 import { SharedFolderBrowser } from '../components/SharedFolderBrowser';
+import { SharedByMeView } from '../components/SharedByMeView';
 import { DocumentDetailsModal } from '@/features/document-submission';
 
-interface SharedFilesViewProps {
-  onOpenFilePreview: (file: DriveItem) => void;
-  onDownloadItem: (item: DriveItem) => void;
-  onShowToast: (message: string, type?: 'success' | 'info' | 'error') => void;
+export interface SharedFilesViewProps {
+  onOpenFilePreview?: (file: DriveItem) => void;
+  onDownloadItem?: (item: DriveItem) => void;
+  onShowToast?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
 type SortField = 'date' | 'name' | 'size';
@@ -50,7 +49,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
   const [items, setItems] = useState<SharedFileItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
-  const [pageSize] = useState<number>(15);
+  const [pageSize] = useState<number>(16);
   const [hasMore, setHasMore] = useState<boolean>(false);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -69,6 +68,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedMetadataFileId, setSelectedMetadataFileId] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'with-me' | 'by-me'>('with-me');
 
   // Debounce search input
   useEffect(() => {
@@ -103,7 +103,9 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
         || error?.response?.data?.message
         || 'Không thể tải danh sách tệp tin chia sẻ từ máy chủ.';
       setErrorMessage(msg);
-      onShowToast(msg, 'error');
+      if (onShowToast) {
+        onShowToast(msg, 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -113,10 +115,53 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
     fetchSharedFiles();
   }, [fetchSharedFiles]);
 
+  const toDriveItem = (item: SharedFileItem): DriveItem => {
+    return {
+      id: item.id,
+      archiveKind: item.archiveKind,
+      originalSizeBytes: item.originalSizeBytes,
+      name: item.name,
+      type: 'file',
+      fileType: item.fileType,
+      extension: item.extension,
+      size: item.size,
+      sizeFormatted: item.sizeFormatted,
+      updatedAt: item.sharedAtFormatted,
+      createdAt: item.createdAt,
+      storageProvider: item.storageProvider,
+      owner: item.owner,
+      parentId: null,
+      starred: false,
+      trashed: false,
+      sharedWith: ['me'],
+      tags: [item.fileType?.toUpperCase() || 'FILE'],
+      department: item.department,
+      scanStatus: (item.scanStatus as DriveItem['scanStatus']) ?? null,
+    };
+  };
+
+  const handlePreview = (item: SharedFileItem) => {
+    const driveItem = toDriveItem(item);
+    if (onOpenFilePreview) {
+      onOpenFilePreview(driveItem);
+    } else {
+      void driveApi.downloadFile(item.id, item.name);
+    }
+  };
+
+  const handleDownload = (item: SharedFileItem) => {
+    const driveItem = toDriveItem(item);
+    if (onDownloadItem) {
+      onDownloadItem(driveItem);
+    } else {
+      void driveApi.downloadFile(item.id, item.name);
+    }
+  };
+
   const getFileIcon = (fileType?: FileType) => {
     switch (fileType) {
       case 'folder':
-        return <Folder className="w-5 h-5 text-amber-500" />;
+        return <Folder className="w-5 h-5 text-amber-500 fill-amber-500/20" />;
       case 'pdf':
         return <FileText className="w-5 h-5 text-red-500" />;
       case 'sheet':
@@ -139,7 +184,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
   const getPermissionBadge = (level: string, canWrite: boolean, canDelete: boolean) => {
     if (canDelete || level === 'Owner') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
           <ShieldAlert className="w-3 h-3 text-purple-600" />
           Đồng sở hữu
         </span>
@@ -147,186 +192,228 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
     }
     if (canWrite || level === 'Editor') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <ShieldCheck className="w-3 h-3 text-emerald-600" />
           Chỉnh sửa
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
         <ShieldCheck className="w-3 h-3 text-blue-600" />
         Người xem
       </span>
     );
   };
 
-  const toDriveItem = (item: SharedFileItem): DriveItem => {
-    return {
-      id: item.id, archiveKind: item.archiveKind, originalSizeBytes: item.originalSizeBytes,
-      name: item.name,
-      type: 'file',
-      fileType: item.fileType,
-      extension: item.extension,
-      size: item.size,
-      sizeFormatted: item.sizeFormatted,
-      updatedAt: item.sharedAtFormatted,
-      createdAt: item.createdAt,
-      storageProvider: item.storageProvider,
-      owner: item.owner,
-      parentId: null,
-      starred: false,
-      trashed: false,
-      sharedWith: ['me'],
-      tags: [item.fileType?.toUpperCase() || 'FILE'],
-      department: item.department,
-      scanStatus: (item.scanStatus as DriveItem['scanStatus']) ?? null,
-    };
-  };
-
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const hasActiveFilters = Boolean(debouncedSearch || selectedFileType !== 'all' || sharedByFilter);
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/80 shadow-2xs">
-              <Share2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Tài liệu được chia sẻ với tôi
+    <div className="space-y-5">
+      {/* 1. TOP HEADER & SUB-TABS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
+        {/* Title & Badge */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/70 shadow-2xs">
+            <Share2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+                {activeSubTab === 'with-me' ? 'Được chia sẻ với tôi' : 'Tệp tôi đã chia sẻ'}
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Các tệp tin do đồng nghiệp và người quản lý trong tổ chức chia sẻ quyền truy cập
-              </p>
+              {activeSubTab === 'with-me' && totalCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+                  {totalCount}
+                </span>
+              )}
             </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {activeSubTab === 'with-me'
+                ? 'Các tệp tin và thư mục do đồng nghiệp trong tổ chức chia sẻ với bạn'
+                : 'Quản lý danh sách các tệp tin bạn đã chia sẻ và thu hồi quyền truy cập của người nhận'}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Sub-tab Switcher: Được chia sẻ với tôi / Tôi đã chia sẻ */}
+        <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200/80 shadow-2xs shrink-0">
           <button
-            onClick={() => fetchSharedFiles()}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-full text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
-            title="Làm mới danh sách"
+            type="button"
+            onClick={() => setActiveSubTab('with-me')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+              activeSubTab === 'with-me'
+                ? 'bg-white text-blue-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Làm mới</span>
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Được chia sẻ với tôi</span>
+            {totalCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 bg-slate-100 rounded-full text-[10px] text-slate-500 font-mono">
+                {totalCount}
+              </span>
+            )}
           </button>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Xem dạng lưới"
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Xem dạng danh sách"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('by-me')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+              activeSubTab === 'by-me'
+                ? 'bg-white text-blue-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Tôi đã chia sẻ</span>
+          </button>
         </div>
       </div>
 
-      <SharedFolderBrowser
-        onOpenFile={file => onOpenFilePreview(toDriveItem(file))}
-        onDownloadFile={file => onDownloadItem(toDriveItem(file))}
-      />
+      {activeSubTab === 'by-me' ? (
+        <SharedByMeView
+          onOpenFilePreview={onOpenFilePreview}
+          onDownloadItem={onDownloadItem}
+          onShowToast={onShowToast}
+        />
+      ) : (
+        <>
+          {/* Search Capsule Bar & View Actions */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="text-xs text-slate-500 font-medium">
+              Hiển thị <span className="font-bold text-slate-700">{items.length}</span> tệp tin được chia sẻ
+            </div>
+            <div className="flex items-center gap-2.5 flex-1 max-w-xl justify-end">
+              {/* Capsule Search */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm tệp được chia sẻ..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-xs bg-slate-100 hover:bg-slate-200/60 focus:bg-white border border-transparent focus:border-blue-400 focus:ring-2 focus:ring-blue-100 rounded-full transition-all text-slate-800 placeholder-slate-400 focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Xóa tìm kiếm"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Search Input */}
-          <div className="md:col-span-5 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm tệp theo tên..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 placeholder-slate-400"
-            />
+              {/* Refresh Button */}
+              <button
+                onClick={() => fetchSharedFiles()}
+                disabled={isLoading}
+                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+                title="Làm mới danh sách"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+
+              {/* Google Drive View Switcher Pill */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200/60 shrink-0">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-[#C2E7FF] text-[#001D35] shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem dạng lưới"
+                >
+                  <Grid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-[#C2E7FF] text-[#001D35] shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem dạng danh sách"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* File Type Filter */}
-          <div className="md:col-span-3">
+      {/* 2. FILTER CHIPS BAR (Flat Pills Google Drive Style) */}
+      <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-b border-slate-100 pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* File Type Filter Chip */}
+          <div className="relative inline-flex items-center">
             <select
               value={selectedFileType}
               onChange={(e) => {
                 setSelectedFileType(e.target.value);
                 setPageNumber(1);
               }}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 cursor-pointer"
+              className="px-3 py-1.5 text-xs font-medium rounded-full bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all cursor-pointer shadow-2xs"
             >
-              <option value="all">Tất cả định dạng</option>
+              <option value="all">Loại tệp: Tất cả</option>
               <option value="pdf">Tài liệu PDF (.pdf)</option>
-              <option value="docx">Văn bản Word (.docx, .doc)</option>
-              <option value="sheet">Bảng tính Excel / CSV (.xlsx, .csv)</option>
+              <option value="docx">Văn bản Word (.docx)</option>
+              <option value="sheet">Bảng tính Excel (.xlsx)</option>
               <option value="slide">Thuyết trình PowerPoint (.pptx)</option>
-              <option value="image">Hình ảnh (.png, .jpg, .webp)</option>
+              <option value="image">Hình ảnh (.png, .jpg)</option>
               <option value="archive">Tệp nén (.zip, .rar)</option>
             </select>
           </div>
 
-          {/* Shared By Filter */}
-          <div className="md:col-span-4 flex items-center gap-2">
-            <div className="relative flex-1">
-              <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Người chia sẻ (tên/email)..."
-                value={sharedByFilter}
-                onChange={(e) => {
-                  setSharedByFilter(e.target.value);
-                  setPageNumber(1);
-                }}
-                className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 placeholder-slate-400"
-              />
-            </div>
-
-            {/* Sort Field & Order */}
-            <div className="flex items-center gap-1 shrink-0">
-              <select
-                value={sortField}
-                onChange={(e) => setSortField(e.target.value as SortField)}
-                className="px-2.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                title="Sắp xếp theo"
-              >
-                <option value="date">Ngày chia sẻ</option>
-                <option value="name">Tên tệp</option>
-                <option value="size">Dung lượng</option>
-              </select>
-
+          {/* Shared By Filter Chip */}
+          <div className="relative inline-flex items-center">
+            <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Người chia sẻ..."
+              value={sharedByFilter}
+              onChange={(e) => {
+                setSharedByFilter(e.target.value);
+                setPageNumber(1);
+              }}
+              className="pl-7 pr-3 py-1.5 text-xs font-medium rounded-full bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all w-36 sm:w-44 shadow-2xs"
+            />
+            {sharedByFilter && (
               <button
-                onClick={() => setSortAsc(!sortAsc)}
-                className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
-                title={sortAsc ? 'Tăng dần (A-Z, nhỏ tới lớn)' : 'Giảm dần (Z-A, mới nhất)'}
+                onClick={() => setSharedByFilter('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <ArrowUpDown className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
-            </div>
+            )}
           </div>
-        </div>
 
-        {/* Status / Active Filter summary */}
-        <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 border-t border-slate-100">
-          <div>
-            Đang hiển thị <span className="font-semibold text-slate-700">{items.length}</span> / <span className="font-semibold text-slate-700">{totalCount}</span> tệp tin được chia sẻ
+          {/* Sort By Filter Chip */}
+          <div className="inline-flex items-center gap-1 bg-white border border-slate-200/80 rounded-full px-2 py-1 shadow-2xs">
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value as SortField)}
+              className="px-1 text-xs font-medium text-slate-700 bg-transparent focus:outline-none cursor-pointer"
+              title="Sắp xếp theo"
+            >
+              <option value="date">Ngày chia sẻ</option>
+              <option value="name">Tên tệp</option>
+              <option value="size">Dung lượng</option>
+            </select>
+
+            <button
+              onClick={() => setSortAsc(!sortAsc)}
+              className="p-1 text-slate-500 hover:text-slate-900 rounded-full transition-colors cursor-pointer"
+              title={sortAsc ? 'Tăng dần (A-Z, nhỏ tới lớn)' : 'Giảm dần (Z-A, mới nhất)'}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+            </button>
           </div>
-          {(debouncedSearch || selectedFileType !== 'all' || sharedByFilter) && (
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
             <button
               onClick={() => {
                 setSearchQuery('');
@@ -334,23 +421,34 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                 setSharedByFilter('');
                 setPageNumber(1);
               }}
-              className="text-blue-600 hover:underline cursor-pointer font-medium"
+              className="px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors cursor-pointer"
             >
               Xóa bộ lọc
             </button>
           )}
         </div>
+
+        {/* Counter Info */}
+        <div className="text-[11px] text-slate-500">
+          Hiển thị <span className="font-semibold text-slate-700">{items.length}</span> / <span className="font-semibold text-slate-700">{totalCount}</span> tệp
+        </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* 3. SHARED FOLDER BROWSER (Flat Style) */}
+      <SharedFolderBrowser
+        onOpenFile={handlePreview}
+        onDownloadFile={handleDownload}
+      />
+
+      {/* 4. MAIN CONTENT AREA */}
       {isLoading ? (
-        // Loading State: Skeletons
+        // Loading Skeletons
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-pulse">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+              <div key={i} className="bg-white rounded-2xl border border-slate-200/70 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="w-9 h-9 rounded-lg bg-slate-100" />
+                  <div className="w-10 h-10 rounded-xl bg-slate-100" />
                   <div className="w-16 h-5 rounded-full bg-slate-100" />
                 </div>
                 <div className="h-4 bg-slate-100 rounded w-3/4" />
@@ -363,10 +461,10 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden animate-pulse">
-            <div className="h-10 bg-slate-50 border-b border-slate-200" />
+          <div className="bg-white rounded-2xl border border-slate-200/70 overflow-hidden animate-pulse">
+            <div className="h-10 bg-slate-50 border-b border-slate-100" />
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-12 border-b border-slate-100 px-4 flex items-center justify-between">
+              <div key={i} className="h-12 border-b border-slate-50 px-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 rounded bg-slate-100" />
                   <div className="h-4 bg-slate-100 rounded w-48" />
@@ -378,7 +476,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
         )
       ) : errorMessage ? (
         // Error State
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-8 text-center space-y-3">
+        <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-8 text-center space-y-3">
           <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
             <AlertCircle className="w-6 h-6" />
           </div>
@@ -386,38 +484,38 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           <p className="text-xs text-rose-600 max-w-md mx-auto">{errorMessage}</p>
           <button
             onClick={() => fetchSharedFiles()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Thử lại ngay</span>
           </button>
         </div>
       ) : items.length === 0 ? (
-        // Empty State
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-4 shadow-xs">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
-            <Share2 className="w-8 h-8 stroke-[1.8]" />
+        // Flat Empty State (Google Drive Style: Không viền hộp xám bao quanh)
+        <div className="py-16 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mx-auto shadow-2xs">
+            <Share2 className="w-8 h-8 stroke-[1.75]" />
           </div>
           <div className="max-w-md mx-auto space-y-1.5">
             <h3 className="text-base font-bold text-slate-800">
-              {debouncedSearch || selectedFileType !== 'all' || sharedByFilter
-                ? 'Không tìm thấy tệp tin phù hợp với bộ lọc'
+              {hasActiveFilters
+                ? 'Không tìm thấy tệp tin phù hợp'
                 : 'Chưa có tài liệu nào được chia sẻ với bạn'}
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              {debouncedSearch || selectedFileType !== 'all' || sharedByFilter
-                ? 'Thử thay đổi từ khóa tìm kiếm hoặc làm mới bộ lọc định dạng tệp tin.'
-                : 'Khi đồng nghiệp hoặc trưởng phòng ban chia sẻ tài liệu với tài khoản của bạn, danh sách tệp tin và quyền thao tác sẽ hiển thị tại đây.'}
+              {hasActiveFilters
+                ? 'Thử thay đổi từ khóa tìm kiếm hoặc làm mới bộ lọc định dạng.'
+                : 'Khi đồng nghiệp hoặc người quản lý chia sẻ tài liệu với bạn, danh sách tệp tin và quyền truy cập sẽ xuất hiện tại đây.'}
             </p>
           </div>
-          {(debouncedSearch || selectedFileType !== 'all' || sharedByFilter) && (
+          {hasActiveFilters && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setSelectedFileType('all');
                 setSharedByFilter('');
               }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-semibold rounded-full transition-colors cursor-pointer"
             >
               Xóa bộ lọc tìm kiếm
             </button>
@@ -429,7 +527,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           {items.map((file) => (
             <div
               key={file.id}
-              className="group bg-white rounded-xl border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden"
+              className="group bg-white rounded-2xl border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden shadow-2xs"
             >
               {/* Card Top */}
               <div className="p-4 space-y-3">
@@ -440,7 +538,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                   <div className="flex flex-col items-end gap-1">
                     {getPermissionBadge(file.permissionLevel, file.canWrite, file.canDelete)}
                     {file.expiresAtFormatted && (
-                      <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
+                      <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 font-medium">
                         Hết hạn: {file.expiresAtFormatted.split(' ')[0]}
                       </span>
                     )}
@@ -450,11 +548,16 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                 <div>
                   <h4
                     className="text-xs font-bold text-slate-800 line-clamp-2 hover:text-blue-600 cursor-pointer"
-                    title={file.name}
-                    onClick={() => onOpenFilePreview(toDriveItem(file))}
+                    title={file.metadata?.title || file.name}
+                    onClick={() => handlePreview(file)}
                   >
-                    {file.name}
+                    {file.metadata?.title || file.name}
                   </h4>
+                  {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                    <p className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={file.name}>
+                      {file.name}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
                     <span>{file.sizeFormatted}</span>
                     <span>•</span>
@@ -463,8 +566,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                 </div>
 
                 {/* Owner info */}
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50/70 border border-slate-100">
-                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50/70 border border-slate-100">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-2xs">
                     {file.owner.name.substring(0, 1).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -474,8 +577,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                 </div>
               </div>
 
-              {/* Card Bottom: Metadata and Actions */}
-              <div className="px-4 py-2.5 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between gap-2">
+              {/* Card Bottom: Metadata & Actions */}
+              <div className="px-4 py-2.5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                   <Calendar className="w-3 h-3" />
                   <span>{file.sharedAtFormatted.split(' ')[0]}</span>
@@ -483,16 +586,16 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => onOpenFilePreview(toDriveItem(file))}
+                    onClick={() => handlePreview(file)}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                    title="Mở / Tải xuống tệp"
+                    title="Xem trước / Mở"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => onDownloadItem(toDriveItem(file))}
+                    onClick={() => handleDownload(file)}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
-                    title="Tải tệp tin xuống"
+                    title="Tải xuống"
                   >
                     <Download className="w-3.5 h-3.5" />
                   </button>
@@ -503,7 +606,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
         </div>
       ) : (
         // List / Table View
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-2xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
@@ -519,7 +622,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((file) => (
-                  <tr key={file.id} className="hover:bg-slate-50/70 transition-colors">
+                  <tr key={file.id} className="hover:bg-blue-50/30 transition-colors">
                     {/* File Name & Icon */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
@@ -529,12 +632,19 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                         <div className="min-w-0">
                           <p
                             className="font-bold text-slate-800 hover:text-blue-600 cursor-pointer truncate max-w-xs sm:max-w-sm"
-                            title={file.name}
-                            onClick={() => onOpenFilePreview(toDriveItem(file))}
+                            title={file.metadata?.title || file.name}
+                            onClick={() => handlePreview(file)}
                           >
-                            {file.name}
+                            {file.metadata?.title || file.name}
                           </p>
-                          <span className="text-[10px] text-slate-400 uppercase font-mono">{file.extension}</span>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                              <span className="font-mono truncate" title={file.name}>
+                                {file.name}
+                              </span>
+                            )}
+                            <span className="uppercase font-mono">{file.extension}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -542,7 +652,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                     {/* Shared by */}
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-2xs">
                           {file.owner.name.substring(0, 1).toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -579,14 +689,14 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                     <td className="py-3 px-4 text-right">
                       <div className="inline-flex items-center gap-1">
                         <button
-                          onClick={() => onOpenFilePreview(toDriveItem(file))}
+                          onClick={() => handlePreview(file)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="Mở / Tải xuống tệp"
+                          title="Xem trước"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => onDownloadItem(toDriveItem(file))}
+                          onClick={() => handleDownload(file)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
                           title="Tải xuống"
                         >
@@ -602,9 +712,9 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
         </div>
       )}
 
-      {/* Pagination Controls */}
+      {/* 5. PAGINATION CONTROLS */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 pt-4 px-1">
+        <div className="flex items-center justify-between border-t border-slate-100 pt-4 px-1">
           <div className="text-xs text-slate-500">
             Trang <span className="font-semibold text-slate-700">{pageNumber}</span> / <span className="font-semibold text-slate-700">{totalPages}</span> (Tổng {totalCount} tệp tin)
           </div>
@@ -613,20 +723,20 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
             <button
               onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
               disabled={pageNumber <= 1 || isLoading}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-slate-200/80 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               <span>Trước</span>
             </button>
 
-            <span className="px-3 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg border border-blue-100">
+            <span className="px-3 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-full border border-blue-100">
               {pageNumber}
             </span>
 
             <button
               onClick={() => setPageNumber((p) => p + 1)}
               disabled={pageNumber >= totalPages || !hasMore || isLoading}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-slate-200/80 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-2xs"
             >
               <span>Sau</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -634,8 +744,10 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           </div>
         </div>
       )}
-    
-      {/* Modal xem chi tiết siêu dữ liệu tài liệu được chia sẻ */}
+      </>
+      )}
+
+      {/* Modal xem chi tiết siêu dữ liệu tài liệu */}
       <DocumentDetailsModal
         isOpen={Boolean(selectedMetadataFileId)}
         fileId={selectedMetadataFileId}

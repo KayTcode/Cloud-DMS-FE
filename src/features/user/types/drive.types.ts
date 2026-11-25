@@ -112,3 +112,45 @@ export interface SharedFileListResponse {
   pageSize: number;
   hasMore?: boolean;
 }
+
+export interface SharedByMeRecipient {
+  recipientId: string;
+  name: string;
+  email: string;
+  role: 'Viewer' | 'Editor' | string;
+  expiresAt?: string | null;
+  sharedAt: string;
+}
+
+export interface SharedByMeFileItem {
+  archiveKind?: 'file' | 'folder' | 'batch' | null;
+  originalSizeBytes?: number | null;
+  id: string;
+  name: string;
+  type: 'file';
+  fileType: FileType;
+  extension: string;
+  size: number;
+  sizeFormatted: string;
+  updatedAt: string;
+  createdAt: string;
+  scanStatus?: string;
+  storageProvider?: string;
+  storageProviderType?: string;
+  department?: string;
+  title?: string | null;
+  author?: string | null;
+  totalRecipients: number;
+  latestSharedAt: string;
+  latestSharedAtFormatted: string;
+  recipients: SharedByMeRecipient[];
+  metadata?: DocumentMetadataDto | null;
+}
+
+export interface SharedByMeFileListResponse {
+  items: SharedByMeFileItem[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  hasMore?: boolean;
+}

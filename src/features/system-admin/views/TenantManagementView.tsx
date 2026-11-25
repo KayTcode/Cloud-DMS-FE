@@ -1,37 +1,36 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
   Search,
-  Filter, 
-  ChevronDown, 
-  Check, 
   ShieldAlert, 
-  Trash2,
   Building2, 
   Clock, 
   MailCheck, 
   UserX, 
   Loader2,
-  FolderSync,
   RefreshCw,
-  MoreVertical,
-  UserCheck
+  AlertCircle
 } from 'lucide-react';
-import { AdminUserDto } from '../types';
+import { AdminUserDto, SystemTenant } from '../types';
 import { quotaApi } from '@/features/quota';
 import {
   resendVacantTenantAdminInvitationApi,
   cancelVacantTenantAdminInvitationApi
 } from '../api/systemAdminCommands';
+import { getSystemTenantsApi } from '../api/systemAdminQueries';
+import { OffboardTenantAdminModal } from '../components/OffboardTenantAdminModal';
 import { useToast } from '@/hooks/useToast';
 import {
   PendingInvitationsTable,
   resendToastMessage,
   cancelToastMessage,
+  invitationsApi,
+  type PendingInvitationDto,
 } from '@/features/invitations';
 
 interface TenantManagementViewProps {
-  users: AdminUserDto[];
+  tenants?: SystemTenant[];
+  users?: AdminUserDto[];
   totalCount: number;
   currentPage: number;
   totalPages: number;
@@ -39,16 +38,19 @@ interface TenantManagementViewProps {
   onSearchChange?: (q: string) => void;
   onPageChange: (page: number) => void;
   onOpenCreateModal: () => void;
-  onSelectUser: (user: AdminUserDto) => void;
-  onOpenEditModal: (user: AdminUserDto) => void;
-  onToggleStatus: (userId: string, currentStatus: boolean) => void;
-  onDeleteUser: (userId: string, userEmail: string) => void;
+  onSelectTenant?: (tenant: SystemTenant) => void;
+  onSelectUser?: (user: AdminUserDto) => void;
+  onOpenEditModal?: (user: AdminUserDto) => void;
+  onToggleStatus?: (userId: string, currentStatus: boolean) => void;
+  onDeleteUser?: (userId: string, userEmail: string) => void;
   onOpenAllocateQuotaModal?: (user: AdminUserDto) => void;
   onRefreshUsers?: () => void;
+  onRefreshTenants?: () => void;
 }
 
 export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
-  users,
+  tenants,
+  users = [],
   totalCount,
   currentPage,
   totalPages,
@@ -56,53 +58,132 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
   onSearchChange,
   onPageChange,
   onOpenCreateModal,
+  onSelectTenant,
   onSelectUser,
   onOpenEditModal,
   onToggleStatus,
   onDeleteUser,
   onOpenAllocateQuotaModal,
   onRefreshUsers,
+  onRefreshTenants,
 }) => {
   const { toast } = useToast();
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended'>('All');
-  const [retryingUserId, setRetryingUserId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Interim' | 'Pending' | 'Active' | 'Suspended'>('All');
+  const [offboardTargetTenant, setOffboardTargetTenant] = useState<SystemTenant | null>(null);
   const [resendingTenantId, setResendingTenantId] = useState<string | null>(null);
   const [cancellingTenantId, setCancellingTenantId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [localSearch, setLocalSearch] = useState('');
-  // The legacy vacant-TenantAdmin buttons below mutate the same invitations the pending list
-  // shows (SPEC EARS-22 keeps those endpoints alive), so every legacy success bumps this token
-  // and the pending list refetches instead of keeping a row that is already gone.
   const [invitationsReloadToken, setInvitationsReloadToken] = useState(0);
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitationDto[]>([]);
 
+  // Tập hợp danh sách email và userId đang có lời mời chờ kích hoạt
+  const pendingEmailsSet = useMemo(() => {
+    const set = new Set<string>();
+    pendingInvitations.forEach((inv) => {
+      if (inv.email) set.add(inv.email.trim().toLowerCase());
+    });
+    return set;
+  }, [pendingInvitations]);
+
+  const pendingUserIdsSet = useMemo(() => {
+    const set = new Set<string>();
+    pendingInvitations.forEach((inv) => {
+      if (inv.userId) set.add(inv.userId);
+    });
+    return set;
+  }, [pendingInvitations]);
+
+  const pendingInvitationMap = useMemo(() => {
+    const map = new Map<string, PendingInvitationDto>();
+    pendingInvitations.forEach((inv) => {
+      if (inv.email) map.set(inv.email.trim().toLowerCase(), inv);
+      if (inv.userId) map.set(inv.userId, inv);
+    });
+    return map;
+  }, [pendingInvitations]);
+
+  // Kiểm tra một row có đang ở trạng thái chờ kích hoạt lời mời hay không
+  const checkIsPending = (item: any) => {
+    if (item.isInterimManaged) return false;
+    const emailKey = item.email ? item.email.trim().toLowerCase() : '';
+    const idKey = item.id || '';
+    const isPendingByInvite = (emailKey && pendingEmailsSet.has(emailKey)) || (idKey && pendingUserIdsSet.has(idKey));
+    const isLegacyPendingAdmin = !item.isActive && Array.isArray(item.roles) && item.roles.includes('TenantAdmin') && !!item.tenantId;
+    return Boolean(isPendingByInvite || isLegacyPendingAdmin);
+  };
+
+  // Fallback tự fetch danh sách tenants nếu component cha chưa kịp truyền
+  const [localTenants, setLocalTenants] = useState<SystemTenant[]>(tenants || []);
+
+  useEffect(() => {
+    if (tenants && tenants.length > 0) {
+      setLocalTenants(tenants);
+    } else {
+      getSystemTenantsApi()
+        .then((res) => {
+          if (Array.isArray(res) && res.length > 0) {
+            setLocalTenants(res);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [tenants]);
+
+  const effectiveTenants = (tenants && tenants.length > 0) ? tenants : localTenants;
   const effectiveSearch = searchQuery || localSearch;
 
-  const handleRetryProvisioning = async (userId: string) => {
-    try {
-      setRetryingUserId(userId);
-      await quotaApi.retryFolderProvisioning(userId);
-      setActionNotice({ type: 'success', message: 'Đã gửi yêu cầu khởi tạo lại thư mục lưu trữ thành công!' });
-    } catch (err: any) {
-      setActionNotice({
-        type: 'error',
-        message: err?.response?.data?.detail || err?.response?.data?.message || 'Khởi tạo lại thư mục thất bại.',
+  const handleOpenOffboard = (item: any) => {
+    const rawT = item.rawTenant || effectiveTenants.find((t) => t.id === item.tenantId || t.id === item.id);
+    if (rawT) {
+      setOffboardTargetTenant(rawT);
+    } else {
+      setOffboardTargetTenant({
+        id: item.tenantId || item.id,
+        name: item.tenantName || item.fullName,
+        plan: 'Enterprise',
+        usersAssigned: 1,
+        storageUsed: '0 B',
+        storageAllocated: '0 B',
+        storageDisplay: '0 B / 0 B',
+        createdDate: item.createdAt,
+        status: item.isActive ? 'Active' : 'Suspended',
+        adminEmail: item.email,
+        adminFullName: item.fullName,
+        adminPhoneNumber: item.phoneNumber,
+        isInterimManaged: item.isInterimManaged,
       });
-    } finally {
-      setRetryingUserId(null);
-      setTimeout(() => setActionNotice(null), 3500);
     }
   };
 
-  const handleResendAdminInvitation = async (tenantId: string, email: string) => {
+  const handleResendAdminInvitation = async (tenantId?: string, email?: string, userId?: string) => {
+    const actionKey = tenantId || userId || email || '';
     try {
-      setResendingTenantId(tenantId);
-      const res = await resendVacantTenantAdminInvitationApi(tenantId);
+      setResendingTenantId(actionKey);
+      let targetEmail = email;
+      if (tenantId) {
+        try {
+          const res = await resendVacantTenantAdminInvitationApi(tenantId);
+          if (res?.targetUserEmail) targetEmail = res.targetUserEmail;
+        } catch (err: any) {
+          if (userId) {
+            await invitationsApi.resend(userId);
+          } else {
+            throw err;
+          }
+        }
+      } else if (userId) {
+        await invitationsApi.resend(userId);
+      }
+
       setActionNotice({
         type: 'success',
-        message: `Đã gửi lại thư mời Quản trị viên mới tới ${res.targetUserEmail || email}. Thời hạn kích hoạt được gia hạn 48 giờ!`,
+        message: `Đã gửi lại thư mời Quản trị viên mới tới ${targetEmail || email || 'người dùng'}. Thời hạn kích hoạt được gia hạn 48 giờ!`,
       });
       setInvitationsReloadToken((t) => t + 1);
+      if (onRefreshTenants) onRefreshTenants();
+      if (onRefreshUsers) onRefreshUsers();
     } catch (err: any) {
       setActionNotice({
         type: 'error',
@@ -114,7 +195,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     }
   };
 
-  const handleCancelAdminInvitation = async (tenantId: string, email: string) => {
+  const handleCancelAdminInvitation = async (tenantId?: string, email?: string, userId?: string) => {
     const confirmed = window.confirm(
       `Bạn có chắc chắn muốn hủy lời mời Quản trị viên cho tài khoản "${email}"?\n\n` +
       '• Nếu là tài khoản người ngoài được tạo mới do gửi nhầm, hệ thống sẽ XÓA HẲN tài khoản khỏi CSDL để giữ sạch hệ thống.\n' +
@@ -122,17 +203,34 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     );
     if (!confirmed) return;
 
+    const actionKey = tenantId || userId || email || '';
     try {
-      setCancellingTenantId(tenantId);
-      const res = await cancelVacantTenantAdminInvitationApi(tenantId);
+      setCancellingTenantId(actionKey);
+      let smartClean = false;
+      if (tenantId) {
+        try {
+          const res = await cancelVacantTenantAdminInvitationApi(tenantId);
+          smartClean = Boolean(res?.smartCleanupApplied);
+        } catch (err: any) {
+          if (userId) {
+            const res = await invitationsApi.cancel(userId);
+            smartClean = res?.cleanupAction === 'HARD_DELETED';
+          } else {
+            throw err;
+          }
+        }
+      } else if (userId) {
+        const res = await invitationsApi.cancel(userId);
+        smartClean = res?.cleanupAction === 'HARD_DELETED';
+      }
+
       setActionNotice({
         type: 'success',
-        message: `Đã hủy lời mời thành công cho ${email}. ${res.smartCleanupApplied ? '(Đã xóa tài khoản khỏi CSDL)' : ''}`,
+        message: `Đã hủy lời mời thành công cho ${email}. ${smartClean ? '(Đã xóa tài khoản khỏi CSDL)' : ''}`,
       });
       setInvitationsReloadToken((t) => t + 1);
-      if (onRefreshUsers) {
-        onRefreshUsers();
-      }
+      if (onRefreshTenants) onRefreshTenants();
+      if (onRefreshUsers) onRefreshUsers();
     } catch (err: any) {
       setActionNotice({
         type: 'error',
@@ -144,24 +242,110 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
     }
   };
 
-  // Filtered calculation
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
+  // Nguồn dữ liệu bảng: Lấy trực tiếp từ Tenants (chuẩn Single Source of Truth)
+  const allRows = useMemo(() => {
+    if (effectiveTenants && effectiveTenants.length > 0) {
+      return effectiveTenants.map((t) => {
+        const hasPending = !!t.hasPendingInvitation;
+        const depCount = t.departmentsCount || 0;
+        return {
+          id: t.id,
+          tenantId: t.id,
+          tenantName: t.name,
+          tenantCode: t.tenantCode,
+          fullName: t.isInterimManaged
+            ? 'Khuyết Quản trị viên'
+            : (t.adminFullName || 'Chưa thiết lập Quản trị viên'),
+          email: t.isInterimManaged
+            ? 'System Admin tạm quyền'
+            : (t.adminEmail || 'Chưa có email'),
+          phoneNumber: t.adminPhoneNumber || t.phoneNumber || '',
+          departmentName: depCount > 0 ? `${depCount} phòng ban` : undefined,
+          roles: t.isInterimManaged ? ['Tiếp quản lâm thời'] : ['TenantAdmin'],
+          createdAt: t.createdDate || 'Mới tạo',
+          isActive: t.status === 'Active',
+          isInterimManaged: !!t.isInterimManaged,
+          vacantAdminUserId: t.vacantAdminUserId,
+          departmentsCount: depCount,
+          hasPendingInvitation: hasPending,
+          rawTenant: t,
+        };
+      });
+    }
+
+    // Fallback cho unit tests cũ truyền users prop (loại bỏ hoàn toàn 'Toàn cơ quan')
+    return users.map((u) => {
+      const depName = (u.departmentName && u.departmentName !== 'Toàn cơ quan') ? u.departmentName : undefined;
+      return {
+        id: u.id,
+        tenantId: u.tenantId || u.id,
+        tenantName: u.tenantName || u.fullName,
+        tenantCode: u.tenantCode,
+        fullName: u.fullName,
+        email: u.email,
+        phoneNumber: u.phoneNumber || '',
+        departmentName: depName,
+        roles: u.roles,
+        createdAt: u.createdAt,
+        isActive: u.isActive,
+        isInterimManaged: false,
+        departmentsCount: depName ? 1 : 0,
+        hasPendingInvitation: false,
+        rawUser: u,
+      };
+    });
+  }, [effectiveTenants, users]);
+
+  // Đếm số lượng tiếp quản lâm thời để hiện badge trên tab
+  const interimCount = useMemo(() => {
+    return allRows.filter((r) => r.isInterimManaged).length;
+  }, [allRows]);
+
+  // Đếm số lượng tài khoản/tổ chức đang chờ kích hoạt lời mời
+  const pendingCount = useMemo(() => {
+    return allRows.filter((r) => checkIsPending(r)).length;
+  }, [allRows, pendingEmailsSet, pendingUserIdsSet]);
+
+  // Lọc theo từ khóa tìm kiếm và trạng thái
+  const combinedRows = useMemo(() => {
+    return allRows.filter((item) => {
       const matchesSearch =
         !effectiveSearch ||
-        u.fullName.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
-        (u.tenantName && u.tenantName.toLowerCase().includes(effectiveSearch.toLowerCase())) ||
-        (u.tenantCode && u.tenantCode.toLowerCase().includes(effectiveSearch.toLowerCase()));
+        item.fullName?.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+        item.email?.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+        item.tenantName?.toLowerCase().includes(effectiveSearch.toLowerCase()) ||
+        item.tenantCode?.toLowerCase().includes(effectiveSearch.toLowerCase());
+
+      const isPending = checkIsPending(item);
 
       const matchesStatus =
         statusFilter === 'All' ||
-        (statusFilter === 'Active' && u.isActive) ||
-        (statusFilter === 'Suspended' && !u.isActive);
+        (statusFilter === 'Interim' && item.isInterimManaged) ||
+        (statusFilter === 'Pending' && isPending) ||
+        (statusFilter === 'Active' && item.isActive && !item.isInterimManaged && !isPending) ||
+        (statusFilter === 'Suspended' && !item.isActive && !isPending);
 
       return matchesSearch && matchesStatus;
     });
-  }, [users, effectiveSearch, statusFilter]);
+  }, [allRows, effectiveSearch, statusFilter, pendingEmailsSet, pendingUserIdsSet]);
+
+  // Handler mở chi tiết khi click vào một Doanh nghiệp
+  const handleSelectRow = (item: any) => {
+    if (item.rawTenant && onSelectTenant) {
+      onSelectTenant(item.rawTenant);
+    } else if (item.tenantId && onSelectTenant) {
+      const found = effectiveTenants.find((t) => t.id === item.tenantId);
+      if (found) {
+        onSelectTenant(found);
+        return;
+      }
+      if (onSelectUser) {
+        onSelectUser(item.rawUser || (item as any));
+      }
+    } else if (onSelectUser) {
+      onSelectUser(item.rawUser || (item as any));
+    }
+  };
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
@@ -179,7 +363,15 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {onRefreshUsers && (
             <button
-              onClick={onRefreshUsers}
+              onClick={() => {
+                onRefreshUsers();
+                getSystemTenantsApi()
+                  .then((res: any) => {
+                    const list = Array.isArray(res) ? res : res?.items;
+                    if (list) setLocalTenants(list);
+                  })
+                  .catch(() => {});
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-full shadow-2xs transition-colors cursor-pointer"
               title="Làm mới danh sách"
             >
@@ -235,11 +427,13 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         </div>
 
         {/* Filter Chips dạng viên thuốc chuẩn Material 3 */}
-        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-auto">
           <span className="text-[11px] font-medium text-slate-400 mr-1 hidden sm:inline">Trạng thái:</span>
-          {(['All', 'Active', 'Suspended'] as const).map((status) => {
+          {(['All', 'Interim', 'Pending', 'Active', 'Suspended'] as const).map((status) => {
             const labels = {
               All: 'Tất cả',
+              Interim: `Tiếp quản lâm thời${interimCount > 0 ? ` (${interimCount})` : ''}`,
+              Pending: `Chờ kích hoạt${pendingCount > 0 ? ` (${pendingCount})` : ''}`,
               Active: 'Đang hoạt động',
               Suspended: 'Tạm ngưng',
             };
@@ -251,13 +445,27 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                   setStatusFilter(status);
                   onPageChange(1);
                 }}
-                className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors cursor-pointer border ${
+                className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors cursor-pointer border flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700 border-blue-200 font-semibold'
-                    : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
+                    ? status === 'Interim'
+                      ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-xs'
+                      : status === 'Pending'
+                        ? 'bg-amber-600 text-white border-amber-600 font-bold shadow-xs'
+                        : 'bg-blue-600 text-white border-blue-600 font-semibold'
+                    : status === 'Interim' && interimCount > 0
+                      ? 'bg-purple-50 text-purple-700 border-purple-200/90 hover:bg-purple-100/70 font-semibold'
+                      : status === 'Pending' && pendingCount > 0
+                        ? 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/70 font-semibold'
+                        : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
                 }`}
               >
-                {labels[status]}
+                {status === 'Interim' && (
+                  <ShieldAlert className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-purple-600'}`} />
+                )}
+                {status === 'Pending' && (
+                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-amber-600'}`} />
+                )}
+                <span>{labels[status]}</span>
               </button>
             );
           })}
@@ -281,21 +489,30 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {filteredUsers.length === 0 ? (
+              {combinedRows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-16 text-center text-slate-400">
-                    <p className="text-sm font-medium text-slate-600">Không tìm thấy tài khoản nào</p>
+                    <p className="text-sm font-medium text-slate-600">Không tìm thấy tổ chức nào</p>
                     <p className="text-xs mt-1 text-slate-400">Hãy thử đổi từ khóa tìm kiếm hoặc bỏ chọn bộ lọc trạng thái.</p>
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u, index) => {
-                  const isPendingTenantAdmin = !u.isActive && u.roles.includes('TenantAdmin') && !!u.tenantId;
+                combinedRows.map((item, index) => {
+                  const isInterim = item.isInterimManaged;
+                  const isPendingTenantAdmin = checkIsPending(item);
+                  const matchedInvite = (item.email ? pendingInvitationMap.get(item.email.trim().toLowerCase()) : null) ||
+                                        (item.id ? pendingInvitationMap.get(item.id) : null);
+                  const effectiveUserId = matchedInvite?.userId || item.id;
+                  const actionKey = item.tenantId || effectiveUserId || item.email || '';
 
                   return (
                     <tr
-                      key={u.id}
-                      className="hover:bg-slate-50/80 transition-colors group"
+                      key={item.id}
+                      className={`transition-colors group ${
+                        isInterim
+                          ? 'bg-purple-50/25 hover:bg-purple-50/50'
+                          : 'hover:bg-slate-50/80'
+                      }`}
                     >
                       {/* STT */}
                       <td className="py-3.5 px-3 text-center font-mono text-slate-400 text-xs">
@@ -305,21 +522,39 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                       {/* Tổ chức & Quản trị viên */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                            isInterim
+                              ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                              : 'bg-blue-50 text-blue-600'
+                          }`}>
                             <Building2 className="w-4 h-4" />
                           </div>
                           <div>
                             <button
-                              onClick={() => onSelectUser(u)}
-                              className="font-semibold text-slate-900 hover:text-blue-600 transition-colors text-left cursor-pointer inline-flex items-center gap-1.5"
-                              title="Xem chi tiết doanh nghiệp"
+                              type="button"
+                              onClick={() => handleSelectRow(item)}
+                              className={`font-bold transition-colors text-left cursor-pointer inline-flex items-center gap-1.5 ${
+                                isInterim
+                                  ? 'text-purple-950 hover:text-purple-700'
+                                  : 'text-slate-900 hover:text-blue-600'
+                              }`}
+                              title="Bấm để xem chi tiết doanh nghiệp"
                             >
-                              <span>{u.tenantName || u.fullName}</span>
+                              <span>{item.tenantName}</span>
+                              {isInterim && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                                  Tiếp quản
+                                </span>
+                              )}
                             </button>
                             <div className="text-[11px] text-slate-500 font-normal flex items-center gap-1.5">
-                              <span>Admin: {u.fullName}</span>
-                              {u.tenantCode && (
-                                <span className="text-[10px] font-mono text-slate-400">({u.tenantCode})</span>
+                              {isInterim ? (
+                                <span className="text-purple-800 font-medium">Khuyết Quản trị viên</span>
+                              ) : (
+                                <span>Admin: {item.fullName}</span>
+                              )}
+                              {item.tenantCode && (
+                                <span className="text-[10px] font-mono text-slate-400">({item.tenantCode})</span>
                               )}
                             </div>
                           </div>
@@ -328,20 +563,51 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
 
                       {/* Email & Số điện thoại */}
                       <td className="py-3.5 px-4">
-                        <div className="text-slate-800 font-medium">{u.email}</div>
-                        <div className="text-[11px] text-slate-400">{u.phoneNumber || 'Chưa cập nhật SĐT'}</div>
+                        {isInterim ? (
+                          <div>
+                            <div className="text-purple-900 font-semibold flex items-center gap-1 text-xs">
+                              <AlertCircle className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span>System Admin tạm quyền</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 italic">Chưa bàn giao Quản trị viên mới</div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="text-slate-800 font-medium">{item.email}</div>
+                            <div className="text-[11px] text-slate-400">{item.phoneNumber || 'Chưa cập nhật SĐT'}</div>
+                          </div>
+                        )}
                       </td>
 
-                      {/* Phòng ban */}
+                      {/* Phòng ban: Nếu chưa có phòng ban nào (departmentsCount = 0), hiện rõ ràng 'Chưa có phòng ban' */}
                       <td className="py-3.5 px-4 text-slate-600">
-                        {u.departmentName || <span className="text-slate-400 italic">Toàn cơ quan</span>}
+                        {item.departmentsCount > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-800">
+                              {item.departmentName || `${item.departmentsCount} phòng ban`}
+                            </span>
+                            {isInterim && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                Khuyết Lead
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px] inline-flex items-center gap-1">
+                            Chưa có phòng ban
+                          </span>
+                        )}
                       </td>
 
                       {/* Vai trò */}
                       <td className="py-3.5 px-4">
                         <div className="flex flex-wrap gap-1">
-                          {u.roles.length > 0 ? (
-                            u.roles.map((r) => (
+                          {isInterim ? (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200">
+                              Tiếp quản lâm thời
+                            </span>
+                          ) : item.roles && item.roles.length > 0 ? (
+                            item.roles.map((r: string) => (
                               <span
                                 key={r}
                                 className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold"
@@ -357,12 +623,20 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
 
                       {/* Ngày tạo */}
                       <td className="py-3.5 px-4 text-slate-500 font-normal">
-                        {u.createdAt}
+                        {item.createdAt}
                       </td>
 
-                      {/* Trạng thái */}
+                      {/* Trạng thái: Tiếp quản lâm thời (Purple) vs Chờ kích hoạt (Amber) */}
                       <td className="py-3.5 px-4">
-                        {isPendingTenantAdmin ? (
+                        {isInterim ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200/90 shadow-2xs"
+                            title="Tổ chức đang khuyết Admin, System Admin trực tiếp tạm quyền điều hành"
+                          >
+                            <ShieldAlert className="w-3 h-3 text-purple-600 shrink-0" />
+                            <span>Tiếp quản lâm thời</span>
+                          </span>
+                        ) : isPendingTenantAdmin ? (
                           <span
                             className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200"
                             title="Đã gửi thư mời qua Gmail, chờ người dùng kích hoạt (48h)"
@@ -373,12 +647,12 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                         ) : (
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                              u.isActive
+                              item.isActive
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                                 : 'bg-rose-50 text-rose-600 border border-rose-200/60'
                             }`}
                           >
-                            {u.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+                            {item.isActive ? 'Đang hoạt động' : 'Tạm dừng'}
                           </span>
                         )}
                       </td>
@@ -386,15 +660,26 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                       {/* Thao tác */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {isPendingTenantAdmin ? (
+                          {isInterim ? (
+                            /* Thao tác cho Tenant Tiếp quản lâm thời: Quản lý phòng ban & Bổ nhiệm Lead */
+                            <button
+                              type="button"
+                              onClick={() => handleSelectRow(item)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                              title="Xem chi tiết doanh nghiệp để bổ nhiệm Trưởng phòng khuyết hoặc mời Admin mới"
+                            >
+                              <Building2 className="w-3.5 h-3.5" />
+                              <span>Quản lý phòng ban</span>
+                            </button>
+                          ) : isPendingTenantAdmin ? (
                             <>
                               <button
-                                onClick={() => handleResendAdminInvitation(u.tenantId!, u.email)}
-                                disabled={resendingTenantId === u.tenantId || cancellingTenantId === u.tenantId}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-50"
+                                onClick={() => handleResendAdminInvitation(item.tenantId, item.email, effectiveUserId)}
+                                disabled={resendingTenantId === actionKey || cancellingTenantId === actionKey}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
                                 title="Gửi lại thư mời kích hoạt qua Email"
                               >
-                                {resendingTenantId === u.tenantId ? (
+                                {resendingTenantId === actionKey ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
                                 ) : (
                                   <MailCheck className="w-3.5 h-3.5 text-blue-600" />
@@ -403,12 +688,12 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                               </button>
 
                               <button
-                                onClick={() => handleCancelAdminInvitation(u.tenantId!, u.email)}
-                                disabled={resendingTenantId === u.tenantId || cancellingTenantId === u.tenantId}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
+                                onClick={() => handleCancelAdminInvitation(item.tenantId, item.email, effectiveUserId)}
+                                disabled={resendingTenantId === actionKey || cancellingTenantId === actionKey}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
                                 title="Hủy lời mời"
                               >
-                                {cancellingTenantId === u.tenantId ? (
+                                {cancellingTenantId === actionKey ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
                                 ) : (
                                   <UserX className="w-3.5 h-3.5 text-rose-600" />
@@ -417,39 +702,28 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                               </button>
                             </>
                           ) : (
-                            <>
-                              {/* Thử lại khởi tạo thư mục Cloud */}
+                            <div className="flex items-center gap-1.5">
+                              {/* Xem chi tiết & Quản lý Quota */}
                               <button
-                                onClick={() => handleRetryProvisioning(u.id)}
-                                disabled={retryingUserId === u.id}
-                                className="p-1.5 rounded-full text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-50"
-                                title="Thử lại khởi tạo thư mục Cloud"
+                                type="button"
+                                onClick={() => handleSelectRow(item)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                                title="Xem chi tiết doanh nghiệp & điều chỉnh Quota"
                               >
-                                <FolderSync className={`w-4 h-4 ${retryingUserId === u.id ? 'animate-spin text-emerald-600' : ''}`} />
+                                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Chi tiết & Quota</span>
                               </button>
 
-                              {/* Tạm ngưng / Kích hoạt */}
+                              {/* Miễn nhiệm / Chuyển giao Quản trị viên */}
                               <button
-                                onClick={() => onToggleStatus(u.id, u.isActive)}
-                                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                                  u.isActive
-                                    ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                                    : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                                }`}
-                                title={u.isActive ? 'Tạm dừng tài khoản' : 'Kích hoạt lại tài khoản'}
+                                type="button"
+                                onClick={() => handleOpenOffboard(item)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors cursor-pointer shrink-0"
+                                title="Miễn nhiệm / Chuyển giao Quản trị viên (Tiếp quản hoặc Mời Admin mới)"
                               >
-                                <ShieldAlert className="w-4 h-4" />
+                                <UserX className="w-4 h-4" />
                               </button>
-
-                              {/* Xóa tài khoản */}
-                              <button
-                                onClick={() => onDeleteUser(u.id, u.email)}
-                                className="p-1.5 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                title="Xóa tài khoản này"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -464,7 +738,7 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         {/* 5. PHÂN TRANG (GOOGLE DRIVE CLEAN FOOTER) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3 border-t border-slate-200/80 text-xs text-slate-500 bg-white">
           <span>
-            Tổng cộng: <strong className="text-slate-900">{totalCount}</strong> tài khoản trên hệ thống
+            Tổng cộng: <strong className="text-slate-900">{combinedRows.length}</strong> tổ chức & tài khoản trên hệ thống
           </span>
 
           <div className="flex items-center gap-1.5 self-end sm:self-auto">
@@ -508,14 +782,32 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         </h3>
         <PendingInvitationsTable
           reloadToken={invitationsReloadToken}
-          onResent={(r) => toast.success(resendToastMessage(r))}
+          onItemsLoaded={setPendingInvitations}
+          onResent={(r) => {
+            toast.success(resendToastMessage(r));
+            setInvitationsReloadToken((t) => t + 1);
+            onRefreshUsers?.();
+          }}
           onCancelled={(r) => {
             toast.success(cancelToastMessage(r));
-            // The cancelled invitation may also be a row in the legacy table above.
+            setInvitationsReloadToken((t) => t + 1);
             onRefreshUsers?.();
           }}
         />
       </section>
+
+      {/* Modal Miễn nhiệm / Tiếp quản / Mời Admin mới */}
+      <OffboardTenantAdminModal
+        isOpen={!!offboardTargetTenant}
+        onClose={() => setOffboardTargetTenant(null)}
+        tenant={offboardTargetTenant}
+        onSuccess={() => {
+          setOffboardTargetTenant(null);
+          if (onRefreshTenants) onRefreshTenants();
+          if (onRefreshUsers) onRefreshUsers();
+          toast.success('Đã chuyển giao quyền quản trị viên thành công!');
+        }}
+      />
     </div>
   );
 };

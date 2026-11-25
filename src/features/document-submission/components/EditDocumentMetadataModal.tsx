@@ -27,10 +27,11 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
   onClose,
   onSuccess,
 }) => {
+  const now = new Date();
   const [title, setTitle] = useState('');
-  const [releaseYear, setReleaseYear] = useState<number>(new Date().getFullYear());
-  const [releaseMonth, setReleaseMonth] = useState<string>('');
-  const [releaseDay, setReleaseDay] = useState<string>('');
+  const [releaseYear, setReleaseYear] = useState<number>(now.getFullYear());
+  const [releaseMonth, setReleaseMonth] = useState<string>((now.getMonth() + 1).toString());
+  const [releaseDay, setReleaseDay] = useState<string>(now.getDate().toString());
   const [keywords, setKeywords] = useState('');
   const [abstract, setAbstract] = useState('');
   const [description, setDescription] = useState('');
@@ -41,35 +42,62 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
   const [errorMessage, setErrorMessage] = useState('');
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
+  const baseYear = Math.max(currentYear, releaseYear || currentYear);
+  const years = Array.from({ length: 100 }, (_, i) => baseYear - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
   const populateForm = (data: any) => {
+    // Xác định thời điểm fallback từ ngày tạo / tải lên của tệp
+    const rawDateStr = data?.createdAt || data?.uploadedAt || (data as any)?.createdDate;
+    let fallbackDate = new Date();
+    if (rawDateStr) {
+      const parsed = new Date(rawDateStr);
+      if (!isNaN(parsed.getTime())) {
+        fallbackDate = parsed;
+      }
+    }
+    const fallbackYear = fallbackDate.getFullYear();
+    const fallbackMonth = (fallbackDate.getMonth() + 1).toString();
+    const fallbackDay = fallbackDate.getDate().toString();
+
     const meta = data?.metadata || (data?.title ? data : null);
     if (meta) {
-      setTitle(meta.title || '');
-      setReleaseYear(meta.releaseYear || meta.issueYear || currentYear);
+      setTitle(meta.title || data?.fileName || data?.name || '');
+
+      // Năm: Ưu tiên metadata hợp lệ (> 0), nếu không có fallback về ngày tạo tệp
+      const y = meta.releaseYear || meta.issueYear;
+      setReleaseYear(y && Number(y) > 0 ? Number(y) : fallbackYear);
+
+      // Tháng: Ưu tiên metadata hợp lệ (> 0), nếu không có fallback về ngày tạo tệp
+      const m = meta.releaseMonth ?? meta.issueMonth;
       setReleaseMonth(
-        meta.releaseMonth !== undefined && meta.releaseMonth !== null && meta.releaseMonth !== ''
-          ? meta.releaseMonth.toString()
-          : meta.issueMonth !== undefined && meta.issueMonth !== null && meta.issueMonth !== ''
-          ? meta.issueMonth.toString()
-          : ''
+        m !== undefined && m !== null && m !== '' && Number(m) > 0
+          ? m.toString()
+          : fallbackMonth
       );
+
+      // Ngày: Ưu tiên metadata hợp lệ (> 0), nếu không có fallback về ngày tạo tệp
+      const d = meta.releaseDay ?? meta.issueDay;
       setReleaseDay(
-        meta.releaseDay !== undefined && meta.releaseDay !== null && meta.releaseDay !== ''
-          ? meta.releaseDay.toString()
-          : meta.issueDay !== undefined && meta.issueDay !== null && meta.issueDay !== ''
-          ? meta.issueDay.toString()
-          : ''
+        d !== undefined && d !== null && d !== '' && Number(d) > 0
+          ? d.toString()
+          : fallbackDay
       );
+
       setKeywords(meta.keywords || '');
       setAbstract(meta.abstract || '');
       setDescription(meta.description || '');
       setErrorMessage('');
     } else if (data?.fileName || data?.name) {
       setTitle(data.fileName || data.name);
+      setReleaseYear(fallbackYear);
+      setReleaseMonth(fallbackMonth);
+      setReleaseDay(fallbackDay);
+      setKeywords('');
+      setAbstract('');
+      setDescription('');
+      setErrorMessage('');
     }
   };
 
@@ -214,10 +242,6 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
               </div>
             )}
 
-            <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200/80 text-xs text-blue-900 leading-relaxed">
-              * Thao tác này chỉ cập nhật thông tin mô tả và từ khóa. Tệp đính kèm và dung lượng lưu trữ của bạn được giữ nguyên không thay đổi.
-            </div>
-
             {/* Tiêu đề */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -233,19 +257,20 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
               />
             </div>
 
-            {/* Thời điểm phát hành */}
+            {/* Thời điểm phát hành (Khóa cứng không cho thay đổi) */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Thời điểm phát hành <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Thời điểm phát hành <span className="text-slate-400 font-normal lowercase">(cố định)</span>
+                </label>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">Năm (*)</label>
+                  <label className="block text-[11px] text-slate-500 mb-1">Năm</label>
                   <select
                     value={releaseYear}
-                    onChange={(e) => setReleaseYear(Number(e.target.value))}
-                    disabled={isSubmitting}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed select-none"
                   >
                     {years.map((y) => (
                       <option key={y} value={y}>
@@ -258,9 +283,8 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
                   <label className="block text-[11px] text-slate-500 mb-1">Tháng</label>
                   <select
                     value={releaseMonth}
-                    onChange={(e) => setReleaseMonth(e.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed select-none"
                   >
                     <option value="">-- Không --</option>
                     {months.map((m) => (
@@ -274,9 +298,8 @@ export const EditDocumentMetadataModal: React.FC<EditDocumentMetadataModalProps>
                   <label className="block text-[11px] text-slate-500 mb-1">Ngày</label>
                   <select
                     value={releaseDay}
-                    onChange={(e) => setReleaseDay(e.target.value)}
-                    disabled={isSubmitting || !releaseMonth}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white disabled:bg-slate-100"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-100 text-slate-500 cursor-not-allowed select-none"
                   >
                     <option value="">-- Không --</option>
                     {days.map((d) => (

@@ -5,7 +5,8 @@ import {
   Building2, 
   Database, 
   Settings, 
-  Compass 
+  Compass,
+  FileText 
 } from 'lucide-react';
 
 interface TenantTabsProps {
@@ -22,6 +23,7 @@ export const TenantTabs: React.FC<TenantTabsProps> = ({
     { id: 'overview', label: 'Tổng quan', icon: LayoutGrid },
     { id: 'departments', label: 'Cơ cấu Phòng ban', icon: Building2 },
     { id: 'quota', label: 'Hạn mức Quota', icon: Database },
+    { id: 'activity', label: 'Nhật ký hoạt động', icon: FileText },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
   ];
 

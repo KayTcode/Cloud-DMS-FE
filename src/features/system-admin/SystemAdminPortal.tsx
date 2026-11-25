@@ -6,26 +6,19 @@ import {
   StorageProviderItem,
   AuditLogEntry,
   PlanType,
-  AdminUserDto,
-  CreateAdminUserPayload,
-  UpdateAdminUserPayload
+  CreateSystemTenantPayload,
 } from './types';
 import {
-  getAdminUsersApi,
   getSystemTenantsApi,
+  getSystemTenantsListApi,
   getSystemActivitiesApi,
   getStorageProvidersApi,
   getAuditLogsApi
 } from './api/systemAdminQueries';
 import {
-  createAdminUserApi,
-  updateAdminUserApi,
-  changeUserStatusApi,
-  deleteAdminUserApi,
   createSystemTenantApi,
   toggleTenantStatusApi,
   changeTenantPlanApi,
-  deleteSystemTenantApi
 } from './api/systemAdminCommands';
 import {
   DashboardView,
@@ -38,9 +31,7 @@ import {
 } from './views';
 import {
   CreateTenantModal,
-  TenantDetailsModal,
-  EditUserModal,
-  AllocateQuotaModal
+  TenantDetailsModal
 } from './components';
 import { TenantPortal } from '@/features/tenants/TenantPortal';
 import { ArrowLeft } from 'lucide-react';
@@ -70,70 +61,63 @@ export const SystemAdminPortal: React.FC = () => {
   } = useTenantContext();
 
   // ---------------------------------------------------------------------------------------
-  // 2. LOCAL STATE / VIEWMODEL CACHE (Tương đương bộ nhớ DTO lưu tạm trên RAM của Controller)
+  // 2. LOCAL STATE / VIEWMODEL CACHE
   // ---------------------------------------------------------------------------------------
-  // Dữ liệu danh sách người dùng & Phân trang (Pagination)
-  const [users, setUsers] = useState<AdminUserDto[]>([]);
+  // Dữ liệu danh sách Tổ chức (Tenants) & Phân trang trực tiếp từ GET /api/admin/tenants
+  const [tenants, setTenants] = useState<SystemTenant[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false); // Flag cờ hiệu loading (để hiện spinner)
+  const [isLoadingTenants, setIsLoadingTenants] = useState(false);
 
-  // Dữ liệu cho các phần khác (Tenants, Nhật ký hoạt động, Cấu hình Storage, Audit Logs)
-  const [tenants, setTenants] = useState<SystemTenant[]>([]);
+  // Dữ liệu cho các phần khác (Nhật ký hoạt động, Cấu hình Storage, Audit Logs)
   const [activities, setActivities] = useState<SystemActivityItem[]>([]);
   const [providers, setProviders] = useState<StorageProviderItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState(false);
+  const [auditLogsError, setAuditLogsError] = useState<string | null>(null);
 
   // State quản lý Trạng thái bật/tắt của các Dialog / Pop-up (Modals)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUserDto | null>(null);
   const [selectedQuickTenant, setSelectedQuickTenant] = useState<SystemTenant | null>(null);
   const [deepDetailTenantId, setDeepDetailTenantId] = useState<string | null>(null);
   const [deepPortalTab, setDeepPortalTab] = useState<string | undefined>(undefined);
-  const [quotaUser, setQuotaUser] = useState<AdminUserDto | null>(null);
 
   // ---------------------------------------------------------------------------------------
-  // 3. API SERVICE METHODS (Tương tự Service Layer gọi HTTP Client xuống Backend)
-  // - Dùng useCallback: Để React ghi nhớ con trỏ hàm (function reference), không tạo lại hàm
-  //   mỗi lần component re-render, giúp tối ưu hiệu năng và tránh re-run useEffect thừa thãi.
+  // 3. API SERVICE METHODS
   // ---------------------------------------------------------------------------------------
 
-  // [Query API] Lấy danh sách tài khoản quản trị viên với Phân trang & Tìm kiếm
-  // URL Backend: GET /api/admin/users?pageNumber=...&pageSize=10&searchTerm=...
-  const fetchUsers = useCallback(async (page: number, search: string) => {
-    setIsLoadingUsers(true);
+  // [Query API] Lấy danh sách Tổ chức (Tenants) với Phân trang, Tìm kiếm & Lọc trạng thái
+  // URL Backend: GET /api/admin/tenants?pageNumber=...&pageSize=10&searchTerm=...
+  const fetchTenants = useCallback(async (page: number, search: string) => {
+    setIsLoadingTenants(true);
     try {
-      const result = await getAdminUsersApi({
+      const result = await getSystemTenantsApi({
         pageNumber: page,
         pageSize: 10,
         searchTerm: search,
       });
-      // Đổ dữ liệu từ BE DTO vào State
-      setUsers(result.items);
+      setTenants(result.items);
       setCurrentPage(result.pageNumber);
       setTotalPages(result.totalPages);
       setTotalCount(result.totalCount);
     } catch (err: any) {
-      console.error('Error fetching admin users:', err);
+      console.error('Error fetching system tenants:', err);
     } finally {
-      setIsLoadingUsers(false);
+      setIsLoadingTenants(false);
     }
   }, []);
 
   // ---------------------------------------------------------------------------------------
-  // 4. SIDE-EFFECT CONTROLLER (Tương đương Event Listener / Background Worker Trigger)
-  // - useEffect lắng nghe sự thay đổi của các biến trong "Dependency Array" [...]
-  // - Áp dụng kỹ thuật "Tab Lazy Fetching": Vào Tab nào thì MỚI gửi request tải dữ liệu Tab đó,
-  //   không tải dồn dập toàn bộ hệ thống lúc mới đăng nhập (tiết kiệm băng thông BE).
+  // 4. SIDE-EFFECT CONTROLLER
   // ---------------------------------------------------------------------------------------
 
-  // Trigger 1: Khi người dùng đang ở Tab 'tenants' HOẶC đổi trang (currentPage) HOẶC gõ Search (searchQuery)
+  // Trigger 1: Khi người dùng đang ở Tab 'tenants' HOẶC đổi trang HOẶC gõ Search
   useEffect(() => {
     if (activeNav === 'tenants') {
-      fetchUsers(currentPage, searchQuery);
+      fetchTenants(currentPage, searchQuery);
     }
-  }, [activeNav, fetchUsers, currentPage, searchQuery]);
+  }, [activeNav, fetchTenants, currentPage, searchQuery]);
 
   // [Query API] Tải danh sách nhà cung cấp lưu trữ (S3, Azure, Google Drive, Local, MinIO)
   const refreshProviders = useCallback(async () => {
@@ -146,14 +130,13 @@ export const SystemAdminPortal: React.FC = () => {
   }, []);
 
   // [Query API] Tải toàn bộ dữ liệu thống kê cho Dashboard View (Gộp 4 API bằng Promise.all)
-  // Tương tự Task.WhenAll() trong C# .NET để thực hiện song song các truy vấn độc lập
   const loadDashboardData = useCallback(async () => {
     try {
       const [tList, aList, pList, lList] = await Promise.all([
-        getSystemTenantsApi(),
+        getSystemTenantsListApi(),
         getSystemActivitiesApi(),
         getStorageProvidersApi(),
-        getAuditLogsApi(),
+        getAuditLogsApi().catch(() => []),
       ]);
       setTenants(tList);
       setActivities(aList);
@@ -161,6 +144,22 @@ export const SystemAdminPortal: React.FC = () => {
       setAuditLogs(lList);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
+    }
+  }, []);
+
+  // [Query API] Tải danh sách nhật ký kiểm toán hệ thống từ backend
+  const fetchAuditLogs = useCallback(async () => {
+    setIsLoadingAuditLogs(true);
+    setAuditLogsError(null);
+    try {
+      const logs = await getAuditLogsApi(1, 100);
+      setAuditLogs(logs);
+    } catch (err: any) {
+      const msg = err.message || 'Không thể tải nhật ký kiểm toán hệ thống.';
+      setAuditLogsError(msg);
+      setAuditLogs([]);
+    } finally {
+      setIsLoadingAuditLogs(false);
     }
   }, []);
 
@@ -181,9 +180,9 @@ export const SystemAdminPortal: React.FC = () => {
   // Trigger 4: Chỉ khi bấm vào Tab 'audit-logs' thì mới fetch lịch sử kiểm toán hệ thống
   useEffect(() => {
     if (activeNav === 'audit-logs') {
-      getAuditLogsApi().then(setAuditLogs).catch(() => { });
+      fetchAuditLogs();
     }
-  }, [activeNav]);
+  }, [activeNav, fetchAuditLogs]);
 
   // Trigger 5: Tự động nạp Storage Providers khi mở CreateTenantModal nếu chưa có
   useEffect(() => {
@@ -193,99 +192,35 @@ export const SystemAdminPortal: React.FC = () => {
   }, [isCreateModalOpen, providers.length, refreshProviders]);
 
   // ---------------------------------------------------------------------------------------
-  // 5. COMMAND HANDLERS (Tương đương các API CUD: Create, Update, Delete)
-  // - Gọi API xuống BE, sau đó cập nhật trực tiếp State ở Client hoặc fetch lại để đồng bộ UI.
+  // 5. COMMAND HANDLERS
   // ---------------------------------------------------------------------------------------
 
-  // [POST API] Tạo tài khoản Admin Tenant mới -> POST /api/admin/users
-  const handleCreateUser = async (payload: CreateAdminUserPayload) => {
+  // [POST API] Tạo Doanh nghiệp (Tenant) mới -> POST /api/admin/tenants
+  const handleCreateTenant = async (payload: CreateSystemTenantPayload) => {
     try {
-      const newUser = await createAdminUserApi(payload);
-      addToast('success', `Đã tạo thành công tài khoản cho ${newUser.fullName} (${newUser.email})!`);
+      const newTenant = await createSystemTenantApi(payload);
+      addToast('success', `Đã tạo thành công tổ chức ${newTenant.name || payload.name}!`);
 
       // Ghi log hoạt động phía client để hiển thị tức thời (Optimistic UI Update)
       const newActivity: SystemActivityItem = {
         id: `act-${Date.now()}`,
-        title: `Account ${newUser.fullName} created`,
-        timeAgo: 'Just now',
-        actor: 'alex.mercer',
+        title: `Tổ chức ${newTenant.name || payload.name} đã được khởi tạo`,
+        timeAgo: 'Vừa xong',
+        actor: 'System Admin',
         type: 'upgrade',
       };
       setActivities((prev) => [newActivity, ...prev]);
 
       // Tải lại trang 1 để thấy bản ghi vừa tạo
-      fetchUsers(1, '');
+      fetchTenants(1, '');
     } catch (err: any) {
-      addToast('error', err.message || 'Lỗi khi tạo tài khoản.');
-    }
-  };
-
-  // [PUT API] Cập nhật thông tin người dùng -> PUT /api/admin/users/{id}
-  const handleUpdateUser = async (id: string, payload: UpdateAdminUserPayload) => {
-    try {
-      const updated = await updateAdminUserApi(id, payload);
-      // Cập nhật trực tiếp item trong mảng users mà không cần tốn 1 request GET lại
-      setUsers((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, ...updated } : u))
-      );
-      addToast('success', `Đã cập nhật thông tin người dùng ${updated.fullName}!`);
-    } catch (err: any) {
-      addToast('error', err.message || 'Lỗi khi cập nhật người dùng.');
-    }
-  };
-
-
-
-  // [PATCH/POST API] Khóa / Mở khóa tài khoản người dùng -> POST /api/admin/users/{id}/status
-  const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
-    const nextStatus = !currentStatus;
-    try {
-      await changeUserStatusApi(userId, { isActive: nextStatus });
-      // Cập nhật trạng thái trực tiếp trong danh sách để icon đổi màu ngay lập tức
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, isActive: nextStatus } : u))
-      );
-      addToast(
-        nextStatus ? 'success' : 'warning',
-        `Tài khoản đã được ${nextStatus ? 'kích hoạt' : 'tạm dừng'}.`
-      );
-    } catch (err: any) {
-      addToast('error', err.message || 'Lỗi khi đổi trạng thái tài khoản.');
-    }
-  };
-
-  // [DELETE API] Xóa vĩnh viễn tài khoản người dùng -> DELETE /api/admin/users/{id}
-  const handleDeleteUser = async (userId: string, userEmail: string) => {
-    if (confirm(`Bạn có chắc chắn muốn xóa tài khoản "${userEmail}"?`)) {
-      try {
-        await deleteAdminUserApi(userId);
-        // Xóa item khỏi danh sách users trên giao diện
-        setUsers((prev) => prev.filter((u) => u.id !== userId));
-        addToast('info', `Đã xóa tài khoản "${userEmail}".`);
-      } catch (err: any) {
-        addToast('error', err.message || 'Lỗi khi xóa tài khoản.');
-      }
+      addToast('error', err.message || 'Lỗi khi tạo tổ chức.');
     }
   };
 
   // Mở màn hình quản trị sâu (Deep Portal) của một Tenant cụ thể
-  const handleOpenDeepPortal = (userOrTenant: AdminUserDto | SystemTenant, targetTab?: string) => {
-    let resolvedTenantId = userOrTenant.id;
-    if ('tenantId' in userOrTenant && userOrTenant.tenantId) {
-      resolvedTenantId = userOrTenant.tenantId;
-    } else {
-      const matched = tenants.find(
-        (t) =>
-          t.id === userOrTenant.id ||
-          t.vacantAdminUserId === userOrTenant.id ||
-          (t.adminEmail && (userOrTenant as any).email && t.adminEmail.toLowerCase() === (userOrTenant as any).email.toLowerCase())
-      );
-      if (matched) {
-        resolvedTenantId = matched.id;
-      }
-    }
-
-    setDeepDetailTenantId(resolvedTenantId);
+  const handleOpenDeepPortal = (tenant: SystemTenant, targetTab?: string) => {
+    setDeepDetailTenantId(tenant.id);
     setDeepPortalTab(targetTab || 'departments');
     setActiveNav('tenants');
   };
@@ -345,55 +280,15 @@ export const SystemAdminPortal: React.FC = () => {
       {/* --------------------------------------------------------------------------------- */}
       {activeNav === 'tenants' && !deepDetailTenantId && (
         <TenantManagementView
-          users={users}
+          tenants={tenants}
           totalCount={totalCount}
           currentPage={currentPage}
           totalPages={totalPages}
           searchQuery={searchQuery}
           onPageChange={(page) => setCurrentPage(page)}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
-          onSelectUser={(u) => {
-            // 1. Tìm Tenant thật tương ứng từ danh sách Doanh nghiệp
-            const matchedTenant = tenants.find(
-              (t) =>
-                (u.tenantId && t.id === u.tenantId) ||
-                (t.vacantAdminUserId && t.vacantAdminUserId === u.id) ||
-                (t.adminEmail && u.email && t.adminEmail.toLowerCase() === u.email.toLowerCase()) ||
-                (u.tenantName && t.name.toLowerCase() === u.tenantName.toLowerCase())
-            );
-
-            // 2. Phân giải Tenant ID thật: Không lấy u.id nếu u.tenantId rỗng do cựu admin đã bị offboard
-            const resolvedTenantId = u.tenantId || matchedTenant?.id || u.id;
-            const resolvedTenantName = matchedTenant?.name || u.tenantName || u.fullName;
-            const resolvedStatus = matchedTenant?.status || (u.isActive ? 'Active' : 'Suspended');
-            const resolvedIsInterim = matchedTenant?.isInterimManaged || (!u.tenantId && !u.isActive) || false;
-
-            setSelectedQuickTenant({
-              id: resolvedTenantId,
-              name: resolvedTenantName,
-              plan: matchedTenant?.plan || 'Enterprise',
-              usersAssigned: matchedTenant?.usersAssigned || 1,
-              storageUsed: matchedTenant?.storageUsed || '0 B',
-              storageAllocated: matchedTenant?.storageAllocated || '0 B',
-              storageDisplay: matchedTenant?.storageDisplay || 'Đang tải...',
-              createdDate: matchedTenant?.createdDate || u.createdAt,
-              status: resolvedStatus,
-              adminEmail: matchedTenant?.adminEmail || u.email,
-              adminId: u.id,
-              adminFullName: u.fullName,
-              region: matchedTenant?.region || 'Cloud Storage Pool',
-              tenantCode: matchedTenant?.tenantCode || u.tenantCode,
-              phoneNumber: u.phoneNumber,
-              departmentName: u.departmentName,
-              isInterimManaged: resolvedIsInterim,
-              vacantAdminUserId: matchedTenant?.vacantAdminUserId || (!u.isActive ? u.id : null),
-            });
-          }}
-          onOpenEditModal={(u) => setEditingUser(u)}
-          onOpenAllocateQuotaModal={(u) => setQuotaUser(u)}
-          onToggleStatus={handleToggleUserStatus}
-          onDeleteUser={handleDeleteUser}
-          onRefreshUsers={() => fetchUsers(currentPage, searchQuery)}
+          onSelectTenant={(t) => setSelectedQuickTenant(t)}
+          onRefreshTenants={() => fetchTenants(currentPage, searchQuery)}
         />
       )}
 
@@ -437,7 +332,12 @@ export const SystemAdminPortal: React.FC = () => {
       {/* SUB-VIEW 4: Màn hình Nhật ký kiểm toán hệ thống (Audit Logs)                       */}
       {/* --------------------------------------------------------------------------------- */}
       {activeNav === 'audit-logs' && (
-        <AuditLogsView logs={auditLogs} />
+        <AuditLogsView
+          logs={auditLogs}
+          isLoading={isLoadingAuditLogs}
+          error={auditLogsError}
+          onRefresh={fetchAuditLogs}
+        />
       )}
 
       {/* --------------------------------------------------------------------------------- */}
@@ -454,15 +354,8 @@ export const SystemAdminPortal: React.FC = () => {
       <CreateTenantModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreate={handleCreateUser}
+        onCreate={handleCreateTenant}
         providers={providers}
-      />
-
-      <EditUserModal
-        user={editingUser}
-        isOpen={!!editingUser}
-        onClose={() => setEditingUser(null)}
-        onUpdate={handleUpdateUser}
       />
 
       <TenantDetailsModal
@@ -475,18 +368,6 @@ export const SystemAdminPortal: React.FC = () => {
           loadDashboardData();
           getStorageProvidersApi().then(setProviders).catch(() => { });
           addToast('success', 'Hạn mức Quota của Tenant đã được cập nhật!');
-        }}
-      />
-
-      <AllocateQuotaModal
-        isOpen={!!quotaUser}
-        onClose={() => setQuotaUser(null)}
-        tenantUser={quotaUser}
-        providers={providers}
-        onSuccess={(msg) => {
-          addToast('success', msg);
-          fetchUsers(currentPage, searchQuery);
-          getStorageProvidersApi().then(setProviders).catch(() => { });
         }}
       />
     </div>

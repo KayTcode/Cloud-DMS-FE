@@ -246,9 +246,6 @@ export const DepartmentQuotaView: React.FC<DepartmentQuotaViewProps> = ({
               Department Approver
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Phê duyệt Quota nhân viên, quản lý hạn ngạch tổng và thiết lập thời hạn lưu trữ dữ liệu
-          </p>
         </div>
 
         {/* Nút yêu cầu xin thêm hạn ngạch phòng ban */}

@@ -1,24 +1,19 @@
 import React from 'react';
-import { Search, Bell, Menu, ShieldCheck, Building2 } from 'lucide-react';
+import { Bell, Menu, ShieldCheck, Building2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 // =========================================================================================
 // TOP HEADER (THANH TIÊU ĐỀ VÀ THANH CÔNG CỤ TRÊN CÙNG)
 // -----------------------------------------------------------------------------------------
-// Mental Model cho BE Developer:
-// - Đóng vai trò như một "Global Request Toolbar".
-// - Chứa ô Search Box dùng cơ chế Two-Way Binding:
-//     Khi gõ chữ -> Kích hoạt `onSearchChange` cập nhật `searchQuery` trong Global Context.
-//     Từ đó, các Component con (như SystemAdminPortal) lắng nghe biến `searchQuery` này
-//     và tự động gửi request API có kèm `?searchTerm=...` xuống Backend.
+// - Hiển thị tiêu đề trang theo ngữ cảnh vai trò (Role).
 // - Hiển thị huy hiệu định danh vai trò (Role Badge), chuông thông báo và trạng thái kết nối máy chủ.
 // =========================================================================================
 
 interface TopHeaderProps {
   title?: string;                              // Tiêu đề trang động truyền từ MainLayout
   onToggleMobileMenu?: () => void;             // Callback bật/tắt menu trên di động
-  searchQuery: string;                         // Chuỗi tìm kiếm hiện tại từ Context
-  onSearchChange: (query: string) => void;     // Callback cập nhật chuỗi tìm kiếm
+  searchQuery?: string;                        // (Tùy chọn tương thích ngược)
+  onSearchChange?: (query: string) => void;    // (Tùy chọn tương thích ngược)
   onOpenNotifications?: () => void;            // Callback mở ngăn kéo thông báo
   notificationCount?: number;                  // Số lượng thông báo chưa đọc
 }
@@ -26,8 +21,6 @@ interface TopHeaderProps {
 export const TopHeader: React.FC<TopHeaderProps> = ({
   title,
   onToggleMobileMenu,
-  searchQuery,
-  onSearchChange,
   onOpenNotifications,
   notificationCount = 1,
 }) => {
@@ -60,24 +53,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       </div>
 
       {/* --------------------------------------------------------------------------------- */}
-      {/* 2. Ô TÌM KIẾM TOÀN CỤC (GLOBAL SEARCH BOX)                                        */}
-      {/* - Dữ liệu nhập vào đây lập tức đồng bộ lên Context và trigger API fetch ở các View */}
-      {/* --------------------------------------------------------------------------------- */}
-      <div className="flex-1 max-w-md mx-4 hidden sm:block">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search systems, logs or tenants..."
-            className="w-full bg-slate-50/70 hover:bg-slate-100/60 focus:bg-white text-xs text-slate-800 placeholder:text-slate-400 rounded-lg pl-9 pr-4 py-2 border border-slate-200/80 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
-          />
-        </div>
-      </div>
-
-      {/* --------------------------------------------------------------------------------- */}
-      {/* 3. CÁC NÚT ĐIỀU KHIỂN & TRẠNG THÁI BÊN PHẢI                                      */}
+      {/* 2. CÁC NÚT ĐIỀU KHIỂN & TRẠNG THÁI BÊN PHẢI                                      */}
       {/* --------------------------------------------------------------------------------- */}
       <div className="flex items-center gap-3">
         {/* Badge nhận diện Vai trò (Role Badge) */}

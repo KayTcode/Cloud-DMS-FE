@@ -12,7 +12,12 @@ vi.mock('./context/DepartmentContext', () => ({
   useDepartment: () => ({ hasDepartment: true, summary: { users: [] }, employees: [] }),
 }));
 vi.mock('./views', () => ({
-  DepartmentHubView: () => <div>Department hub</div>,
+  DepartmentHubView: ({ onNavigateTab }: { onNavigateTab?: (tab: string) => void }) => (
+    <div>
+      <div>Department hub</div>
+      <button onClick={() => onNavigateTab?.('shared')}>Open received shares</button>
+    </div>
+  ),
   DepartmentFilesView: () => <div>Personal files</div>,
   DepartmentLogsView: () => null,
   StaffManagementView: () => null,
@@ -52,6 +57,7 @@ describe('Department Manager received-share navigation', () => {
   });
 
   it('keeps sidebar navigation synchronized when the internal tab is selected', () => {
+    navigation.activeNav = 'hub';
     render(<DepartmentAdminPortal />);
     fireEvent.click(screen.getByText('Open received shares'));
     expect(navigation.setActiveNav).toHaveBeenCalledWith('shared');

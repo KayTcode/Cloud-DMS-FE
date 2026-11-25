@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
 import {
-  UserPlus,
   Search,
   Sliders,
   Database,
   HardDrive,
   Users,
-  ShieldAlert,
   UserX,
   FileText,
 } from 'lucide-react';
 import { DepartmentMember, DepartmentInfo } from '../types';
 import { useDepartment } from '../context/DepartmentContext';
-import { formatBytes } from '../utils/quotaUtils';
 import { useToast } from '@/hooks/useToast';
 import {
   PendingInvitationsTable,
@@ -65,26 +62,18 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
     return matchesSearch && matchesTeam && matchesStatus;
   });
 
-  const warningCount = members.filter(
-    (m) => m.allocatedQuotaGB > 0 && (m.usedSpaceGB / m.allocatedQuotaGB) * 100 >= 80
-  ).length;
-
   const totalUsedSpace = members.reduce((acc, m) => acc + m.usedSpaceGB, 0);
   const totalAllocated = members.reduce((acc, m) => acc + m.allocatedQuotaGB, 0);
   const activeCount = members.filter((m) => m.status === 'active').length;
 
-  const { summary, departmentId } = useDepartment();
+  const { departmentId } = useDepartment();
   const { toast } = useToast();
-  const quotaBytes = summary?.departmentQuotaBytes ?? (department.totalAllocatedGB * 1024 * 1024 * 1024);
-  const allocatedPercent = quotaBytes > 0
-    ? Math.min(100, Math.round(((totalAllocated * 1024 * 1024 * 1024) / quotaBytes) * 100))
-    : 0;
 
   return (
     <div className="space-y-5 animate-in fade-in duration-150">
-      {/* 1. HÀNG 4 THẺ KPI CHỈ SỐ NHÂN SỰ CỐT LÕI (Chuẩn Google Drive) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Tổng nhân sự */}
+      {/* 1. HÀNG 3 THẺ KPI CHỈ SỐ NHÂN SỰ CỐT LÕI (Chuẩn Google Drive) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {/* Card 1: Tổng nhân sự (chỉ tính nhân sự đang hoạt động) */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-semibold text-slate-700">Tổng số nhân sự</span>
@@ -93,7 +82,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
-            {members.length}
+            {activeCount}
             <span className="text-sm font-normal text-slate-400 ml-1.5 font-sans">người</span>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
@@ -116,18 +105,6 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
             {totalAllocated}
             <span className="text-sm font-normal text-slate-400 ml-1 font-sans">/ {department.totalAllocatedGB} GB</span>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
-              <span>Tỷ lệ phân phối</span>
-              <span className="font-bold text-slate-700 tabular-nums">{allocatedPercent}%</span>
-            </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                style={{ width: `${allocatedPercent}%` }}
-              />
-            </div>
-          </div>
         </div>
 
         {/* Card 3: Đã tiêu thụ thực tế */}
@@ -145,29 +122,7 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
             <span>Bình quân nhân sự:</span>
             <span className="text-slate-700 font-semibold font-mono text-[10px]">
-              ~{members.length > 0 ? (totalUsedSpace / members.length).toFixed(1) : 0} GB / người
-            </span>
-          </div>
-        </div>
-
-        {/* Card 4: Cảnh báo hạn mức */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-semibold text-slate-700">Cảnh báo đầy kho</span>
-            <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-          </div>
-          <div className={`text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight ${warningCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-            {warningCount}
-            <span className="text-sm font-normal text-slate-400 ml-1.5 font-sans">nhân sự</span>
-          </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Tình trạng dung lượng:</span>
-            <span className={`font-semibold text-[10px] px-2 py-0.5 rounded-full ${
-              warningCount > 0 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'
-            }`}>
-              {warningCount > 0 ? 'Cần nâng Quota' : 'Ổn định'}
+              ~{activeCount > 0 ? (totalUsedSpace / activeCount).toFixed(1) : 0} GB / người
             </span>
           </div>
         </div>
@@ -218,14 +173,6 @@ export const StaffManagementView: React.FC<StaffManagementViewProps> = ({
               <option value="paused">Tạm dừng</option>
             </select>
           </div>
-
-          <button
-            onClick={onAddMember}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-full shadow-xs hover:shadow-sm transition-all cursor-pointer shrink-0 ml-auto md:ml-0"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Thêm nhân viên</span>
-          </button>
         </div>
       </div>
 

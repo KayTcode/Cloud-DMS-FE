@@ -1,12 +1,41 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Download, ShieldCheck, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import {
+  Search,
+  Download,
+  ShieldCheck,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+  X
+} from 'lucide-react';
 import { AuditLogEntry } from '../types';
 
 interface AuditLogsViewProps {
   logs: AuditLogEntry[];
+  isLoading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
 }
 
-export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
+const formatTimestamp = (ts: string) => {
+  if (!ts) return '-';
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleString('sv-SE', { hour12: false }).replace('T', ' ');
+  } catch {
+    return ts;
+  }
+};
+
+export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
+  logs,
+  isLoading = false,
+  error = null,
+  onRefresh,
+}) => {
   const [filterQuery, setFilterQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'SUCCESS' | 'WARNING'>('All');
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
@@ -35,6 +64,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
   const pagedLogs = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleExportJson = () => {
+    if (logs.length === 0) return;
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(logs, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -42,6 +72,28 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  };
+
+  const renderStatusBadge = (status: string) => {
+    if (status === 'SUCCESS') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+          Thành công
+        </span>
+      );
+    }
+    if (status === 'FAILED') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/60">
+          Thất bại
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
+        Cảnh báo
+      </span>
+    );
   };
 
   return (
@@ -57,16 +109,53 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportJson}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-full shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <Download className="w-3.5 h-3.5 text-slate-500" />
-          <span>Xuất tệp nhật ký (JSON)</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              title="Làm mới dữ liệu từ máy chủ"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-full shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Làm mới</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleExportJson}
+            disabled={logs.length === 0}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-full shadow-2xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Xuất tệp nhật ký (JSON)</span>
+          </button>
+        </div>
       </div>
 
-      {/* 2. Search Bar & Status Filter Chips */}
+      {/* 2. Error Banner nếu có lỗi */}
+      {error && (
+        <div className="flex items-start justify-between gap-3 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs shadow-2xs">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-rose-900">Không thể tải dữ liệu nhật ký kiểm toán</p>
+              <p className="mt-0.5 text-rose-700">{error}</p>
+            </div>
+          </div>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-full font-semibold transition-colors cursor-pointer shrink-0"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Thử lại</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 3. Search Bar & Status Filter Chips */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border border-slate-200/80 rounded-2xl shadow-2xs">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
@@ -111,7 +200,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
         </div>
       </div>
 
-      {/* 3. Main Audit Logs Table */}
+      {/* 4. Main Audit Logs Table */}
       <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs overflow-hidden">
         <div className="overflow-x-auto min-h-[360px]">
           <table className="w-full text-left border-collapse">
@@ -127,11 +216,42 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {pagedLogs.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="py-20 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                      <span className="text-xs text-slate-500 font-medium">Đang tải nhật ký kiểm toán hệ thống...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-rose-500">
+                    <AlertCircle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-rose-700">Tải dữ liệu thất bại</p>
+                    <p className="text-xs mt-1 text-slate-500">{error}</p>
+                    {onRefresh && (
+                      <button
+                        onClick={onRefresh}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-full font-medium transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Thử lại</span>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ) : pagedLogs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-slate-400">
-                    <p className="text-sm font-medium text-slate-600">Không có nhật ký nào phù hợp</p>
-                    <p className="text-xs mt-1 text-slate-400">Thử xóa từ khóa tìm kiếm để xem tất cả sự kiện.</p>
+                    <ShieldCheck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm font-medium text-slate-600">Không có nhật ký nào</p>
+                    <p className="text-xs mt-1 text-slate-400">
+                      {filterQuery || statusFilter !== 'All'
+                        ? 'Không tìm thấy nhật ký phù hợp với bộ lọc hiện tại.'
+                        : 'Hệ thống chưa ghi nhận sự kiện kiểm toán nào.'}
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -146,7 +266,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
                       {(page - 1) * pageSize + index + 1}
                     </td>
                     <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
-                      {log.timestamp}
+                      {formatTimestamp(log.timestamp)}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-semibold text-slate-900 text-[11px]">
                       {log.action}
@@ -158,15 +278,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
                       {log.ipAddress}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          log.status === 'SUCCESS'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                        }`}
-                      >
-                        {log.status === 'SUCCESS' ? 'Thành công' : 'Cảnh báo'}
-                      </span>
+                      {renderStatusBadge(log.status)}
                     </td>
                     <td className="py-3.5 px-4 text-slate-600 max-w-sm truncate">
                       {log.details}
@@ -178,7 +290,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
           </table>
         </div>
 
-        {/* 4. Footer Pagination */}
+        {/* 5. Footer Pagination */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3 border-t border-slate-200/80 text-xs text-slate-500 bg-white">
           <span>
             Hiển thị <strong>{pagedLogs.length}</strong> / <strong>{filtered.length}</strong> nhật ký
@@ -206,7 +318,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
         </div>
       </div>
 
-      {/* 5. Modal Chi Tiết Nhật Ký (khi bấm vào 1 dòng) */}
+      {/* 6. Modal Chi Tiết Nhật Ký (khi bấm vào 1 dòng) */}
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
@@ -242,7 +354,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
 
               <div>
                 <span className="text-slate-400 block mb-0.5">Thời gian:</span>
-                <span className="font-mono text-slate-700">{selectedLog.timestamp}</span>
+                <span className="font-mono text-slate-700">{formatTimestamp(selectedLog.timestamp)}</span>
               </div>
 
               <div>

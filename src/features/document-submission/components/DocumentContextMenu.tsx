@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Download,
   Share2,
-  Star,
   Trash2,
   Info,
   ChevronRight,
@@ -156,39 +155,37 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
 
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(target) &&
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        submenuRef.current &&
-        !submenuRef.current.contains(target)
-      ) {
+      const inTrigger = triggerRef.current?.contains(target);
+      const inMenu = menuRef.current?.contains(target);
+      const inSubmenu = submenuRef.current?.contains(target);
+
+      if (!inTrigger && !inMenu && !inSubmenu) {
         setIsOpen(false);
         setIsSubmenuOpen(false);
       }
     };
 
-    const handleScrollOrResize = (e: Event) => {
-      // Khi cuộn trang ngoài menu, đóng lại để tránh lệch tọa độ
-      const target = e.target as Node;
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        submenuRef.current &&
-        !submenuRef.current.contains(target)
-      ) {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         setIsOpen(false);
         setIsSubmenuOpen(false);
       }
+    };
+
+    const handleScrollOrResize = () => {
+      // Khi cuộn trang ngoài menu, đóng lại để tránh lệch tọa độ
+      setIsOpen(false);
+      setIsSubmenuOpen(false);
     };
 
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('scroll', handleScrollOrResize, true);
     window.addEventListener('resize', handleScrollOrResize);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('scroll', handleScrollOrResize, true);
       window.removeEventListener('resize', handleScrollOrResize);
     };
@@ -214,16 +211,32 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
       {isOpen &&
         typeof document !== 'undefined' &&
         createPortal(
-          <div
-            ref={menuRef}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'fixed',
-              top: `${menuCoords.top}px`,
-              left: `${menuCoords.left}px`,
-            }}
-            className="w-60 bg-white rounded-2xl shadow-2xl border border-slate-200/80 py-1.5 z-[9999] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
-          >
+          <>
+            {/* Lớp phủ trong suốt (Transparent Backdrop) chuẩn Google Drive: click bất kỳ đâu trên màn hình để đóng menu */}
+            <div
+              className="fixed inset-0 z-[9998] bg-transparent"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+                setIsSubmenuOpen(false);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setIsOpen(false);
+                setIsSubmenuOpen(false);
+              }}
+            />
+
+            <div
+              ref={menuRef}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed',
+                top: `${menuCoords.top}px`,
+                left: `${menuCoords.left}px`,
+              }}
+              className="w-60 bg-white rounded-2xl shadow-2xl border border-slate-200/80 py-1.5 z-[9999] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
+            >
             {/* 1. Mở / Xem trước */}
             {onOpenPreview && (
               <button
@@ -285,22 +298,6 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
               <span className="flex-1">Thay thế tệp mới</span>
             </button>
 
-            {/* 6. Gắn dấu sao */}
-            {onToggleStar && (
-              <button
-                type="button"
-                onClick={() => handleAction(onToggleStar)}
-                className="w-full px-3.5 py-2 text-left hover:bg-slate-100/80 flex items-center gap-3 transition-colors cursor-pointer"
-              >
-                <Star
-                  className={`w-4 h-4 shrink-0 ${
-                    file.starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
-                  }`}
-                />
-                <span className="flex-1">{file.starred ? 'Bỏ gắn sao' : 'Gắn dấu sao'}</span>
-              </button>
-            )}
-
             {/* 7. Thông tin về tệp (Submenu Google Drive) */}
             <div
               ref={infoItemRef}
@@ -315,9 +312,8 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
                   calculateSubmenuPosition();
                   setIsSubmenuOpen(!isSubmenuOpen);
                 }}
-                className={`w-full px-3.5 py-2 text-left flex items-center justify-between transition-colors cursor-pointer ${
-                  isSubmenuOpen ? 'bg-slate-100 text-slate-900 font-semibold' : 'hover:bg-slate-100/80'
-                }`}
+                className={`w-full px-3.5 py-2 text-left flex items-center justify-between transition-colors cursor-pointer ${isSubmenuOpen ? 'bg-slate-100 text-slate-900 font-semibold' : 'hover:bg-slate-100/80'
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <Info className="w-4 h-4 text-slate-500 shrink-0" />
@@ -345,7 +341,8 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
                 </span>
               </button>
             )}
-          </div>,
+          </div>
+          </>,
           document.body
         )}
 

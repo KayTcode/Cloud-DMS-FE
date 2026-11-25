@@ -3,10 +3,8 @@ import {
   X,
   Upload,
   RefreshCw,
-  AlertTriangle,
   FileText,
   Trash2,
-  ShieldCheck,
 } from 'lucide-react';
 import { documentApi } from '../api/documentApi';
 import { formatBytes } from '@/features/user/api/driveApi';
@@ -96,7 +94,11 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Thay Thế Tệp Đính Kèm</h3>
-              <p className="text-xs text-slate-500">Cập nhật nội dung tệp mới và giữ nguyên toàn bộ hồ sơ mô tả</p>
+              {currentFileName && (
+                <p className="text-xs text-slate-500">
+                  Tệp hiện tại: <span className="font-semibold text-slate-700">{currentFileName}</span>
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -115,21 +117,6 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
               {errorMessage}
             </div>
           )}
-
-          {/* Cảnh báo thay thế và bảo toàn thông tin */}
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 space-y-2 text-amber-900 text-xs leading-relaxed">
-            <div className="flex items-center gap-2 font-bold">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Lưu ý khi thay thế:</span>
-            </div>
-            <p>
-              • Tệp nội dung cũ (<span className="font-semibold">{currentFileName || 'Hiện tại'}</span>) sẽ được thay thế bằng tệp mới tải lên; dung lượng lưu trữ sẽ tự động điều chỉnh tương ứng.
-            </p>
-            <p className="flex items-center gap-1.5 text-emerald-800 font-semibold pt-1">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              Toàn bộ hồ sơ tài liệu (Tiêu đề, Tác giả, Ngày phát hành, Từ khóa...) được bảo toàn nguyên vẹn 100%.
-            </p>
-          </div>
 
           {/* Chọn File mới */}
           <div>
@@ -158,7 +145,6 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
                 <p className="text-sm font-semibold text-slate-800">
                   Nhấn để chọn tệp mới từ máy tính của bạn
                 </p>
-                <p className="text-xs text-slate-400 mt-1">Dung lượng sẽ được tự động điều chỉnh vào bộ nhớ lưu trữ</p>
               </div>
             ) : (
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">

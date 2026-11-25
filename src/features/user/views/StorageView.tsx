@@ -164,10 +164,11 @@ export const StorageView: React.FC<StorageViewProps> = ({
   const departmentName = quota?.departmentName || (quota as any)?.DepartmentName;
 
   // Cấp độ cảnh báo
-  const isCritical = usagePercent >= 95;
-  const isWarning = usagePercent >= 80 && usagePercent < 95;
+  const isCritical = quotaBytes > 0 && usagePercent >= 95;
+  const isWarning = quotaBytes > 0 && usagePercent >= 80 && usagePercent < 95;
 
   const getStatusColor = () => {
+    if (quotaBytes === 0) return { bg: 'bg-slate-300', text: 'text-slate-500', ring: 'ring-slate-100', border: 'border-slate-200', lightBg: 'bg-slate-50' };
     if (isCritical) return { bg: 'bg-rose-500', text: 'text-rose-600', ring: 'ring-rose-200', border: 'border-rose-200', lightBg: 'bg-rose-50' };
     if (isWarning) return { bg: 'bg-amber-500', text: 'text-amber-600', ring: 'ring-amber-200', border: 'border-amber-200', lightBg: 'bg-amber-50' };
     return { bg: 'bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-100', border: 'border-blue-200', lightBg: 'bg-blue-50' };
@@ -291,17 +292,22 @@ export const StorageView: React.FC<StorageViewProps> = ({
           <p className="text-2xl font-extrabold text-slate-900 mt-3 tracking-tight">
             {isLoading ? 'Đang tải...' : formatBytes(uploadableDisplay)}
           </p>
-          {!isLoading && uploadableBytes === 0 && usedBytes >= quotaBytes && (
+          {!isLoading && quotaBytes === 0 && (
+            <p className="text-xs text-slate-500 mt-2 font-medium">
+              Chưa được cấp hạn mức — vui lòng liên hệ Quản trị viên để được phân bổ dung lượng.
+            </p>
+          )}
+          {!isLoading && quotaBytes > 0 && uploadableBytes === 0 && usedBytes >= quotaBytes && (
             <p className="text-xs text-rose-600 mt-2 font-medium">
               Đã vượt hạn mức — hãy xoá hẳn tệp (kể cả trong thùng rác) để tải lên lại.
             </p>
           )}
-          {!isLoading && uploadableBytes === 0 && usedBytes < quotaBytes && (
+          {!isLoading && quotaBytes > 0 && uploadableBytes === 0 && usedBytes < quotaBytes && (
             <p className="text-xs text-amber-600 mt-2 font-medium">
               Phòng hiện không còn chỗ trống để tải lên. Trưởng phòng đã được thông báo.
             </p>
           )}
-          {!isLoading && uploadableBytes !== 0 && (
+          {!isLoading && (quotaBytes === 0 || uploadableBytes !== 0) && quotaBytes > 0 && (
             <p className="text-xs text-slate-400 mt-2">
               Dung lượng có thể tải lên thêm
             </p>

@@ -291,9 +291,10 @@ export async function getTenantAuditLogs(
   pageSize: number = 20,
   searchTerm?: string,
   action?: string,
-  departmentId?: string
+  departmentId?: string,
+  excludeFileUploads: boolean = true
 ): Promise<PaginatedResult<TenantAuditLogDto>> {
-  const params: Record<string, any> = { pageNumber, pageSize };
+  const params: Record<string, any> = { pageNumber, pageSize, excludeFileUploads };
   if (searchTerm && searchTerm.trim()) params.searchTerm = searchTerm.trim();
   if (action && action.trim() && action !== 'all') params.action = action.trim();
   if (departmentId && departmentId.trim() && departmentId !== 'all') params.departmentId = departmentId.trim();

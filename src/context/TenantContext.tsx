@@ -25,6 +25,7 @@ import {
 } from '@/features/tenants/api';
 import { CreateDepartmentAdminPayload, Department } from '@/features/tenants/types';
 import { notificationApi, NotificationDto } from '@/features/notifications';
+import { signalRService } from '@/services/signalrService';
 
 interface TenantContextType {
   // Navigation & Tabs
@@ -144,6 +145,21 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [events, setEvents] = useState<TenantEvent[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+
+  useEffect(() => {
+    const tid = authUser?.tenantId || tenant.id;
+    if (tid && tid !== '11111111-1111-1111-1111-111111111111' && departments.length === 0) {
+      getTenantDepartments(tid)
+        .then((depts) => {
+          if (Array.isArray(depts) && depts.length > 0) {
+            setDepartments(depts);
+          }
+        })
+        .catch((err) => {
+          console.warn('[TenantContext] Auto-fetch departments error:', err);
+        });
+    }
+  }, [authUser?.tenantId, tenant.id, departments.length]);
   const [quotaData, setQuotaData] = useState<TenantQuotaData | null>(null);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState<boolean>(false);
@@ -260,7 +276,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         summary ? Promise.resolve(null) : getTenantStorageQuota(targetId),
         getTenantDepartments(targetId),
         getTenantUsers(targetId),
-        getTenantAuditLogs(targetId, 1, 6),
+        getTenantAuditLogs(targetId, 1, 6, undefined, undefined, undefined, true),
       ]);
 
       if (!summary && quotaFallbackRes.status === 'fulfilled' && quotaFallbackRes.value) {
@@ -281,8 +297,15 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       if (logsRes.status === 'fulfilled' && logsRes.value) {
         const rawLogs = (logsRes.value as any)?.items || (Array.isArray(logsRes.value) ? logsRes.value : []);
-        if (Array.isArray(rawLogs) && rawLogs.length > 0) {
-          const mappedEvents: TenantEvent[] = rawLogs.map((log: any) => ({
+        const filteredLogs = Array.isArray(rawLogs)
+          ? rawLogs.filter((log: any) => {
+              const act = (log.action || '').toLowerCase();
+              return act !== 'upload' && !act.includes('upload');
+            })
+          : [];
+
+        if (filteredLogs.length > 0) {
+          const mappedEvents: TenantEvent[] = filteredLogs.map((log: any) => ({
             id: log.id || `evt-${Date.now()}-${Math.random()}`,
             text: log.details || `${log.actor || 'Hệ thống'}: ${log.action}`,
             timeAgo: formatTimeAgoVi(log.timestamp),
@@ -552,23 +575,43 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  // Polling số chưa đọc mỗi 60 giây khi đã đăng nhập
+  // Kết nối SignalR Realtime thay thế Polling định kỳ
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser) {
+      signalRService.stop();
+      return;
+    }
 
-    const fetchUnreadCount = async () => {
+    // 1. Lấy số lượng thông báo chưa đọc ban đầu
+    const fetchInitialUnread = async () => {
       try {
         const count = await notificationApi.unreadCount();
         setNotificationCount(count);
       } catch {
-        // Giữ số cũ, không toast
+        // Giữ số cũ
       }
     };
+    fetchInitialUnread();
 
-    fetchUnreadCount();
-    const intervalId = setInterval(fetchUnreadCount, 60_000);
-    return () => clearInterval(intervalId);
-  }, [authUser]);
+    // 2. Khởi động kết nối SignalR
+    signalRService.start();
+
+    // 3. Đăng ký lắng nghe sự kiện ReceiveNotification thời gian thực
+    const unsubscribe = signalRService.onNotificationReceived((newNotif) => {
+      // Tự động tăng số quả chuông
+      setNotificationCount((prev) => prev + 1);
+
+      // Chèn thông báo mới vào đầu danh sách
+      setNotifications((prev) => [newNotif, ...prev]);
+
+      // Bật popup Toast thông báo tức thời
+      addToast('info', `${newNotif.title}: ${newNotif.content}`);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [authUser, addToast]);
 
   const refreshNotifications = useCallback(async () => {
     setNotificationsLoading(true);

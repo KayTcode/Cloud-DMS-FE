@@ -56,7 +56,8 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
 
   // Retention State
   const [retentionOption, setRetentionOption] = useState<number>(30);
-  const [customDays, setCustomDays] = useState<number>(60);
+  const [customValue, setCustomValue] = useState<number>(60);
+  const [customUnit, setCustomUnit] = useState<'days' | 'months' | 'years'>('days');
 
   // Status & Progress State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,7 +77,8 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
     setAbstract('');
     setDescription('');
     setRetentionOption(30);
-    setCustomDays(60);
+    setCustomValue(60);
+    setCustomUnit('days');
     setIsSubmitting(false);
     setUploadPercent(0);
     setErrorMessage('');
@@ -102,9 +104,29 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
 
   if (!isOpen) return null;
 
-  const effectiveRetentionDays = retentionOption === -1 ? customDays : retentionOption;
-  const estimatedExpiryDate = new Date();
-  estimatedExpiryDate.setDate(estimatedExpiryDate.getDate() + effectiveRetentionDays);
+  // Tính ngày hết hạn và số ngày lưu trữ thực tế
+  const getEstimatedExpiry = (): { expiryDate: Date; days: number } => {
+    const date = new Date();
+    if (retentionOption !== -1) {
+      date.setDate(date.getDate() + retentionOption);
+      return { expiryDate: date, days: retentionOption };
+    }
+
+    const val = Math.max(1, customValue || 1);
+    if (customUnit === 'years') {
+      date.setFullYear(date.getFullYear() + val);
+    } else if (customUnit === 'months') {
+      date.setMonth(date.getMonth() + val);
+    } else {
+      date.setDate(date.getDate() + val);
+    }
+
+    const diffMs = date.getTime() - Date.now();
+    const calculatedDays = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    return { expiryDate: date, days: calculatedDays };
+  };
+
+  const { expiryDate: estimatedExpiryDate, days: effectiveRetentionDays } = getEstimatedExpiry();
 
   const handleFileChange = (file: File) => {
     setSelectedFile(file);
@@ -319,8 +341,8 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200 ${dragActive
-                    ? 'border-blue-500 bg-blue-50/50'
-                    : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/60'
+                  ? 'border-blue-500 bg-blue-50/50'
+                  : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50/60'
                   }`}
               >
                 <input
@@ -496,8 +518,8 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
                   key={opt.value}
                   onClick={() => setRetentionOption(opt.value)}
                   className={`px-3 py-2 text-xs font-semibold rounded-full border transition-all cursor-pointer text-center ${retentionOption === opt.value
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
                 >
                   {opt.label}
@@ -506,17 +528,25 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
             </div>
 
             {retentionOption === -1 && (
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-xs text-slate-600 font-medium">Nhập số ngày:</span>
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <span className="text-xs text-slate-600 font-medium">Nhập thời hạn:</span>
                 <input
                   type="number"
                   min={1}
-                  max={3650}
-                  value={customDays}
-                  onChange={(e) => setCustomDays(Math.max(1, Number(e.target.value)))}
-                  className="w-24 px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  max={customUnit === 'years' ? 10 : customUnit === 'months' ? 120 : 3650}
+                  value={customValue}
+                  onChange={(e) => setCustomValue(Math.max(1, Number(e.target.value)))}
+                  className="w-20 px-3 py-1.5 rounded-full border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-center shadow-2xs font-semibold"
                 />
-                <span className="text-xs text-slate-500">ngày</span>
+                <select
+                  value={customUnit}
+                  onChange={(e) => setCustomUnit(e.target.value as 'days' | 'months' | 'years')}
+                  className="px-3 py-1.5 rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none cursor-pointer shadow-2xs"
+                >
+                  <option value="days">Ngày</option>
+                  <option value="months">Tháng</option>
+                  <option value="years">Năm</option>
+                </select>
               </div>
             )}
 
