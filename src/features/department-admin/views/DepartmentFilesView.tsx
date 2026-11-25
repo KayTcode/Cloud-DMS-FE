@@ -46,6 +46,7 @@ import {
 import { DepartmentInfo } from '../types';
 import { DriveItem, FileType } from '@/features/user/types';
 import { ArchiveBrowser } from '@/features/user/components/ArchiveBrowser';
+import { ShareModal } from '@/features/user/components/ShareModal';
 import {
   downloadTenantFileApi,
   deleteTenantFileApi,
@@ -177,6 +178,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [renameFolderName, setRenameFolderName] = useState('');
   const [isRenamingFolder, setIsRenamingFolder] = useState<boolean>(false);
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
+  const [shareItem, setShareItem] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   // DepartmentFilesView has its own bespoke file tables (doesn't go through
@@ -1600,6 +1602,18 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setShareItem(file);
+                            }}
+                            className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            title="Chia sẻ"
+                          >
+                            <Share2 className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               docModals.openDetails(file.id);
                             }}
                             className="p-1 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
@@ -1613,6 +1627,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                             docModals={docModals}
                             onOpenPreview={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
                             onDownload={() => handleDownload(file)}
+                            onShare={() => setShareItem(file)}
                             onToggleStar={() => handleToggleStar(file.id)}
                             onDelete={() => handleDeleteItem(file.id, file.name)}
                           />
@@ -1787,6 +1802,17 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  setShareItem(file);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="Chia sẻ"
+                              >
+                                <Share2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   docModals.openDetails(file.id);
                                 }}
                                 className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
@@ -1809,6 +1835,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                                 docModals={docModals}
                                 onOpenPreview={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
                                 onDownload={() => handleDownload(file)}
+                                onShare={() => setShareItem(file)}
                                 onToggleStar={() => handleToggleStar(file.id)}
                                 onDelete={() => handleDeleteItem(file.id, file.name)}
                               />
@@ -2003,6 +2030,17 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       {/* Modal: Mở / Tải xuống tài liệu (FilePreviewModal) */}
       {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
         onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownload(previewFile)} />}
+
+      {/* Modal: Chia sẻ tài liệu */}
+      {shareItem && (
+        <ShareModal
+          key={shareItem.id}
+          item={shareItem}
+          onClose={() => setShareItem(null)}
+          onShareSuccess={(msg) => { if (onAddToast) onAddToast('success', msg); }}
+          onChanged={() => { void fetchDepartmentFiles(); }}
+        />
+      )}
 
       {/* Bộ Modals quản lý tài liệu và siêu dữ liệu tập trung */}
       <DocumentModalsContainer

@@ -18,6 +18,7 @@ import {
   HardDrive,
   Calendar,
   User,
+  Users,
   ShieldCheck,
   ShieldAlert,
   ChevronLeft,
@@ -29,6 +30,7 @@ import {
 import { SharedFileItem, FileType, DriveItem } from '../types';
 import { driveApi } from '../api/driveApi';
 import { SharedFolderBrowser } from '../components/SharedFolderBrowser';
+import { SharedByMeView } from '../components/SharedByMeView';
 import { DocumentDetailsModal } from '@/features/document-submission';
 
 export interface SharedFilesViewProps {
@@ -66,6 +68,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedMetadataFileId, setSelectedMetadataFileId] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'with-me' | 'by-me'>('with-me');
 
   // Debounce search input
   useEffect(() => {
@@ -208,8 +211,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* 1. TOP HEADER & SEARCH & VIEW TOGGLE (Flat Google Drive Style) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* 1. TOP HEADER & SUB-TABS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
         {/* Title & Badge */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/70 shadow-2xs">
@@ -218,80 +221,128 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-800 tracking-tight">
-                Được chia sẻ với tôi
+                {activeSubTab === 'with-me' ? 'Được chia sẻ với tôi' : 'Tệp tôi đã chia sẻ'}
               </h1>
-              {totalCount > 0 && (
+              {activeSubTab === 'with-me' && totalCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
                   {totalCount}
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Các tệp tin và thư mục do đồng nghiệp trong tổ chức chia sẻ với bạn
+              {activeSubTab === 'with-me'
+                ? 'Các tệp tin và thư mục do đồng nghiệp trong tổ chức chia sẻ với bạn'
+                : 'Quản lý danh sách các tệp tin bạn đã chia sẻ và thu hồi quyền truy cập của người nhận'}
             </p>
           </div>
         </div>
 
-        {/* Search Capsule Bar & View Actions */}
-        <div className="flex items-center gap-2.5 flex-1 max-w-xl justify-end">
-          {/* Capsule Search */}
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm tệp được chia sẻ..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs bg-slate-100 hover:bg-slate-200/60 focus:bg-white border border-transparent focus:border-blue-400 focus:ring-2 focus:ring-blue-100 rounded-full transition-all text-slate-800 placeholder-slate-400 focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                title="Xóa tìm kiếm"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Refresh Button */}
+        {/* Sub-tab Switcher: Được chia sẻ với tôi / Tôi đã chia sẻ */}
+        <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200/80 shadow-2xs shrink-0">
           <button
-            onClick={() => fetchSharedFiles()}
-            disabled={isLoading}
-            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer disabled:opacity-50"
-            title="Làm mới danh sách"
+            type="button"
+            onClick={() => setActiveSubTab('with-me')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+              activeSubTab === 'with-me'
+                ? 'bg-white text-blue-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Được chia sẻ với tôi</span>
+            {totalCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 bg-slate-100 rounded-full text-[10px] text-slate-500 font-mono">
+                {totalCount}
+              </span>
+            )}
           </button>
-
-          {/* Google Drive View Switcher Pill */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200/60 shrink-0">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-full transition-all cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-[#C2E7FF] text-[#001D35] shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Xem dạng lưới"
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-full transition-all cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-[#C2E7FF] text-[#001D35] shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Xem dạng danh sách"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('by-me')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+              activeSubTab === 'by-me'
+                ? 'bg-white text-blue-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Tôi đã chia sẻ</span>
+          </button>
         </div>
       </div>
+
+      {activeSubTab === 'by-me' ? (
+        <SharedByMeView
+          onOpenFilePreview={onOpenFilePreview}
+          onDownloadItem={onDownloadItem}
+          onShowToast={onShowToast}
+        />
+      ) : (
+        <>
+          {/* Search Capsule Bar & View Actions */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="text-xs text-slate-500 font-medium">
+              Hiển thị <span className="font-bold text-slate-700">{items.length}</span> tệp tin được chia sẻ
+            </div>
+            <div className="flex items-center gap-2.5 flex-1 max-w-xl justify-end">
+              {/* Capsule Search */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm tệp được chia sẻ..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-xs bg-slate-100 hover:bg-slate-200/60 focus:bg-white border border-transparent focus:border-blue-400 focus:ring-2 focus:ring-blue-100 rounded-full transition-all text-slate-800 placeholder-slate-400 focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Xóa tìm kiếm"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                onClick={() => fetchSharedFiles()}
+                disabled={isLoading}
+                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors cursor-pointer disabled:opacity-50"
+                title="Làm mới danh sách"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+
+              {/* Google Drive View Switcher Pill */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200/60 shrink-0">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-[#C2E7FF] text-[#001D35] shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem dạng lưới"
+                >
+                  <Grid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-[#C2E7FF] text-[#001D35] shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Xem dạng danh sách"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
 
       {/* 2. FILTER CHIPS BAR (Flat Pills Google Drive Style) */}
       <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-b border-slate-100 pb-3">
@@ -692,6 +743,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
             </button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Modal xem chi tiết siêu dữ liệu tài liệu */}

@@ -21,9 +21,11 @@ export interface DocumentMetadataDto {
 export interface DocumentDetailsDto {
   fileId: string;
   fileName: string;
+  name?: string;
   contentType: string;
   sizeBytes: number;
   uploadedAt: string;
+  createdAt?: string;
   parentFolderId?: string | null;
   driveKind: string;
   retentionDays?: number | null;
@@ -35,7 +37,15 @@ export interface DocumentDetailsDto {
   title?: string;
   otherTitle?: string | null;
   author?: string;
+  ownerId?: string;
   ownerName?: string;
+  ownerEmail?: string | null;
+  folderName?: string | null;
+  storageProviderName?: string | null;
+  originalSizeBytes?: number | null;
+  archiveKind?: string | null;
+  updatedAt?: string | null;
+  hash?: string | null;
   issueYear?: number;
   releaseYear?: number;
   issueMonth?: number | null;

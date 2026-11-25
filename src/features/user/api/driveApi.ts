@@ -11,6 +11,9 @@ import {
   PreviewResult,
   SharedFileItem,
   SharedFileListResponse,
+  SharedByMeFileItem,
+  SharedByMeFileListResponse,
+  SharedByMeRecipient,
   TrashFileListResponse,
 } from '../types';
 
@@ -119,6 +122,51 @@ export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
     department: dto.departmentName || undefined,
     createdAt: dto.createdAt ? new Date(dto.createdAt).toLocaleDateString('vi-VN') : '',
     scanStatus: dto.scanStatus || 'Clean',
+    metadata: dto.metadata ? {
+      ...dto.metadata,
+      releaseYear: dto.metadata.issueYear || dto.metadata.releaseYear || 0,
+      issueYear: dto.metadata.issueYear || dto.metadata.releaseYear || 0,
+    } : null,
+  };
+};
+
+export const mapSharedByMeFileItemDto = (dto: any): SharedByMeFileItem => {
+  const name = dto.name || dto.fileName || 'Tệp không tên';
+  const { type: fileType, ext } = detectFileType(name, dto.contentType);
+  const sizeBytes = dto.originalSizeBytes ?? dto.sizeBytes ?? dto.size ?? 0;
+  const latestSharedAt = dto.latestSharedAt || dto.createdAt || new Date().toISOString();
+
+  const recipients: SharedByMeRecipient[] = (dto.recipients || []).map((r: any) => ({
+    recipientId: r.recipientId || r.id,
+    name: r.name || r.email || 'Người dùng',
+    email: r.email || '',
+    role: r.role || 'Viewer',
+    expiresAt: r.expiresAt || null,
+    sharedAt: r.sharedAt || new Date().toISOString(),
+  }));
+
+  return {
+    id: dto.id,
+    archiveKind: dto.archiveKind,
+    originalSizeBytes: dto.originalSizeBytes,
+    name,
+    type: 'file',
+    fileType: dto.archiveKind === 'folder' || dto.archiveKind === 'batch' ? 'folder' : fileType,
+    extension: ext,
+    size: sizeBytes,
+    sizeFormatted: formatBytes(sizeBytes),
+    updatedAt: dto.updatedAt ? new Date(dto.updatedAt).toLocaleDateString('vi-VN') : '',
+    createdAt: dto.createdAt ? new Date(dto.createdAt).toLocaleDateString('vi-VN') : '',
+    scanStatus: dto.scanStatus || 'Clean',
+    storageProvider: dto.storageProviderName || undefined,
+    storageProviderType: dto.storageProviderType || undefined,
+    department: dto.departmentName || undefined,
+    title: dto.title || dto.metadata?.title || null,
+    author: dto.author || dto.metadata?.author || null,
+    totalRecipients: dto.totalRecipients ?? recipients.length,
+    latestSharedAt,
+    latestSharedAtFormatted: new Date(latestSharedAt).toLocaleDateString('vi-VN') + ' ' + new Date(latestSharedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    recipients,
     metadata: dto.metadata ? {
       ...dto.metadata,
       releaseYear: dto.metadata.issueYear || dto.metadata.releaseYear || 0,
@@ -531,6 +579,48 @@ export const driveApi = {
       };
     } catch (error) {
       console.error('Lỗi khi tải danh sách tệp tin chia sẻ:', error);
+      throw error;
+    }
+  },
+
+  getSharedByMeFiles: async (params?: {
+    pageNumber?: number;
+    pageSize?: number;
+    searchTerm?: string;
+    fileType?: string;
+    recipientEmail?: string;
+    sortBy?: string;
+    sortDirection?: string;
+  }): Promise<SharedByMeFileListResponse> => {
+    try {
+      const res: any = await apiClient.get('/files/shared-by-me', {
+        params: {
+          pageNumber: params?.pageNumber ?? 1,
+          pageSize: params?.pageSize ?? 20,
+          searchTerm: params?.searchTerm?.trim() || undefined,
+          fileType: params?.fileType || undefined,
+          recipientEmail: params?.recipientEmail?.trim() || undefined,
+          sortBy: params?.sortBy || 'date',
+          sortDirection: params?.sortDirection || 'desc',
+        },
+      });
+      const data = res?.value ?? res?.data ?? res;
+      const rawItems = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : [];
+      const items = rawItems.map(mapSharedByMeFileItemDto);
+
+      return {
+        items,
+        totalCount: data?.totalCount ?? items.length,
+        pageNumber: data?.pageNumber ?? 1,
+        pageSize: data?.pageSize ?? 20,
+        hasMore: Boolean(data?.hasMore),
+      };
+    } catch (error) {
+      console.error('Lỗi khi tải danh sách tệp tin tôi đã chia sẻ:', error);
       throw error;
     }
   },
