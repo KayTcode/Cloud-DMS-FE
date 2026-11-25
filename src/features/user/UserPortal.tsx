@@ -246,9 +246,37 @@ export const UserPortal: React.FC = () => {
     fetchFolders(currentFolderId);
   }, [currentFolderId, fetchFolders]);
 
-  const handleNavigateFolder = (id: string | null) => {
+  const handleNavigateFolder = (id: string | null, pushToHistory = true) => {
+    if (id === currentFolderId) return;
+    if (pushToHistory && typeof window !== 'undefined') {
+      window.history.pushState(
+        { dmsUserFolderNav: true, userId: authUser?.id, folderId: id },
+        ''
+      );
+    }
     setCurrentFolderId(id);
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.history.state?.dmsUserFolderNav) {
+      window.history.replaceState(
+        { dmsUserFolderNav: true, userId: authUser?.id, folderId: null },
+        ''
+      );
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      const state = e.state;
+      if (state && state.dmsUserFolderNav) {
+        setCurrentFolderId(state.folderId ?? null);
+      } else if (currentFolderId !== null) {
+        setCurrentFolderId(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [authUser?.id, currentFolderId]);
 
   const handleRenameFolder = async (folderId: string, newName: string) => {
     try {
@@ -591,7 +619,7 @@ export const UserPortal: React.FC = () => {
             items={driveItems}
             currentUser={currentUser}
             currentFolderId={currentFolderId}
-            setCurrentFolderId={setCurrentFolderId}
+            setCurrentFolderId={handleNavigateFolder}
             searchQuery={searchQuery}
             serverSearched={isServerSearch}
             activeFilter={activeFilter}

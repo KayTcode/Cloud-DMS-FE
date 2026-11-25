@@ -119,7 +119,11 @@ export const mapSharedFileItemDto = (dto: any): SharedFileItem => {
     department: dto.departmentName || undefined,
     createdAt: dto.createdAt ? new Date(dto.createdAt).toLocaleDateString('vi-VN') : '',
     scanStatus: dto.scanStatus || 'Clean',
-    metadata: dto.metadata || null,
+    metadata: dto.metadata ? {
+      ...dto.metadata,
+      releaseYear: dto.metadata.issueYear || dto.metadata.releaseYear || 0,
+      issueYear: dto.metadata.issueYear || dto.metadata.releaseYear || 0,
+    } : null,
   };
 };
 
@@ -177,6 +181,16 @@ export const driveApi = {
         sizeBytes: hit.sizeBytes,
         scanStatus: hit.scanStatus,
         authorName: hit.author,
+        metadata: hit.title || hit.author || hit.keywords ? {
+          id: '',
+          fileEntryId: hit.fileId,
+          title: hit.title || hit.name,
+          author: hit.author || '',
+          releaseYear: 0,
+          issueYear: 0,
+          keywords: hit.keywords || null,
+          abstract: hit.snippet || null,
+        } : null,
       });
       // Đoạn trích là thứ cho người dùng thấy VÌ SAO tệp này khớp — không có nó thì kết
       // quả tìm theo nội dung trông y hệt tìm theo tên.

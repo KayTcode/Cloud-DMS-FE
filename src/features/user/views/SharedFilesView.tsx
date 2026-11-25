@@ -497,11 +497,16 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                 <div>
                   <h4
                     className="text-xs font-bold text-slate-800 line-clamp-2 hover:text-blue-600 cursor-pointer"
-                    title={file.name}
+                    title={file.metadata?.title || file.name}
                     onClick={() => handlePreview(file)}
                   >
-                    {file.name}
+                    {file.metadata?.title || file.name}
                   </h4>
+                  {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                    <p className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={file.name}>
+                      {file.name}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
                     <span>{file.sizeFormatted}</span>
                     <span>•</span>
@@ -576,12 +581,19 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                         <div className="min-w-0">
                           <p
                             className="font-bold text-slate-800 hover:text-blue-600 cursor-pointer truncate max-w-xs sm:max-w-sm"
-                            title={file.name}
+                            title={file.metadata?.title || file.name}
                             onClick={() => handlePreview(file)}
                           >
-                            {file.name}
+                            {file.metadata?.title || file.name}
                           </p>
-                          <span className="text-[10px] text-slate-400 uppercase font-mono">{file.extension}</span>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                              <span className="font-mono truncate" title={file.name}>
+                                {file.name}
+                              </span>
+                            )}
+                            <span className="uppercase font-mono">{file.extension}</span>
+                          </div>
                         </div>
                       </div>
                     </td>

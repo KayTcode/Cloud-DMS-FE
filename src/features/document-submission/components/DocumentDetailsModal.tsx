@@ -67,16 +67,36 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
 
   if (!isOpen || !fileId) return null;
 
-  const metadata: DocumentMetadataDto | null = details?.metadata ?? (details?.title != null ? {
+  const rawMeta = details?.metadata;
+  const metadata: DocumentMetadataDto | null = rawMeta ? {
+    id: rawMeta.id,
+    fileEntryId: rawMeta.fileEntryId,
+    title: rawMeta.title,
+    author: rawMeta.author,
+    otherTitle: rawMeta.otherTitle,
+    releaseYear: rawMeta.issueYear || rawMeta.releaseYear || 0,
+    issueYear: rawMeta.issueYear || rawMeta.releaseYear || 0,
+    releaseMonth: rawMeta.issueMonth ?? rawMeta.releaseMonth ?? null,
+    issueMonth: rawMeta.issueMonth ?? rawMeta.releaseMonth ?? null,
+    releaseDay: rawMeta.issueDay ?? rawMeta.releaseDay ?? null,
+    issueDay: rawMeta.issueDay ?? rawMeta.releaseDay ?? null,
+    releaseDateFormatted: (rawMeta as any).releaseDateFormatted || (rawMeta.issueYear || rawMeta.releaseYear ? `Năm ${rawMeta.issueYear || rawMeta.releaseYear}` : ''),
+    keywords: rawMeta.keywords ?? null,
+    abstract: rawMeta.abstract ?? null,
+    description: rawMeta.description ?? null,
+  } : (details?.title != null ? {
     id: details.metadataId || '',
     fileEntryId: details.fileId || '',
     author: details.author || details.ownerName || '',
     title: details.title,
     otherTitle: details.otherTitle,
     releaseYear: details.issueYear || details.releaseYear || 0,
+    issueYear: details.issueYear || details.releaseYear || 0,
     releaseMonth: details.issueMonth ?? details.releaseMonth ?? null,
+    issueMonth: details.issueMonth ?? details.releaseMonth ?? null,
     releaseDay: details.issueDay ?? details.releaseDay ?? null,
-    releaseDateFormatted: details.releaseDateFormatted || (details.issueYear ? `Năm ${details.issueYear}` : ''),
+    issueDay: details.issueDay ?? details.releaseDay ?? null,
+    releaseDateFormatted: details.releaseDateFormatted || (details.issueYear || details.releaseYear ? `Năm ${details.issueYear || details.releaseYear}` : ''),
     keywords: details.keywords ?? null,
     abstract: details.abstract ?? null,
     description: details.description ?? null,
