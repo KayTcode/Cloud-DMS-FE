@@ -31,7 +31,7 @@ import { DepartmentSharedFilesView } from './views/DepartmentSharedFilesView';
 
 const DepartmentAdminPortalContent: React.FC = () => {
   const { user } = useAuth();
-  const { activeNav, setActiveNav, searchQuery, setSearchQuery } = useTenantContext();
+  const { activeNav, setActiveNav, searchQuery, setSearchQuery, tenant } = useTenantContext();
   const {
     hasDepartment,
     summary,
@@ -73,8 +73,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveTab('logs');
     } else if (activeNav === 'storage-providers') {
       setActiveTab('quota');
-    } else if (activeNav === 'shared') {
-      setActiveTab('shared');
     } else if (activeNav === 'shared-store') {
       setActiveTab('shared-store');
     } else if (activeNav === 'shared') {
@@ -96,8 +94,6 @@ const DepartmentAdminPortalContent: React.FC = () => {
       setActiveNav('audit-logs');
     } else if (tab === 'quota') {
       setActiveNav('storage-providers');
-    } else if (tab === 'shared') {
-      setActiveNav('shared');
     } else if (tab === 'shared-store') {
       setActiveNav('shared-store');
     } else if (tab === 'shared') {
@@ -114,7 +110,7 @@ const DepartmentAdminPortalContent: React.FC = () => {
   const departmentInfo: DepartmentInfo = {
     id: user?.departmentId || summary?.departmentId || '',
     name: summary?.departmentName || 'Phòng ban',
-    tenantName: 'Tổ chức Doanh nghiệp',
+    tenantName: tenant?.name || (summary as any)?.tenantName || 'Doanh nghiệp',
     adminId: user?.id || '',
     adminName: user?.fullName || 'Trưởng phòng',
     adminRole: 'Department Admin',

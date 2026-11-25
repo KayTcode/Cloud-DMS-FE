@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   ArrowRight,
   UserPlus,
-  RefreshCw,
   FolderTree,
   Sparkles,
   Database,
@@ -138,23 +137,17 @@ export const DepartmentHubView: React.FC<DepartmentHubViewProps> = ({
             )}
           </div>
 
-          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-            Dưới đây là bức tranh toàn cảnh và các chức năng quản trị tài liệu, nhân sự và hạn mức lưu trữ phòng ban.
-          </p>
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 pt-0.5">
+            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>Trực thuộc tổ chức:</span>
+            <span className="font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
+              {department.tenantName || 'Doanh nghiệp'}
+            </span>
+          </div>
         </div>
 
         {/* Quick Actions */}
         <div className="flex items-center gap-2.5 shrink-0 self-start md:self-auto">
-          <button
-            onClick={onRefreshData}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200/80 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-            title="Đồng bộ lại dữ liệu"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
-            <span>Làm mới</span>
-          </button>
-
           <button
             onClick={onOpenAddMember}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
