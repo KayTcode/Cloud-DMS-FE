@@ -1,4 +1,6 @@
 export interface SavedSession {
+  storageFormat?: 'zip-store-v1';
+  zipFingerprint?: string;
   sessionId: string;
   fileName: string;
   size: number;

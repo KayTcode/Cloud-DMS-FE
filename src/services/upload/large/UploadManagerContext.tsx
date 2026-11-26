@@ -1,3 +1,4 @@
+import { packageLargeFile } from './storageZip64';
 /**
  * Context quản lý toàn cục các phiên upload file lớn: giữ danh sách
  * `UploadTask`, khởi tạo/điều khiển `LargeFileUploader` qua `createTransport`,
@@ -28,6 +29,7 @@ import {
   getSession,
   listPendingSessions,
   resumeSession,
+  abortSession,
   type LargeSession,
   type UploadSessionStatus,
 } from '@/services/upload/large/largeUploadApi';
@@ -111,6 +113,7 @@ interface InternalEntry {
 export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [pendingRemote, setPendingRemote] = useState<UploadSessionStatus[]>([]);
+  const preparingRef = useRef(new Map<string, AbortController>());
   const entriesRef = useRef<Map<string, InternalEntry>>(new Map());
   const completedCbsRef = useRef<Set<(fileId: string, target: UploadTarget) => void>>(new Set());
   const externalPendingCountRef = useRef(0);
@@ -141,7 +144,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   // beforeunload khi có task đang gửi/đang hoàn tất, cộng thêm số file chưa
   // bắt đầu của lô cây thư mục (F6 báo qua reportPendingCount).
   useEffect(() => {
-    const activeCount = tasks.filter((t) => t.state === 'sending' || t.state === 'completing').length;
+    const activeCount = tasks.filter((t) => t.state === 'preparing' || t.state === 'sending' || t.state === 'completing').length;
     const total = activeCount + externalPendingCountRef.current;
     if (total <= 0) return;
     const message = buildBeforeUnloadMessage(total);
@@ -170,7 +173,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
             entry.lastSampleAt = now;
             entry.lastUploaded = e.uploaded;
           }
-          updateTask(id, { uploaded: e.uploaded, bytesPerSecond });
+          updateTask(id, { uploaded: e.uploaded, size: e.total, bytesPerSecond });
         } else {
           updateTask(id, { state: e.state, error: e.error });
           if (e.state === 'done') {
@@ -198,28 +201,40 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setTasks((prev) => [
         ...prev,
-        { id, fileName: file.name, size: file.size, uploaded: 0, bytesPerSecond: 0, state: 'sending' },
+        { id, fileName: file.name.normalize('NFC'), size: file.size, uploaded: 0, bytesPerSecond: 0, state: 'sending' },
       ]);
 
       let session: LargeSession;
+      let archive: File;
+      const preparation = new AbortController();
+      preparingRef.current.set(id, preparation);
+      updateTask(id, { state: 'preparing' });
       try {
+        archive = await packageLargeFile(file, undefined, preparation.signal);
         session = await beginLargeSession(
           {
-            fileName: file.name,
-            sizeBytes: file.size,
+            fileName: file.name.normalize('NFC'),
+            sizeBytes: archive.size,
             folderId: target.folderId,
             replaceFileId: target.replaceFileId ?? null,
             drive: target.drive ?? null,
             departmentId: target.departmentId ?? null,
-            archiveKind: null,
+            archiveKind: 'file',
           },
           idempotencyKey
         );
+        if (preparation.signal.aborted) {
+          await abortSession(session.sessionId);
+          preparation.signal.throwIfAborted();
+        }
+        preparingRef.current.delete(id);
+        updateTask(id, { state: 'sending', size: archive.size });
       } catch (err) {
         const anyErr = err as { code?: string; message?: string } | null;
+        preparingRef.current.delete(id);
         const message = anyErr?.message ?? 'Không thể bắt đầu upload';
         updateTask(id, {
-          state: 'error',
+          state: preparation.signal.aborted ? 'cancelled' : 'error',
           error: { code: anyErr?.code ?? 'BEGIN_FAILED', message },
         });
         // Fix 7: a failed begin-call must reject, not silently resolve
@@ -231,11 +246,13 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         const fingerprint = await fingerprintFile(file, sha256Hex);
         await saveSession({
           sessionId: session.sessionId,
-          fileName: file.name,
+          fileName: file.name.normalize('NFC'),
           size: file.size,
           lastModified: file.lastModified,
           partSizeBytes: session.partSizeBytes,
           fingerprint,
+          storageFormat: 'zip-store-v1',
+          zipFingerprint: await fingerprintFile(archive!, sha256Hex),
           folderId: target.folderId,
           savedAt: Date.now(),
         });
@@ -246,13 +263,13 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
       const transport = createTransport(
         session,
         {
-          fileName: file.name,
-          sizeBytes: file.size,
+          fileName: file.name.normalize('NFC'),
+          sizeBytes: archive.size,
           folderId: target.folderId,
           replaceFileId: target.replaceFileId ?? null,
           drive: target.drive ?? null,
           departmentId: target.departmentId ?? null,
-          archiveKind: null,
+          archiveKind: 'file',
         },
         idempotencyKey
       );
@@ -289,7 +306,8 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
           } else if (e.state === 'error' || e.state === 'cancelled') {
             settleOutcome?.('failed', e.error);
             settleOutcome = null;
-          } else if (e.state === 'paused') {
+          } else if (e.state === 'paused' && !target.replaceFileId) {
+            // Replacement dialogs report success only after the new version actually completes.
             // Người dùng tự tạm dừng (hoặc hết lượt thử lại rồi tạm dừng):
             // không phải một thất bại để báo lỗi toast, nhưng cũng chưa
             // xong — coi như đã "giao" cho trình quản lý upload nền, không
@@ -303,7 +321,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       };
 
-      const uploader = new LargeFileUploader(file, session, transport, wrappedHandler);
+      const uploader = new LargeFileUploader(archive!, session, transport, wrappedHandler);
       entry.uploader = uploader;
       entriesRef.current.set(id, entry);
 
@@ -344,6 +362,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const cancel = useCallback(async (id: string) => {
+    preparingRef.current.get(id)?.abort();
     const entry = entriesRef.current.get(id);
     if (!entry) return;
     await entry.uploader.cancel();
@@ -352,14 +371,16 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
   const resumeWithFile = useCallback(
     async (sessionId: string, file: File) => {
       const saved = await getSavedSession(sessionId);
+      if (!saved || saved.storageFormat !== 'zip-store-v1') throw new Error('Phiên cũ không dùng ZIP. Hãy hủy phiên và tải lại tệp.');
+      const archive = await packageLargeFile(file);
       if (saved) {
         const fingerprint = await fingerprintFile(file, sha256Hex);
         const matches = matchesSaved(
           saved,
-          { name: file.name, size: file.size, lastModified: file.lastModified },
+          { name: file.name.normalize('NFC'), size: file.size, lastModified: file.lastModified },
           fingerprint
         );
-        if (!matches) {
+        if (!matches || saved.zipFingerprint !== await fingerprintFile(archive, sha256Hex)) {
           throw new Error(WRONG_FILE_MESSAGE);
         }
       }
@@ -367,10 +388,11 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
       const id = newId();
       setTasks((prev) => [
         ...prev,
-        { id, fileName: file.name, size: file.size, uploaded: 0, bytesPerSecond: 0, state: 'sending' },
+        { id, fileName: file.name.normalize('NFC'), size: file.size, uploaded: 0, bytesPerSecond: 0, state: 'sending' },
       ]);
 
       const status = await getSession(sessionId);
+      if (status.sizeBytes !== archive.size) throw new Error(WRONG_FILE_MESSAGE);
       const resumeResult = await resumeSession(sessionId);
 
       const fullSession: LargeSession = {
@@ -378,7 +400,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         fileId: status.fileId,
         documentVersion: 0,
         expiresAt: status.expiresAt,
-        reservedBytes: status.receivedBytes,
+        reservedBytes: status.sizeBytes,
         protocol: resumeResult.protocol as LargeSession['protocol'],
         directUploadUrl: resumeResult.directUploadUrl ?? undefined,
         recommendedChunkSizeBytes: resumeResult.partSizeBytes,
@@ -394,7 +416,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
       const target: UploadTarget = { folderId: status.folderId ?? saved?.folderId ?? null };
       const transport = createTransport(
         fullSession,
-        { fileName: file.name, sizeBytes: file.size, folderId: target.folderId, archiveKind: null },
+        { fileName: file.name.normalize('NFC'), sizeBytes: archive.size, folderId: target.folderId, archiveKind: 'file' },
         idempotencyKey
       );
 
@@ -407,7 +429,7 @@ export const UploadManagerProvider: React.FC<{ children: React.ReactNode }> = ({
         lastSampleAt: Date.now(),
         lastUploaded: status.receivedBytes,
       };
-      const uploader = new LargeFileUploader(file, fullSession, transport, handleEvent(id, sessionId));
+      const uploader = new LargeFileUploader(archive, fullSession, transport, handleEvent(id, sessionId));
       entry.uploader = uploader;
       entriesRef.current.set(id, entry);
       updateTask(id, { uploaded: status.receivedBytes });

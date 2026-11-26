@@ -31,7 +31,7 @@ export const DepartmentSharedFilesView: React.FC<Props> = ({ onShowToast }) => {
   };
 
   return <>
-    <SharedFilesView onOpenFilePreview={open} onDownloadItem={download} onShowToast={onShowToast} />
+    <SharedFilesView onOpenItem={open} onDownloadItem={download} onShowToast={onShowToast} />
     {archive && <ArchiveBrowser key={archive.id} file={archive}
       onClose={() => setArchive(null)} onDownloadPackage={() => void download(archive)} />}
   </>;

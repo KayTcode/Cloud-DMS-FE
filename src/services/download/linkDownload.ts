@@ -14,9 +14,9 @@ import {
 
 export { UNSCANNED_DOWNLOAD_DISABLED_MESSAGE, TOO_MANY_DOWNLOADS_MESSAGE };
 
-export async function downloadViaLink(fileId: string, opts: DownloadViaLinkOptions): Promise<void> {
+export async function downloadViaLink(fileId: string, opts: DownloadViaLinkOptions, archiveMemberId?: string): Promise<void> {
   return downloadViaLinkCore(fileId, opts, {
-    createDownloadLink,
+    createDownloadLink: archiveMemberId ? (id, acknowledged) => createDownloadLink(id, acknowledged, archiveMemberId) : createDownloadLink,
     document: document as unknown as import('./linkDownloadCore').MinimalDocument,
     apiBaseUrl: BASE_URL,
   });

@@ -194,10 +194,12 @@ export async function abortSession(sessionId: string): Promise<void> {
 
 export async function createDownloadLink(
   fileId: string,
-  acknowledgeUnscanned: boolean
+  acknowledgeUnscanned: boolean,
+  archiveMemberId?: string
 ): Promise<DownloadLinkResult> {
   const res: any = await largeUploadClient.post(API_ENDPOINTS.FILES.DOWNLOAD_LINK(fileId), {
     acknowledgeUnscanned,
+    ...(archiveMemberId ? { archiveMemberId } : {}),
   });
   return res;
 }

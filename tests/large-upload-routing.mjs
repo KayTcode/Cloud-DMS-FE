@@ -17,7 +17,8 @@ const { folderNameCandidate } = loadModule('src/services/upload/large/folderNami
 
 assert.equal(LARGE_FILE_THRESHOLD_BYTES, 104857600);
 
-assert.equal(planUpload([{ size: 104857600, relativePath: 'a.mp4' }]).mode, 'zip-single');
+assert.equal(planUpload([{ size: 104857600 - 4096, relativePath: 'a.mp4' }]).mode, 'zip-single');
+assert.equal(planUpload([{ size: 104857600, relativePath: 'a.mp4' }]).mode, 'large-single');
 assert.equal(planUpload([{ size: 104857601, relativePath: 'a.mp4' }]).mode, 'large-single');
 
 assert.equal(

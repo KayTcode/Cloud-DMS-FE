@@ -82,11 +82,6 @@ export interface UploadDocumentPayload {
   description?: string | null;
 }
 
-export interface ReplaceDocumentFilePayload {
-  fileId: string;
-  newFile: File;
-}
-
 export interface UpdateDocumentMetadataPayload {
   fileId: string;
   title: string;

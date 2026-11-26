@@ -27,7 +27,7 @@ export interface DocumentContextMenuProps {
     openReplace: (fileId: string, fileName: string) => void;
     openExtend: (target: string | any) => void;
   };
-  onOpenPreview?: () => void;
+  onOpenItem?: () => void;
   onDownload?: () => void;
   onShare?: () => void;
   onRename?: () => void;
@@ -41,7 +41,7 @@ export interface DocumentContextMenuProps {
 export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
   file,
   docModals,
-  onOpenPreview,
+  onOpenItem,
   onDownload,
   onShare,
   onRename,
@@ -237,15 +237,15 @@ export const DocumentContextMenu: React.FC<DocumentContextMenuProps> = ({
               }}
               className="w-60 bg-white rounded-2xl shadow-2xl border border-slate-200/80 py-1.5 z-[9999] text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none"
             >
-            {/* 1. Mở / Xem trước */}
-            {onOpenPreview && (
+            {/* 1. Mở / Tải xuống */}
+            {onOpenItem && (
               <button
                 type="button"
-                onClick={() => handleAction(onOpenPreview)}
+                onClick={() => handleAction(onOpenItem)}
                 className="w-full px-3.5 py-2 text-left hover:bg-slate-100/80 flex items-center gap-3 transition-colors cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4 text-slate-500 shrink-0" />
-                <span className="flex-1">Mở / Xem trước</span>
+                <span className="flex-1">Mở / Tải xuống</span>
               </button>
             )}
 

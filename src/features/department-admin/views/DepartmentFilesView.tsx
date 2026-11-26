@@ -177,7 +177,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [renameFolderModal, setRenameFolderModal] = useState<{ id: string; name: string } | null>(null);
   const [renameFolderName, setRenameFolderName] = useState('');
   const [isRenamingFolder, setIsRenamingFolder] = useState<boolean>(false);
-  const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
+  const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
   const [shareItem, setShareItem] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
@@ -1273,7 +1273,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {sortedTrashItems.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-rose-50/40 border border-slate-200/80 hover:border-rose-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header */}
@@ -1360,7 +1360,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {sortedTrashItems.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                           className="hover:bg-rose-50/30 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1570,7 +1570,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header (File Icon + Name + 3-dots) */}
@@ -1625,7 +1625,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                           <DocumentContextMenu
                             file={file}
                             docModals={docModals}
-                            onOpenPreview={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                            onOpenItem={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                             onDownload={() => handleDownload(file)}
                             onShare={() => setShareItem(file)}
                             onToggleStar={() => handleToggleStar(file.id)}
@@ -1761,7 +1761,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {files.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                           className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1833,7 +1833,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                               <DocumentContextMenu
                                 file={file}
                                 docModals={docModals}
-                                onOpenPreview={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                                onOpenItem={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                                 onDownload={() => handleDownload(file)}
                                 onShare={() => setShareItem(file)}
                                 onToggleStar={() => handleToggleStar(file.id)}
@@ -2028,8 +2028,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       )}
 
       {/* Modal: Mở / Tải xuống tài liệu (FilePreviewModal) */}
-      {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
-        onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownload(previewFile)} />}
+      {archiveFile && <ArchiveBrowser key={archiveFile.id} file={archiveFile}
+        onClose={() => setArchiveFile(null)} onDownloadPackage={() => void handleDownload(archiveFile)} />}
 
       {/* Modal: Chia sẻ tài liệu */}
       {shareItem && (

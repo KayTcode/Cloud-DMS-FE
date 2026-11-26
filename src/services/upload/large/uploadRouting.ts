@@ -1,4 +1,7 @@
 export const LARGE_FILE_THRESHOLD_BYTES = 104857600;
+// Leave room for the stored single-file ZIP headers at the bounded builder's ceiling.
+const ZIP_HEADER_RESERVE_BYTES = 4096;
+const usesLargeZip = (size: number) => size > LARGE_FILE_THRESHOLD_BYTES - ZIP_HEADER_RESERVE_BYTES;
 
 export interface SelectedEntry {
   size: number;
@@ -69,7 +72,7 @@ function buildTreePlan(entries: SelectedEntry[], directories: string[]): UploadP
   const items = entries.map((entry, index) => ({
     index,
     relativePath: entry.relativePath,
-    route: (entry.size > LARGE_FILE_THRESHOLD_BYTES ? 'large' : 'zip-file') as 'zip-file' | 'large',
+    route: (usesLargeZip(entry.size) ? 'large' : 'zip-file') as 'zip-file' | 'large',
   }));
 
   return { mode: 'tree', root, folders, items };
@@ -100,7 +103,7 @@ export function planUpload(entries: SelectedEntry[], directories: string[] = [])
 
   if (entries.length === 1) {
     const [only] = entries;
-    return only.size > LARGE_FILE_THRESHOLD_BYTES ? { mode: 'large-single' } : { mode: 'zip-single' };
+    return usesLargeZip(only.size) ? { mode: 'large-single' } : { mode: 'zip-single' };
   }
 
   return { mode: 'zip-package' };

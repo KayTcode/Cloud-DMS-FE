@@ -3,7 +3,6 @@ import {
   DocumentDetailsDto,
   DocumentSubmissionResultDto,
   ExtendRetentionPayload,
-  ReplaceDocumentFilePayload,
   UpdateDocumentMetadataPayload,
   UploadDocumentPayload,
 } from '../types';
@@ -127,32 +126,6 @@ export const documentApi = {
     }
   ): Promise<DocumentSubmissionResultDto> => {
     const res: any = await apiClient.post(`/documents/submissions/${sessionId}/complete`, payload || {});
-    return res?.value ?? res?.data ?? res;
-  },
-
-  /**
-   * Thay thế tệp vật lý mới, xóa sạch tệp cũ trên Cloud S3, giữ nguyên 100% siêu dữ liệu
-   */
-  replaceFile: async (
-    payload: ReplaceDocumentFilePayload,
-    onProgress?: (percent: number) => void
-  ): Promise<any> => {
-    const formData = new FormData();
-    formData.append('newFile', payload.newFile);
-
-    const res: any = await apiClient.put(`/documents/${payload.fileId}/replace-file`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total && onProgress) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percent);
-        }
-      },
-      timeout: 300000,
-    });
-
     return res?.value ?? res?.data ?? res;
   },
 

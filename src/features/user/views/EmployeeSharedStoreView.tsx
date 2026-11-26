@@ -80,7 +80,7 @@ export const EmployeeSharedStoreView: React.FC<EmployeeSharedStoreViewProps> = (
       activeFilter="all"
       setActiveFilter={() => {}}
       onOpenNewFolderModal={() => {}}
-      onOpenFilePreview={() => {}}
+      onOpenItem={() => {}}
       onToggleStar={() => {}}
       onDeleteFile={() => {}}
       onShareItem={() => {}}

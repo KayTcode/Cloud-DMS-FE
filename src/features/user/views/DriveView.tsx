@@ -55,7 +55,7 @@ interface DriveViewProps {
   onUploadFile?: (files: FileList, directories?: string[]) => void;
   onUploadDirectFile?: (files: FileList) => void;
   onOpenNewFolderModal: () => void;
-  onOpenFilePreview: (file: DriveItem) => void;
+  onOpenItem: (file: DriveItem) => void;
   onToggleStar: (id: string) => void;
   onDeleteFile: (id: string) => void;
   onShareItem: (item: DriveItem) => void;
@@ -101,7 +101,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
   onUploadFile,
   onUploadDirectFile,
   onOpenNewFolderModal,
-  onOpenFilePreview,
+  onOpenItem,
   onToggleStar,
   onDeleteFile,
   onShareItem,
@@ -872,7 +872,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                   {files.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? onOpenFilePreview(file) : void onDownloadItem(file))}
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? onOpenItem(file) : void onDownloadItem(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header (File Icon + Name + 3-dots) */}
@@ -998,7 +998,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                           <DocumentContextMenu
                             file={file}
                             docModals={docModals}
-                            onOpenPreview={() => onOpenFilePreview(file)}
+                            onOpenItem={() => onOpenItem(file)}
                             onDownload={() => onDownloadItem(file)}
                             onShare={() => onShareItem(file)}
                             onRename={() => {
@@ -1140,7 +1140,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                         {files.map((file, index) => (
                           <tr
                             key={file.id}
-                            onClick={() => { if (renamingFileId !== file.id) onOpenFilePreview(file); }}
+                            onClick={() => { if (renamingFileId !== file.id) onOpenItem(file); }}
                             className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                           >
                             <td className="py-3.5 px-4 text-center font-mono text-slate-500 font-medium text-xs">
@@ -1337,7 +1337,7 @@ export const DriveView: React.FC<DriveViewProps> = ({
                                 <DocumentContextMenu
                                   file={file}
                                   docModals={docModals}
-                                  onOpenPreview={() => onOpenFilePreview(file)}
+                                  onOpenItem={() => onOpenItem(file)}
                                   onDownload={() => onDownloadItem(file)}
                                   onShare={() => onShareItem(file)}
                                   onRename={() => {

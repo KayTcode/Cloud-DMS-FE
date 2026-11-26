@@ -153,7 +153,7 @@ export const SharedFolderBrowser: React.FC<Props> = ({ onOpenFile, onDownloadFil
                       type="button"
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                       aria-label={`Xem ${file.name}`}
-                      title="Xem trước"
+                      title="Mở / Tải xuống"
                       onClick={() => onOpenFile(file)}
                     >
                       <Eye className="w-3.5 h-3.5" />

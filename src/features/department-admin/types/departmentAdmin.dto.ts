@@ -149,6 +149,9 @@ export interface OffboardEmployeeResultDto {
   transferredFilesCount: number;
   transferredFoldersCount: number;
   reclaimedQuotaBytes: number;
+  returnedQuotaBytes?: number;
+  retainedQuotaBytes?: number;
+  releasedUploadReservationBytes?: number;
   handoverFolderName: string;
   scenario: 1 | 2 | 3 | 'DesignatedColleague' | 'DepartmentAdminCustody' | 'InviteNewEmployee';
   targetUserId: string;

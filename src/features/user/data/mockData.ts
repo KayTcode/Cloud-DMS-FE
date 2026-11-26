@@ -255,7 +255,6 @@ export const INITIAL_DRIVE_ITEMS: DriveItem[] = [
     sharedWith: ['netops@acmecorp.com'],
     tags: ['Network', 'Diagram'],
     department: 'Engineering',
-    previewUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80',
   },
   {
     id: 'file-6',

@@ -301,7 +301,7 @@ export const SharedStoreView: React.FC = () => {
           onUploadFile={undefined}
           onUploadDirectFile={undefined}
           onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
-          onOpenFilePreview={(item) => {
+          onOpenItem={(item) => {
             if (item.archiveKind === 'folder' || item.archiveKind === 'batch'
               || (!item.archiveKind && item.name.toLowerCase().endsWith('.zip'))) setArchiveFile(item);
             else void driveApi.downloadFile(item.id, item.name, item.archiveKind)

@@ -1,6 +1,7 @@
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { packageForStorage } from './storageZip';
+import { packageLargeFile } from './large/storageZip64';
 
 export interface MultipartUploadSessionResponse {
   sessionId: string;
@@ -43,6 +44,10 @@ export class CloudDirectUploader {
    */
   static async upload(options: DirectUploadOptions): Promise<DirectUploadResult> {
     if (!options.archiveKind) {
+      if (options.file.size > 100 * 1024 * 1024 - 4096) {
+        const file = await packageLargeFile(options.file, undefined, options.signal);
+        return this.upload({ ...options, file, archiveKind: 'file', logicalName: options.file.name.normalize('NFC') });
+      }
       const packaged = await packageForStorage([options.file]);
       return this.upload({ ...options, file: packaged.file, archiveKind: packaged.archiveKind, logicalName: packaged.logicalName });
     }

@@ -34,7 +34,7 @@ import { SharedByMeView } from '../components/SharedByMeView';
 import { DocumentDetailsModal } from '@/features/document-submission';
 
 export interface SharedFilesViewProps {
-  onOpenFilePreview?: (file: DriveItem) => void;
+  onOpenItem?: (file: DriveItem) => void;
   onDownloadItem?: (item: DriveItem) => void;
   onShowToast?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
@@ -42,7 +42,7 @@ export interface SharedFilesViewProps {
 type SortField = 'date' | 'name' | 'size';
 
 export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
-  onOpenFilePreview,
+  onOpenItem,
   onDownloadItem,
   onShowToast,
 }) => {
@@ -142,8 +142,8 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
   const handlePreview = (item: SharedFileItem) => {
     const driveItem = toDriveItem(item);
-    if (onOpenFilePreview) {
-      onOpenFilePreview(driveItem);
+    if (onOpenItem) {
+      onOpenItem(driveItem);
     } else {
       void driveApi.downloadFile(item.id, item.name);
     }
@@ -273,7 +273,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
 
       {activeSubTab === 'by-me' ? (
         <SharedByMeView
-          onOpenFilePreview={onOpenFilePreview}
+          onOpenItem={onOpenItem}
           onDownloadItem={onDownloadItem}
           onShowToast={onShowToast}
         />
@@ -588,7 +588,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                   <button
                     onClick={() => handlePreview(file)}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                    title="Xem trước / Mở"
+                    title="Mở / Tải xuống"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
@@ -691,7 +691,7 @@ export const SharedFilesView: React.FC<SharedFilesViewProps> = ({
                         <button
                           onClick={() => handlePreview(file)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="Xem trước"
+                          title="Mở / Tải xuống"
                         >
                           <Eye className="w-4 h-4" />
                         </button>

@@ -222,10 +222,16 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                     <strong className="text-slate-900">{result.abortedUploadSessionsCount}</strong>
                   </div>
                   <div>
-                    Quota hoàn trả về phòng ban:{' '}
+                    Quota có thể cấp lại cho nhân viên:{' '}
                     <strong className="text-emerald-600">
-                      +{formatBytes(result.reclaimedQuotaBytes)}
+                      +{formatBytes(result.returnedQuotaBytes ?? 0)}
                     </strong>
+                  </div>
+                  <div>
+                    Quota giữ cho dữ liệu bàn giao: <strong>{formatBytes(result.retainedQuotaBytes ?? 0)}</strong>
+                  </div>
+                  <div>
+                    Quota giữ chỗ upload đã giải phóng: <strong>{formatBytes(result.releasedUploadReservationBytes ?? 0)}</strong>
                   </div>
                   <div>
                     Chế độ tiếp quản:{' '}
@@ -275,7 +281,7 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                     </strong>
                   </div>
                   <div className="text-emerald-600 font-medium">
-                    Sẽ hoàn trả 100% về Quỹ chung phòng ban
+                    Dung lượng chưa sử dụng sẽ được trả về quỹ cấp phát. Quota cho dữ liệu bàn giao được giữ tại Kho chung.
                   </div>
                 </div>
               </div>
