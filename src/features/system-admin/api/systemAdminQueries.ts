@@ -13,11 +13,6 @@ import {
   TenantQuotaAllocationListResponse,
   TenantStorageQuotaResponse,
 } from '../types';
-import {
-  INITIAL_SYSTEM_TENANTS,
-  SYSTEM_ACTIVITIES,
-  STORAGE_PROVIDERS
-} from '@/data/sysAdminMockData';
 
 /**
  * Định dạng dung lượng byte sang chuỗi hiển thị dễ đọc (KB, MB, GB, TB)
@@ -182,10 +177,10 @@ export const getSystemTenantsApi = async (
   } catch (error) {
     console.error('Lỗi tải danh sách Tenants:', error);
     return {
-      items: INITIAL_SYSTEM_TENANTS,
+      items: [],
       pageNumber: 1,
       totalPages: 1,
-      totalCount: INITIAL_SYSTEM_TENANTS.length,
+      totalCount: 0,
       hasPreviousPage: false,
       hasNextPage: false,
     };
@@ -214,12 +209,12 @@ export const getSystemMetricsApi = async (): Promise<SystemMetricsSummary> => {
     // Fallback
   }
   return {
-    totalTenants: 24,
-    activeUsers: 1847,
-    onlineUsers: 312,
-    storageUsedTB: 4.2,
-    storageLimitTB: 10.0,
-    activeProviders: 3,
+    totalTenants: 0,
+    activeUsers: 0,
+    onlineUsers: 0,
+    storageUsedTB: 0,
+    storageLimitTB: 0,
+    activeProviders: 0,
   };
 };
 
@@ -234,7 +229,7 @@ export const getSystemActivitiesApi = async (): Promise<SystemActivityItem[]> =>
   } catch {
     // Fallback
   }
-  return SYSTEM_ACTIVITIES;
+  return [];
 };
 
 /**
@@ -244,7 +239,7 @@ export const getStorageProvidersApi = async (): Promise<StorageProviderItem[]> =
   try {
     const response: any = await axiosClient.get('/admin/storage-providers');
     const items = response?.value || response?.data || response;
-    if (Array.isArray(items) && items.length > 0) {
+    if (Array.isArray(items)) {
       return items.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -274,9 +269,9 @@ export const getStorageProvidersApi = async (): Promise<StorageProviderItem[]> =
       }));
     }
   } catch {
-    // Fallback to mock
+    // Fallback
   }
-  return STORAGE_PROVIDERS;
+  return [];
 };
 
 /**

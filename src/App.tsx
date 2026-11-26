@@ -39,12 +39,12 @@ const AppContent: React.FC = () => {
     return <GoogleOAuthCallback />;
   }
 
-  // If path is /accept-invitation, render AcceptInvitationPage
+  // Nế u bấmđường dẫn chấp nhận lời mờihệ thống  vào 
   if (window.location.pathname.startsWith('/accept-invitation')) {
     return <AcceptInvitationPage />;
   }
 
-  // If not authenticated, render LoginPage
+  //Nếu chưa đăng nhập thì hiện trang đăng nhậpPage
   if (!isAuthenticated || !user) {
     return <LoginPage />;
   }
@@ -64,7 +64,7 @@ const AppContent: React.FC = () => {
         return <UserPortal />;
     }
   };
-
+  // 
   return (
     <UploadManagerProvider>
       <TenantProvider>

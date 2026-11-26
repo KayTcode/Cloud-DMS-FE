@@ -81,71 +81,79 @@ export const RecentTenantsCard: React.FC<RecentTenantsCardProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
-            {displayTenants.map((t, index) => {
-              const usagePct = parseStorageUsagePercent(t);
-              const isHighUsage = usagePct >= 80;
+            {displayTenants.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                  Chưa có dữ liệu doanh nghiệp nào.
+                </td>
+              </tr>
+            ) : (
+              displayTenants.map((t, index) => {
+                const usagePct = parseStorageUsagePercent(t);
+                const isHighUsage = usagePct >= 80;
 
-              return (
-                <tr
-                  key={t.id}
-                  onClick={() => onSelectTenant && onSelectTenant(t)}
-                  className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
-                >
-                  <td className="py-3 px-3 text-center font-mono text-slate-400 text-xs">
-                    {index + 1}
-                  </td>
-                  <td className="py-3 px-3">
-                    <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/60">
-                      {t.tenantCode || `DN-${index + 1}`}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors block">
-                      {t.name}
-                    </span>
-                    <span className="text-[11px] text-slate-400 block mt-0.5">
-                      {t.adminEmail || `${t.usersAssigned || 1} tài khoản`}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className="text-slate-600 font-medium text-xs">
-                      {t.storageProviderName || t.region || 'Cloud Storage Pool'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-slate-700 font-semibold">
-                          {t.storageUsed || '0 B'}
-                        </span>
-                        <span className="text-slate-400">
-                          / {t.storageAllocated || '10 GB'}
-                        </span>
+                return (
+                  <tr
+                    key={t.id}
+                    onClick={() => onSelectTenant && onSelectTenant(t)}
+                    className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                  >
+                    <td className="py-3 px-3 text-center font-mono text-slate-400 text-xs">
+                      {index + 1}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/60">
+                        {t.tenantCode || `DN-${index + 1}`}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors block">
+                        {t.name}
+                      </span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                        {t.adminEmail || `${t.usersAssigned || 1} tài khoản`}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-slate-600 font-medium text-xs">
+                        {t.storageProviderName || t.region || 'Cloud Storage Pool'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-mono">
+                          <span className="text-slate-700 font-semibold">
+                            {t.storageUsed || '0 B'}
+                          </span>
+                          <span className="text-slate-400">
+                            / {t.storageAllocated || '10 GB'}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            style={{ width: `${Math.min(100, usagePct)}%` }}
+                            className={`h-full rounded-full transition-all ${
+                              isHighUsage ? 'bg-rose-500' : 'bg-blue-600'
+                            }`}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          style={{ width: `${Math.min(100, usagePct)}%` }}
-                          className={`h-full rounded-full transition-all ${
-                            isHighUsage ? 'bg-rose-500' : 'bg-blue-600'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 pl-4 text-right">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${
-                        t.status === 'Active'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                          : 'bg-rose-50 text-rose-600 border border-rose-200/60'
-                      }`}
-                    >
-                      {t.status === 'Active' ? 'Hoạt động' : 'Tạm khóa'}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                    <td className="py-3 pl-4 text-right">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${
+                          t.status === 'Active'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                            : 'bg-rose-50 text-rose-600 border border-rose-200/60'
+                        }`}
+                      >
+                        {t.status === 'Active' ? 'Hoạt động' : 'Tạm khóa'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

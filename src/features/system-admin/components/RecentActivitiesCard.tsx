@@ -27,20 +27,26 @@ export const RecentActivitiesCard: React.FC<RecentActivitiesCardProps> = ({
       </div>
 
       <div className="divide-y divide-slate-100">
-        {activities.map((item) => (
-          <div key={item.id} className="py-3 first:pt-1 last:pb-1">
-            <p className="text-xs font-semibold text-slate-900 leading-snug">
-              {item.title}
-            </p>
-            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
-              <span>{item.timeAgo}</span>
-              <span>•</span>
-              <span className="font-mono text-blue-600 font-medium">
-                {item.actor}
-              </span>
-            </div>
+        {activities.length === 0 ? (
+          <div className="py-8 text-center text-xs text-slate-400">
+            Chưa có hoạt động nào được ghi nhận.
           </div>
-        ))}
+        ) : (
+          activities.map((item) => (
+            <div key={item.id} className="py-3 first:pt-1 last:pb-1">
+              <p className="text-xs font-semibold text-slate-900 leading-snug">
+                {item.title}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
+                <span>{item.timeAgo}</span>
+                <span>•</span>
+                <span className="font-mono text-blue-600 font-medium">
+                  {item.actor}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

@@ -1,27 +1,12 @@
 import axiosClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import {
-  CreateAdminUserPayload, 
-  UpdateAdminUserPayload, 
-  ChangeUserStatusPayload, 
   AdminUserDto,
   CreateSystemTenantPayload, 
   PlanType, 
   SystemTenant, 
   TenantStatus 
 } from '../types';
-
-/**
- * 1. Create a new user account (POST /api/admin/users)
- */
-export const createAdminUserApi = async (
-  payload: CreateAdminUserPayload
-): Promise<AdminUserDto> => {
-  const response: any = await axiosClient.post('/admin/users', payload);
-  if (response?.value) return response.value;
-  if (response?.data) return response.data;
-  return response;
-};
 
 /**
  * 1b. Create an employee within a department (POST /api/department/{departmentId}/employees)
@@ -45,38 +30,6 @@ export const getDepartmentEmployeesApi = async (
   const response: any = await axiosClient.get(`/department/${departmentId}/employees`);
   const data = response?.value?.items || response?.value || response?.data || response;
   return Array.isArray(data) ? data : [];
-};
-
-/**
- * 2. Update user profile information (PUT /api/admin/users/{id})
- */
-export const updateAdminUserApi = async (
-  id: string,
-  payload: UpdateAdminUserPayload
-): Promise<AdminUserDto> => {
-  const response: any = await axiosClient.put(`/admin/users/${id}`, payload);
-  if (response?.value) return response.value;
-  if (response?.data) return response.data;
-  return response;
-};
-
-/**
- * 5. Change user status Active / Deactivate (PATCH /api/admin/users/{id}/status)
- */
-export const changeUserStatusApi = async (
-  id: string,
-  payload: ChangeUserStatusPayload
-): Promise<boolean> => {
-  await axiosClient.patch(`/admin/users/${id}/status`, payload);
-  return true;
-};
-
-/**
- * 6. Delete a user account (DELETE /api/admin/users/{id})
- */
-export const deleteAdminUserApi = async (id: string): Promise<boolean> => {
-  await axiosClient.delete(`/admin/users/${id}`);
-  return true;
 };
 
 /**

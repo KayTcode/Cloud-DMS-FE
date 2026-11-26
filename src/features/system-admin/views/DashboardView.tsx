@@ -54,9 +54,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ? Math.min(100, Math.round((totalAllocatedBytes / totalStorageCapacityBytes) * 100))
     : 0;
 
-  // 3. Hoạt động kiểm toán thật trích xuất từ Audit Logs API
+  // 3. Hoạt động kiểm toán thật trích xuất từ Audit Logs API (không dùng mock fallback)
   const displayActivities: SystemActivityItem[] =
-    auditLogs.length > 0
+    auditLogs && auditLogs.length > 0
       ? auditLogs.slice(0, 5).map((log) => ({
           id: log.id,
           title: `${log.action} - ${log.details}`,
@@ -64,7 +64,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           actor: log.actor,
           type: log.status === 'SUCCESS' ? 'upgrade' : 'security',
         }))
-      : activities;
+      : (activities && activities.length > 0 ? activities : []);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">

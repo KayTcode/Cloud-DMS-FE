@@ -94,7 +94,11 @@ export const TenantCapacityAlertsCard: React.FC<TenantCapacityAlertsCardProps> =
             )}
           </div>
 
-          {highUsageTenants.length > 0 ? (
+          {tenants.length === 0 ? (
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60 text-center text-xs text-slate-400">
+              Chưa có dữ liệu doanh nghiệp.
+            </div>
+          ) : highUsageTenants.length > 0 ? (
             <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
               {highUsageTenants.slice(0, 3).map((t) => (
                 <div
