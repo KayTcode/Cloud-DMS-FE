@@ -1,11 +1,11 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   UserX,
   Mail,
   UserCheck,
   ShieldAlert,
-  ShieldCheck,
+  HardDrive,
   Loader2,
   CheckCircle2,
   AlertTriangle,
@@ -260,49 +260,18 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Thông tin Nhân viên sắp thôi việc */}
-              <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80 flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-semibold text-rose-900 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-rose-600" />
-                    <span>
-                      Nhân viên thôi việc: <strong>{employee.name}</strong>
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-rose-700 font-mono mt-0.5 ml-5.5">
-                    {employee.email} • {employee.role}
-                  </div>
-                </div>
-                <div className="text-right text-[11px]">
-                  <div>
-                    Hạn mức Quota cá nhân:{' '}
-                    <strong className="text-rose-700 font-mono font-bold">
-                      {employee.allocatedQuotaGB} GB
-                    </strong>
-                  </div>
-                  <div className="text-emerald-600 font-medium">
-                    Dung lượng chưa sử dụng sẽ được trả về quỹ cấp phát. Quota cho dữ liệu bàn giao được giữ tại Kho chung.
-                  </div>
-                </div>
-              </div>
-
-              {/* Colleagues inherit Viewer access; department heads retain drive management. */}
-              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200/90 text-xs text-indigo-950 flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <div className="font-bold text-indigo-900">
-                    Chính sách Bản chụp Chỉ đọc — chia sẻ thư mục bàn giao
-                  </div>
-                  <p className="text-[11px] text-indigo-800 leading-relaxed">
-                    Dữ liệu được chuyển vào thư mục bàn giao tại Kho chung phòng ban. Đồng nghiệp hoặc nhân sự mới được cấp quyền xem và tải về toàn bộ cây thư mục, kể cả tệp được quản lý thêm sau này. Người nhận không được tải lên, tạo thư mục, sửa hoặc xóa; cần sao chép sang kho cá nhân để tiếp tục công việc. Quota cá nhân của người nhận không thay đổi khi nhận bàn giao. Trưởng phòng tiếp tục quản lý dữ liệu theo quyền Kho chung.
-                  </p>
-                </div>
+              {/* Thông tin Nhân viên nghỉ việc */}
+              <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200/80 flex items-center gap-2 text-xs">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-semibold text-rose-900">
+                  Nhân viên nghỉ việc: <strong>{employee.name}</strong>
+                </span>
               </div>
 
               {/* Lựa chọn Kịch bản bàn giao */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-800 block">
-                  Hình thức Tiếp nhận & Kế thừa Dữ liệu:
+                  Hình thức Kế nhiệm & Bàn giao:
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {/* Kịch bản 1: Đồng nghiệp cùng phòng */}
@@ -312,26 +281,20 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                       setScenario('DESIGNATED_PEER');
                       setTargetUserId('');
                     }}
-                    className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${scenario === 'DESIGNATED_PEER'
+                    className={`p-3 rounded-xl border text-left flex items-center transition-all cursor-pointer ${
+                      scenario === 'DESIGNATED_PEER'
                         ? 'border-blue-600 bg-blue-50/70 ring-1 ring-blue-600 shadow-2xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
+                    }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <UserCheck
-                          className={`w-3.5 h-3.5 ${scenario === 'DESIGNATED_PEER' ? 'text-blue-600' : 'text-slate-500'
-                            }`}
-                        />
-                        <span>Đồng nghiệp Cùng phòng</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Chỉ định 1 nhân viên trong phòng tiếp quản và tra cứu công việc.
-                      </p>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <UserCheck
+                        className={`w-3.5 h-3.5 ${
+                          scenario === 'DESIGNATED_PEER' ? 'text-blue-600' : 'text-slate-500'
+                        }`}
+                      />
+                      <span>Đồng nghiệp Cùng phòng</span>
                     </div>
-                    <span className="inline-block mt-2 text-[10px] font-semibold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded w-fit">
-                      Khuyên dùng
-                    </span>
                   </button>
 
                   {/* Kịch bản 2: Trưởng phòng Custody */}
@@ -341,28 +304,22 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                       setScenario('DEPARTMENT_HEAD_CUSTODY');
                       setTargetUserId('');
                     }}
-                    className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${scenario === 'DEPARTMENT_HEAD_CUSTODY'
+                    className={`p-3 rounded-xl border text-left flex items-center transition-all cursor-pointer ${
+                      scenario === 'DEPARTMENT_HEAD_CUSTODY'
                         ? 'border-indigo-600 bg-indigo-50/70 ring-1 ring-indigo-600 shadow-2xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
+                    }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <ShieldAlert
-                          className={`w-3.5 h-3.5 ${scenario === 'DEPARTMENT_HEAD_CUSTODY'
-                              ? 'text-indigo-600'
-                              : 'text-slate-500'
-                            }`}
-                        />
-                        <span>Trưởng phòng Tạm giữ</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Dữ liệu lưu tại Kho chung do Trưởng phòng trực tiếp quản lý.
-                      </p>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <ShieldAlert
+                        className={`w-3.5 h-3.5 ${
+                          scenario === 'DEPARTMENT_HEAD_CUSTODY'
+                            ? 'text-indigo-600'
+                            : 'text-slate-500'
+                        }`}
+                      />
+                      <span>Trưởng phòng Tạm giữ</span>
                     </div>
-                    <span className="inline-block mt-2 text-[10px] font-semibold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded w-fit">
-                      Chuyên môn
-                    </span>
                   </button>
 
                   {/* Kịch bản 3: Mời nhân sự mới qua Gmail */}
@@ -372,26 +329,20 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                       setScenario('INVITE_NEW_EMPLOYEE');
                       setTargetUserId('');
                     }}
-                    className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${scenario === 'INVITE_NEW_EMPLOYEE'
+                    className={`p-3 rounded-xl border text-left flex items-center transition-all cursor-pointer ${
+                      scenario === 'INVITE_NEW_EMPLOYEE'
                         ? 'border-amber-600 bg-amber-50/70 ring-1 ring-amber-600 shadow-2xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
+                    }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <Mail
-                          className={`w-3.5 h-3.5 ${scenario === 'INVITE_NEW_EMPLOYEE' ? 'text-amber-600' : 'text-slate-500'
-                            }`}
-                        />
-                        <span>Mời Nhân sự Mới</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Gửi Gmail mời nhân sự tuyển dụng bên ngoài tiếp nhận công việc.
-                      </p>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <Mail
+                        className={`w-3.5 h-3.5 ${
+                          scenario === 'INVITE_NEW_EMPLOYEE' ? 'text-amber-600' : 'text-slate-500'
+                        }`}
+                      />
+                      <span>Mời Nhân sự Mới</span>
                     </div>
-                    <span className="inline-block mt-2 text-[10px] font-semibold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded w-fit">
-                      Tuyển dụng mới
-                    </span>
                   </button>
                 </div>
               </div>
@@ -422,29 +373,13 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                       ))}
                     </select>
                   )}
-                  <p className="text-[11px] text-blue-700 pt-1">
-                    * Đồng nghiệp giữ nguyên vai trò Nhân viên, được cấp quyền Chỉ đọc (Xem/Tải về); Quota cá nhân hoàn toàn không bị ảnh hưởng.
-                  </p>
                 </div>
               )}
 
               {scenario === 'DEPARTMENT_HEAD_CUSTODY' && (
-                <div className="p-4 rounded-xl bg-indigo-50/40 border border-indigo-200/80 space-y-2">
-                  <div className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Trưởng phòng tiếp nhận tạm giữ tài sản số:</span>
-                  </div>
-                  <div className="p-2.5 bg-white rounded-lg border border-indigo-200 text-xs text-slate-800">
-                    <div>
-                      Trưởng phòng quản lý: <strong>{department.adminName}</strong>
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                      {department.adminEmail}
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-indigo-700 pt-1">
-                    * Toàn bộ tài liệu được gom về Thư mục Bàn giao tại Kho chung phòng ban. Kho cá nhân của Trưởng phòng hoàn toàn sạch sẽ, không bị trộn lẫn dữ liệu.
-                  </p>
+                <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/90 flex items-center gap-2 text-xs font-semibold text-amber-950">
+                  <HardDrive className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Lưu trữ tài sản vào Thư mục Bàn giao do Trưởng phòng quản lý</span>
                 </div>
               )}
 
@@ -507,9 +442,6 @@ export const OffboardEmployeeModal: React.FC<OffboardEmployeeModalProps> = ({
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-amber-700 pt-1">
-                    * Hệ thống sẽ gửi email kích hoạt (thời hạn 48 giờ). Sau khi kích hoạt tài khoản, nhân sự mới sẽ tự động được cấp quyền truy cập chỉ đọc vào thư mục bàn giao.
-                  </p>
                 </div>
               )}
 

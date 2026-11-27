@@ -473,8 +473,8 @@ export const DepartmentStorageReportView: React.FC<DepartmentStorageReportViewPr
         </div>
       </div>
 
-      {/* 5.2. 4 Thẻ chỉ số tổng quan (KPI Stat Cards) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 5.2. 3 Thẻ chỉ số tổng quan (KPI Stat Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: Tổng số tệp tin đã lưu */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-500">
@@ -511,26 +511,7 @@ export const DepartmentStorageReportView: React.FC<DepartmentStorageReportViewPr
           </div>
         </div>
 
-        {/* Card 3: Trạng thái an toàn mã độc (ClamAV & SHA-256) */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-medium">Trạng thái an toàn</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>ClamAV & SHA-256</span>
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              100% tệp tin đã qua quét mã độc & kiểm tra toàn vẹn
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4: Nhà cung cấp Cloud Storage Pool */}
+        {/* Card 3: Nhà cung cấp Cloud Storage Pool */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-medium">Cloud Storage Pool</span>

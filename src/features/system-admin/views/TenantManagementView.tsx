@@ -429,11 +429,10 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
         {/* Filter Chips dạng viên thuốc chuẩn Material 3 */}
         <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-auto">
           <span className="text-[11px] font-medium text-slate-400 mr-1 hidden sm:inline">Trạng thái:</span>
-          {(['All', 'Interim', 'Pending', 'Active', 'Suspended'] as const).map((status) => {
+          {(['All', 'Interim', 'Active', 'Suspended'] as const).map((status) => {
             const labels = {
               All: 'Tất cả',
               Interim: `Tiếp quản lâm thời${interimCount > 0 ? ` (${interimCount})` : ''}`,
-              Pending: `Chờ kích hoạt${pendingCount > 0 ? ` (${pendingCount})` : ''}`,
               Active: 'Đang hoạt động',
               Suspended: 'Tạm ngưng',
             };
@@ -449,21 +448,14 @@ export const TenantManagementView: React.FC<TenantManagementViewProps> = ({
                   isActive
                     ? status === 'Interim'
                       ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-xs'
-                      : status === 'Pending'
-                        ? 'bg-amber-600 text-white border-amber-600 font-bold shadow-xs'
-                        : 'bg-blue-600 text-white border-blue-600 font-semibold'
+                      : 'bg-blue-600 text-white border-blue-600 font-semibold'
                     : status === 'Interim' && interimCount > 0
                       ? 'bg-purple-50 text-purple-700 border-purple-200/90 hover:bg-purple-100/70 font-semibold'
-                      : status === 'Pending' && pendingCount > 0
-                        ? 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100/70 font-semibold'
-                        : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
+                      : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
                 }`}
               >
                 {status === 'Interim' && (
                   <ShieldAlert className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-purple-600'}`} />
-                )}
-                {status === 'Pending' && (
-                  <Clock className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-amber-600'}`} />
                 )}
                 <span>{labels[status]}</span>
               </button>

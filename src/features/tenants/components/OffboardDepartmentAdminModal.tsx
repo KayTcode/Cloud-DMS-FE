@@ -237,21 +237,16 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                       setScenario('INVITE_EMAIL');
                       setTargetUserId('');
                     }}
-                    className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    className={`p-3 rounded-xl border text-left flex items-center transition-all cursor-pointer ${
                       scenario === 'INVITE_EMAIL'
                         ? 'border-blue-600 bg-blue-50/70 ring-1 ring-blue-600 shadow-2xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <Mail className={`w-3.5 h-3.5 ${scenario === 'INVITE_EMAIL' ? 'text-blue-600' : 'text-slate-500'}`} />
-                        <span>Mời Trưởng phòng Mới</span>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <Mail className={`w-3.5 h-3.5 ${scenario === 'INVITE_EMAIL' ? 'text-blue-600' : 'text-slate-500'}`} />
+                      <span>Mời Trưởng phòng Mới</span>
                     </div>
-                    <span className="inline-block mt-2 text-[10px] font-semibold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded w-fit">
-                      Khuyên dùng
-                    </span>
                   </button>
 
                   {/* Kịch bản 2: Thăng chức nhân viên */}
@@ -261,21 +256,16 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                       setScenario('DESIGNATED_EMPLOYEE');
                       setTargetUserId('');
                     }}
-                    className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    className={`p-3 rounded-xl border text-left flex items-center transition-all cursor-pointer ${
                       scenario === 'DESIGNATED_EMPLOYEE'
                         ? 'border-indigo-600 bg-indigo-50/70 ring-1 ring-indigo-600 shadow-2xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <UserCheck className={`w-3.5 h-3.5 ${scenario === 'DESIGNATED_EMPLOYEE' ? 'text-indigo-600' : 'text-slate-500'}`} />
-                        <span>Thăng chức Nhân viên</span>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <UserCheck className={`w-3.5 h-3.5 ${scenario === 'DESIGNATED_EMPLOYEE' ? 'text-indigo-600' : 'text-slate-500'}`} />
+                      <span>Thăng chức Nhân viên</span>
                     </div>
-                    <span className="inline-block mt-2 text-[10px] font-semibold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded w-fit">
-                      Nội bộ phòng
-                    </span>
                   </button>
 
                   {/* Kịch bản 3: Tạm khuyết Trưởng phòng / Lưu vào Kho chung */}
@@ -285,21 +275,16 @@ export const OffboardDepartmentAdminModal: React.FC<OffboardDepartmentAdminModal
                       setScenario('INTERIM_HOLD');
                       setTargetUserId('');
                     }}
-                    className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                    className={`p-3 rounded-xl border text-left flex items-center transition-all cursor-pointer ${
                       scenario === 'INTERIM_HOLD'
                         ? 'border-amber-600 bg-amber-50/70 ring-1 ring-amber-600 shadow-2xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <ShieldAlert className={`w-3.5 h-3.5 ${scenario === 'INTERIM_HOLD' ? 'text-amber-600' : 'text-slate-500'}`} />
-                        <span>Tạm khuyết Trưởng phòng</span>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <ShieldAlert className={`w-3.5 h-3.5 ${scenario === 'INTERIM_HOLD' ? 'text-amber-600' : 'text-slate-500'}`} />
+                      <span>Tạm khuyết Trưởng phòng</span>
                     </div>
-                    <span className="inline-block mt-2 text-[10px] font-semibold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded w-fit">
-                      Tạm khuyết Lead
-                    </span>
                   </button>
                 </div>
               </div>

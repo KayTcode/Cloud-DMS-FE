@@ -1,7 +1,26 @@
 import apiClient from '@/api/axiosClient';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { TenantInfo, TenantUser, Department, TenantEvent, DepartmentDetail } from '@/features/tenants/types';
-import { initialTenant, initialEvents } from '@/data/tenantMockData';
+
+export const emptyTenantInfo: TenantInfo = {
+  id: '',
+  name: '',
+  status: 'ACTIVE',
+  plan: 'Standard',
+  contactEmail: '',
+  createdAt: '',
+  licenseUsed: 0,
+  licenseLimit: 0,
+  departmentsCount: 0,
+  diskUsedTB: 0,
+  diskAllocatedTB: 0,
+  storageQuotaBytes: 0,
+  storageUsedBytes: 0,
+  allocatedToDepartmentsBytes: 0,
+  availableBytes: 0,
+  filesCount: 0,
+  directoriesCount: 0,
+};
 
 export interface TenantQuotaAllocationItem {
   allocationId: string;
@@ -175,7 +194,8 @@ export async function getTenantDetails(tenantId: string): Promise<TenantInfo> {
     const data = await apiClient.get<any, TenantInfo>(API_ENDPOINTS.TENANTS.DETAIL(tenantId));
     return data;
   } catch (error) {
-    return { ...initialTenant, id: tenantId };
+    console.warn('[Tenant] Không thể nạp chi tiết Tenant từ API:', error);
+    return { ...emptyTenantInfo, id: tenantId };
   }
 }
 

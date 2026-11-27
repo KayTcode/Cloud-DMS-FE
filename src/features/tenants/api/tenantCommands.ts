@@ -91,13 +91,8 @@ export async function updateTenantSubscription(tenantId: string, plan: string): 
  * Khớp BE: UpdateTenantSettingsCommand
  */
 export async function updateTenantSettings(tenantId: string, settings: TenantSettingsUpdateDto): Promise<boolean> {
-  try {
-    await apiClient.put(API_ENDPOINTS.TENANTS.SETTINGS(tenantId), settings);
-    return true;
-  } catch (error) {
-    console.warn('[API Offline] Tạm thời xử lý mock cho updateTenantSettings:', error);
-    return true;
-  }
+  await apiClient.put(API_ENDPOINTS.TENANTS.SETTINGS(tenantId), settings);
+  return true;
 }
 
 /**

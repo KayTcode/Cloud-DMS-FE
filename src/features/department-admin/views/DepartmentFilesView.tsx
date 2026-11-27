@@ -36,7 +36,6 @@ import {
   ChevronUp,
   Layers,
   UploadCloud,
-  User,
   Pencil,
   Clock,
   Tag,
@@ -1436,51 +1435,42 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
             <div className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                 {folders.map((folder) => {
-                  const isPersonal = folder.tags?.includes('Thư mục cá nhân');
                   return (
                     <div
                       key={folder.id}
                       onDoubleClick={() => !folder.isPendingHandover && navigateToFolder(folder.id)}
                       onClick={() => !folder.isPendingHandover && navigateToFolder(folder.id)}
-                      className={`group relative border rounded-2xl p-3 px-3.5 flex flex-col gap-2 transition-all duration-150 ${folder.isPendingHandover
+                      className={`group relative border rounded-2xl p-3 px-3.5 flex flex-col gap-2 transition-all duration-150 ${
+                        folder.isPendingHandover
                           ? 'bg-amber-50/60 border-amber-300 cursor-default'
-                          : isPersonal
-                            ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300 cursor-pointer'
-                            : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300 cursor-pointer'
-                        }`}
+                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300 cursor-pointer'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${folder.isPendingHandover ? 'bg-amber-100 text-amber-600' : isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
-                            }`}>
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              folder.isPendingHandover ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                            }`}
+                          >
                             <Folder className="w-4 h-4 fill-current" />
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
+                            <span
+                              className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate"
+                              title={folder.name}
+                            >
                               {folder.name}
                             </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {folder.isPendingHandover ? (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
-                                  Chờ xác nhận
-                                </span>
-                              ) : isPersonal ? (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                  <User className="w-2.5 h-2.5" />
-                                  Riêng tôi
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-800 flex items-center gap-1">
-                                  <Layers className="w-2.5 h-2.5" />
-                                  Kho chung
-                                </span>
-                              )}
-                              {folder.owner?.name && (
-                                <span className="text-[10px] text-slate-400 truncate max-w-[80px]" title={folder.owner.name}>
-                                  • {folder.owner.name}
-                                </span>
-                              )}
-                            </div>
+                            {folder.isPendingHandover ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200 mt-0.5 w-fit">
+                                Chờ xác nhận
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 mt-0.5 truncate">
+                                {folder.createdAt || folder.updatedAt}
+                              </span>
+                            )}
                           </div>
                         </div>
 

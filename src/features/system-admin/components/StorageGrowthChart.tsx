@@ -1,8 +1,25 @@
 import React, { useState } from 'react';
-import { STORAGE_GROWTH_DATA } from '@/data/sysAdminMockData';
 
-export const StorageGrowthChart: React.FC = () => {
+export interface StorageGrowthPoint {
+  month: string;
+  value: number;
+  display: string;
+}
+
+interface StorageGrowthChartProps {
+  data?: StorageGrowthPoint[];
+}
+
+export const StorageGrowthChart: React.FC<StorageGrowthChartProps> = ({ data = [] }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[220px] p-5 bg-white border border-slate-200/80 rounded-xl shadow-xs text-slate-400 text-xs">
+        Chưa có dữ liệu tăng trưởng lưu trữ
+      </div>
+    );
+  }
 
   // SVG dimensions & coordinate calculations
   const width = 640;
@@ -15,12 +32,12 @@ export const StorageGrowthChart: React.FC = () => {
   const chartHeight = height - paddingTop - paddingBottom;
 
   // Max value for scaling
-  const maxValue = 5.0; // 5 TB top ceiling
-  const minValue = 0.5;
+  const maxValue = Math.max(...data.map(d => d.value), 5.0);
+  const minValue = Math.min(...data.map(d => d.value), 0.5);
 
-  const points = STORAGE_GROWTH_DATA.map((item, index) => {
-    const x = paddingX + (index / (STORAGE_GROWTH_DATA.length - 1)) * chartWidth;
-    const normalizedY = (item.value - minValue) / (maxValue - minValue);
+  const points = data.map((item, index) => {
+    const x = paddingX + (index / Math.max(1, data.length - 1)) * chartWidth;
+    const normalizedY = maxValue > minValue ? (item.value - minValue) / (maxValue - minValue) : 0.5;
     const y = height - paddingBottom - normalizedY * chartHeight;
     return { ...item, x, y };
   });

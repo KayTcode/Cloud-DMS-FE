@@ -3,10 +3,7 @@ import {
   Users,
   Building2,
   HardDrive,
-  Files,
   UserPlus,
-  Download,
-  UserCheck,
   ChevronRight,
   ArrowUpRight,
   Clock,
@@ -72,15 +69,12 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
   const vacantDepartmentsCount = departments.filter((d) => d.isVacant || !d.lead || d.lead === 'Chưa chỉ định').length;
   const activeLeadsCount = Math.max(0, departments.length - vacantDepartmentsCount);
 
-  // Files count from real BE
-  const totalFiles = tenant.totalFilesCount ?? tenant.filesCount ?? 0;
-
   return (
     <div className="space-y-5 mt-3 animate-in fade-in duration-150">
       {/* ========================================================================= */}
-      {/* TẦNG 1: 4 THẺ KPI CHỈ SỐ CỐT LÕI (Chuẩn Google Workspace / Drive)         */}
+      {/* TẦNG 1: 3 THẺ KPI CHỈ SỐ CỐT LÕI (Nhân sự, Phòng ban, Quota)             */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* KPI 1: Tài khoản Nhân sự & Ghế ngồi */}
         <div
           onClick={() => onNavigateTab('departments')}
@@ -184,31 +178,6 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
             </div>
           </div>
         </div>
-
-        {/* KPI 4: Kho Tài liệu & Tệp tin */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-semibold text-slate-700">Kho Tài liệu & Tệp tin</span>
-              <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Files className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
-              {totalFiles.toLocaleString()}
-              <span className="text-sm font-normal text-slate-400 ml-1.5 font-sans">tệp tin</span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span className="truncate">Lưu trữ trên Cloud</span>
-              <span className="text-slate-700 font-medium font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">
-                {tenant.storageProviderName || 'Local Storage'}
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -231,9 +200,6 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
                   <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                     Cơ cấu các phòng ban trực thuộc
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Danh sách phòng ban, Trưởng phòng phụ trách và hạn mức Quota phân bổ
-                  </p>
                 </div>
               </div>
 
@@ -363,12 +329,9 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                   <UserPlus className="w-4 h-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-bold text-blue-900 group-hover:text-blue-700 transition-colors block">
-                    Thêm nhân viên mới
-                  </span>
-                  <span className="text-[11px] text-slate-500 block truncate">Cấp tài khoản & gán vào phòng ban</span>
-                </div>
+                <span className="text-xs font-bold text-blue-900 group-hover:text-blue-700 transition-colors">
+                  Thêm nhân viên mới
+                </span>
               </button>
 
               {/* Quản lý & Tạo phòng ban */}
@@ -379,12 +342,9 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
                 <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                   <Building2 className="w-4 h-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors block">
-                    Cơ cấu phòng ban
-                  </span>
-                  <span className="text-[11px] text-slate-400 block truncate">Tạo phòng, bổ nhiệm & cấp quota</span>
-                </div>
+                <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                  Cơ cấu phòng ban
+                </span>
               </button>
 
               {/* Xin thêm Quota Doanh nghiệp */}
@@ -395,44 +355,9 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
                 <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <Send className="w-4 h-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors block">
-                    Xin thêm Quota Doanh nghiệp
-                  </span>
-                  <span className="text-[11px] text-slate-400 block truncate">Gửi yêu cầu tăng bộ nhớ lên System Admin</span>
-                </div>
-              </button>
-
-              {/* Đăng nhập ủy quyền (Impersonate) */}
-              <button
-                onClick={onImpersonate}
-                className="w-full border border-slate-200/80 rounded-xl p-3 flex items-center gap-3 hover:bg-slate-50 hover:border-slate-300 transition-all text-left group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                  <UserCheck className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors block">
-                    Đăng nhập ủy quyền
-                  </span>
-                  <span className="text-[11px] text-slate-400 block truncate">Truy cập giao diện với vai trò Owner</span>
-                </div>
-              </button>
-
-              {/* Tải tệp sao lưu dữ liệu */}
-              <button
-                onClick={onDownloadBackup}
-                className="w-full border border-slate-200/80 rounded-xl p-3 flex items-center gap-3 hover:bg-slate-50 hover:border-slate-300 transition-all text-left group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                  <Download className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors block">
-                    Tải tệp tin sao lưu dữ liệu
-                  </span>
-                  <span className="text-[11px] text-slate-400 block truncate">Sao lưu dữ liệu doanh nghiệp</span>
-                </div>
+                <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                  Xin thêm Quota Doanh nghiệp
+                </span>
               </button>
             </div>
           </div>
@@ -458,9 +383,6 @@ export const TenantOverviewView: React.FC<TenantOverviewViewProps> = ({
                     <Clock className="w-5 h-5 text-slate-300" />
                   </div>
                   <p className="text-xs font-semibold text-slate-600">Chưa có hoạt động nào được ghi nhận</p>
-                  <p className="text-[11px] text-slate-400 mt-1 max-w-[200px] mx-auto">
-                    Các thao tác phân bổ Quota, tạo phòng ban và quản trị sẽ hiển thị tại đây.
-                  </p>
                 </div>
               ) : (
                 events.slice(0, 5).map((event) => (
