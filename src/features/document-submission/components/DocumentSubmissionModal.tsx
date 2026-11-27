@@ -238,7 +238,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
 
         await new Promise<void>((resolve, reject) => {
           const uploader = new LargeFileUploader(
-            selectedFile,
+            archive,
             session,
             submissionTransport,
             (event) => {
