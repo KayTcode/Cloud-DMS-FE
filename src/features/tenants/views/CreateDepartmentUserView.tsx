@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, Building2, Shield, Check, Info, Mail, Loader2, HardDrive, Layers, AlertCircle, Cloud } from 'lucide-react';
+import { ArrowLeft, UserPlus, Shield, Check, Info, Loader2, HardDrive, Layers } from 'lucide-react';
 import { useTenantContext } from '@/context/TenantContext';
 import { TenantUser } from '@/features/tenants/types';
 import { QuotaUnitInput } from '@/components/common';
@@ -25,8 +25,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
   const [role, setRole] = useState('Department Administrator');
   const [quotaValue, setQuotaValue] = useState<number>(10);
   const [quotaUnit, setQuotaUnit] = useState<QuotaUnit>('GB');
-  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
-  const [requirePasswordReset, setRequirePasswordReset] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -142,9 +140,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
               <h3 className="text-base font-bold text-slate-900 tracking-tight">
                 Tạo tài khoản Department Administrator
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Cấp tài khoản quản trị viên phòng ban cho Tenant (chọn hoặc để trống phòng ban nếu chưa chỉ định).
-              </p>
             </div>
           </div>
 
@@ -179,10 +174,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                   ))}
                 </select>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-                <Building2 className="w-3 h-3 text-slate-400" />
-                Nếu chưa chọn, tài khoản sẽ được tạo ở cấp Tenant và có thể liên kết phòng ban sau.
-              </p>
             </div>
 
             {/* Department Role Badge (Fixed as Department Admin) */}
@@ -194,9 +185,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                 <Shield className="w-4 h-4 text-blue-600 shrink-0" />
                 <span>Department Administrator (Quản trị viên phòng ban)</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Tài khoản tự động nhận quyền Quản trị viên phòng ban (Department Admin) trong tổ chức.
-              </p>
             </div>
 
             {/* Full Name */}
@@ -227,21 +215,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                 placeholder="nguyen.van.an@acme.com"
                 className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
-            </div>
-
-            {/* Account Activation & Email Invitation Banner */}
-            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg">
-              <div className="flex items-start gap-2.5">
-                <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div className="text-xs space-y-1">
-                  <p className="font-semibold text-blue-900">
-                    Kích hoạt tài khoản qua Thư mời Email
-                  </p>
-                  <p className="text-slate-600 leading-relaxed text-[11px]">
-                    Quản trị viên không cần tự tạo mật khẩu. Hệ thống sẽ khởi tạo tài khoản ở trạng thái chờ kích hoạt và tự động gửi email kèm mã xác thực (hiệu lực 48 giờ) để Trưởng phòng tự kích hoạt và thiết lập mật khẩu cá nhân.
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* Phone Number */}
@@ -283,9 +256,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                     <label className="block text-xs font-bold text-slate-800">
                       Hạn mức Quota & Nguồn Lưu Trữ (Storage Provider)
                     </label>
-                    <p className="text-[11px] text-slate-500">
-                      Chỉ định dung lượng và nguồn Cloud Storage cấp cho Trưởng phòng
-                    </p>
                   </div>
                 </div>
 
@@ -310,7 +280,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                     maxBytes={maxAllowedBytes}
                     label="Dung lượng cấp phát cá nhân"
                     required
-                    helperText="Hạn mức lưu trữ tài liệu cá nhân của Trưởng phòng trên Cloud DMS."
                   />
                 </div>
 
@@ -337,11 +306,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                       })}
                     </select>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    {selectedStorageProviderId
-                      ? `Quota sẽ được trích trực tiếp từ ${chosenAlloc?.storageProviderName || 'Drive đã chọn'}.`
-                      : 'Hệ thống tự động trích quota từ các Drive khả dụng theo thời gian nạp.'}
-                  </p>
                 </div>
               </div>
 
@@ -353,7 +317,6 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
                       <Layers className="w-3.5 h-3.5 text-blue-600" />
                       <span>Các Drive khả dụng của Doanh nghiệp ({tenant.allocations.length}):</span>
                     </span>
-                    <span className="text-[10px] text-slate-400">Bấm vào Drive để chọn nhanh</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -408,73 +371,34 @@ export const CreateDepartmentUserView: React.FC<CreateDepartmentUserViewProps> =
             </div>
           </div>
 
-          {/* Options & Security checklist */}
-          <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-3">
-            <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-blue-600" />
-              <span>Thiết lập bảo mật & Cấp phát tài khoản</span>
-            </div>
-
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={sendWelcomeEmail}
-                onChange={(e) => setSendWelcomeEmail(e.target.checked)}
-                className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-4 w-4 border-slate-300"
-              />
-              <span className="text-xs text-slate-700">
-                Gửi email chào mừng kèm thông tin đăng nhập và mật khẩu khởi tạo
-              </span>
-            </label>
-
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={requirePasswordReset}
-                onChange={(e) => setRequirePasswordReset(e.target.checked)}
-                className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-4 w-4 border-slate-300"
-              />
-              <span className="text-xs text-slate-700">
-                Yêu cầu đổi mật khẩu và thiết lập xác thực 2 bước (2FA) trong lần đăng nhập đầu tiên
-              </span>
-            </label>
-          </div>
-
           {/* Call to action footer */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Info className="w-4 h-4 text-blue-500" />
-              <span>Tài khoản sẽ ở trạng thái chờ kích hoạt cho đến khi Trưởng phòng xác nhận qua email.</span>
-            </div>
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Hủy bỏ
+            </button>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onBack}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Hủy bỏ
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting || isOverQuota}
-                className="px-5 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang gửi thư mời...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>Gửi thư mời Department Admin</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || isOverQuota}
+              className="px-5 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang gửi thư mời...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Gửi thư mời Department Admin</span>
+                </>
+              )}
+            </button>
           </div>
         </form>
       </div>
