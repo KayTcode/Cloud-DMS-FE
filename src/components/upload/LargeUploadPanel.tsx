@@ -8,6 +8,7 @@ import { formatBytes } from '@/features/user/api/driveApi';
 import type { UploadState } from '@/services/upload/large/LargeFileUploader';
 
 const STATE_LABELS: Record<UploadState, string> = {
+  preparing: 'Chuẩn bị ZIP',
   sending: 'Đang gửi',
   paused: 'Tạm dừng',
   'provider-limited': 'Tạm dừng – nhà cung cấp tạm từ chối',

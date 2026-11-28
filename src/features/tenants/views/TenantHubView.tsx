@@ -4,7 +4,6 @@ import {
   LayoutGrid,
   Settings,
   UserPlus,
-  Download,
   ArrowRight,
   Sparkles,
   Database,
@@ -15,7 +14,7 @@ interface TenantHubViewProps {
   tenant: TenantInfo;
   onNavigateTab: (tab: ActiveTab) => void;
   onOpenCreateDepartmentUser: () => void;
-  onDownloadBackup: () => void;
+  onDownloadBackup?: () => void;
 }
 
 interface TenantCardConfig {
@@ -103,15 +102,6 @@ export const TenantHubView: React.FC<TenantHubViewProps> = ({
           >
             <UserPlus className="w-4 h-4 stroke-[2.5]" />
             <span>Thêm Nhân viên</span>
-          </button>
-
-          <button
-            onClick={onDownloadBackup}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-semibold border border-slate-200/80 shadow-2xs transition-colors cursor-pointer"
-            title="Sao lưu dữ liệu doanh nghiệp"
-          >
-            <Download className="w-4 h-4" />
-            <span>Sao lưu</span>
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { packageLargeFile } from '@/services/upload/large/storageZip64';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X,
@@ -191,10 +192,11 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
           return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
         };
 
+        const archive = await packageLargeFile(selectedFile);
         const initRes = await documentApi.initSubmission({
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          contentType: selectedFile.type || 'application/octet-stream',
+          fileName: selectedFile.name.normalize('NFC'),
+          fileSize: archive.size,
+          contentType: 'application/zip',
           title: title.trim(),
           issueYear: year,
           issueMonth: month,
@@ -236,7 +238,7 @@ export const DocumentSubmissionModal: React.FC<DocumentSubmissionModalProps> = (
 
         await new Promise<void>((resolve, reject) => {
           const uploader = new LargeFileUploader(
-            selectedFile,
+            archive,
             session,
             submissionTransport,
             (event) => {

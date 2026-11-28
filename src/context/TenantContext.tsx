@@ -6,7 +6,7 @@ import {
   TenantEvent,
   TenantUser,
 } from '@/features/tenants/types';
-import { initialTenant } from '@/data/tenantMockData';
+import { emptyTenantInfo } from '@/features/tenants/api/tenantQueries';
 import { ToastMessage } from '@/types/common.types';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -141,14 +141,31 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [activeTab, setActiveTab] = useState<ActiveTab>(() =>
     authUser?.role === 'TenantAdmin' ? 'hub' : 'overview'
   );
-  const [tenant, setTenant] = useState<TenantInfo>(initialTenant);
+  const [tenant, setTenant] = useState<TenantInfo>(() => ({
+    ...emptyTenantInfo,
+    id: authUser?.tenantId || '',
+    name: authUser?.tenantName || '',
+    contactEmail: authUser?.email || '',
+  }));
+
+  useEffect(() => {
+    if (authUser?.tenantId) {
+      setTenant((prev) => ({
+        ...prev,
+        id: authUser.tenantId!,
+        name: authUser.tenantName || prev.name,
+        contactEmail: authUser.email || prev.contactEmail,
+      }));
+    }
+  }, [authUser?.tenantId, authUser?.tenantName, authUser?.email]);
+
   const [events, setEvents] = useState<TenantEvent[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     const tid = authUser?.tenantId || tenant.id;
-    if (tid && tid !== '11111111-1111-1111-1111-111111111111' && departments.length === 0) {
+    if (tid && departments.length === 0) {
       getTenantDepartments(tid)
         .then((depts) => {
           if (Array.isArray(depts) && depts.length > 0) {
@@ -214,7 +231,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
    */
   const refreshTenantData = useCallback(async (targetIdOverride?: string) => {
     const targetId = targetIdOverride || authUser?.tenantId || tenant.id;
-    if (!targetId || targetId === '11111111-1111-1111-1111-111111111111') {
+    if (!targetId) {
       return;
     }
 

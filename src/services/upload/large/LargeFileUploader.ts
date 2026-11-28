@@ -55,6 +55,7 @@ export interface LargeUploadTransport {
 }
 
 export type UploadState =
+  | 'preparing'
   | 'sending'
   | 'paused'
   | 'provider-limited'

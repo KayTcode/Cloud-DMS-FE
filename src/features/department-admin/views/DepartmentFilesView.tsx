@@ -36,7 +36,6 @@ import {
   ChevronUp,
   Layers,
   UploadCloud,
-  User,
   Pencil,
   Clock,
   Tag,
@@ -177,7 +176,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
   const [renameFolderModal, setRenameFolderModal] = useState<{ id: string; name: string } | null>(null);
   const [renameFolderName, setRenameFolderName] = useState('');
   const [isRenamingFolder, setIsRenamingFolder] = useState<boolean>(false);
-  const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
+  const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
   const [shareItem, setShareItem] = useState<DriveItem | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
@@ -1273,7 +1272,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                   {sortedTrashItems.map((file) => (
                     <div
                       key={file.id}
-                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                       className="group relative bg-[#F0F4F9] hover:bg-rose-50/40 border border-slate-200/80 hover:border-rose-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
                     >
                       {/* Card Header */}
@@ -1360,7 +1359,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {sortedTrashItems.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                           className="hover:bg-rose-50/30 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1436,51 +1435,42 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
             <div className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                 {folders.map((folder) => {
-                  const isPersonal = folder.tags?.includes('Thư mục cá nhân');
                   return (
                     <div
                       key={folder.id}
                       onDoubleClick={() => !folder.isPendingHandover && navigateToFolder(folder.id)}
                       onClick={() => !folder.isPendingHandover && navigateToFolder(folder.id)}
-                      className={`group relative border rounded-2xl p-3 px-3.5 flex flex-col gap-2 transition-all duration-150 ${folder.isPendingHandover
+                      className={`group relative border rounded-2xl p-3 px-3.5 flex flex-col gap-2 transition-all duration-150 ${
+                        folder.isPendingHandover
                           ? 'bg-amber-50/60 border-amber-300 cursor-default'
-                          : isPersonal
-                            ? 'bg-emerald-50/60 hover:bg-emerald-100/70 border-emerald-200/80 hover:border-emerald-300 cursor-pointer'
-                            : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300 cursor-pointer'
-                        }`}
+                          : 'bg-[#F0F4F9] hover:bg-[#E1E9F4] border-slate-200/70 hover:border-slate-300 cursor-pointer'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${folder.isPendingHandover ? 'bg-amber-100 text-amber-600' : isPersonal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
-                            }`}>
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              folder.isPendingHandover ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                            }`}
+                          >
                             <Folder className="w-4 h-4 fill-current" />
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate">
+                            <span
+                              className="text-sm font-semibold text-slate-800 group-hover:text-slate-950 truncate"
+                              title={folder.name}
+                            >
                               {folder.name}
                             </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {folder.isPendingHandover ? (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
-                                  Chờ xác nhận
-                                </span>
-                              ) : isPersonal ? (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                  <User className="w-2.5 h-2.5" />
-                                  Riêng tôi
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-800 flex items-center gap-1">
-                                  <Layers className="w-2.5 h-2.5" />
-                                  Kho chung
-                                </span>
-                              )}
-                              {folder.owner?.name && (
-                                <span className="text-[10px] text-slate-400 truncate max-w-[80px]" title={folder.owner.name}>
-                                  • {folder.owner.name}
-                                </span>
-                              )}
-                            </div>
+                            {folder.isPendingHandover ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200 mt-0.5 w-fit">
+                                Chờ xác nhận
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 mt-0.5 truncate">
+                                {folder.createdAt || folder.updatedAt}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1567,182 +1557,120 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
               {viewMode === 'grid' ? (
                 /* GRID VIEW (Document Preview Cards) */
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {files.map((file) => (
-                    <div
-                      key={file.id}
-                      onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
-                      className="group relative bg-[#F0F4F9] hover:bg-[#E5EEF8] border border-slate-200/80 hover:border-blue-300 rounded-2xl flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
-                    >
-                      {/* Card Header (File Icon + Name + 3-dots) */}
-                      <div className="p-3 pb-2.5 flex items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          {getGoogleDriveIcon(file.fileType, file.extension)}
-                          <div className="min-w-0 flex-1">
-                            <h4
-                              className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700 transition-colors"
-                              title={file.metadata?.title || file.name}
-                            >
-                              {file.metadata?.title || file.name}
-                            </h4>
-                            {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
-                              <p className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={file.name}>
-                                {file.name}
-                              </p>
-                            )}
-                            {file.scanStatus === 'TooLargeToScan' && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded font-medium mt-0.5">
-                                <ShieldAlert className="w-3 h-3" /> Quá lớn để quét virus
+                  {files.map((file) => {
+                    const keywordsList: string[] = file.metadata?.keywords
+                      ? file.metadata.keywords.split(',').map((k: string) => k.trim()).filter(Boolean)
+                      : (file.tags && file.tags.length > 0 ? file.tags : []);
+
+                    return (
+                      <div
+                        key={file.id}
+                        onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
+                        className="group relative bg-white hover:bg-slate-50/80 border border-slate-200/90 hover:border-blue-300 rounded-xl p-3.5 flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer"
+                      >
+                        {/* Header: File Icon + Title/Name + Actions */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                              <div className="shrink-0 mt-0.5">
+                                {getGoogleDriveIcon(file.fileType, file.extension)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4
+                                  className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors leading-snug"
+                                  title={file.metadata?.title || file.name}
+                                >
+                                  {file.metadata?.title || file.name}
+                                </h4>
+                                {file.metadata?.title && file.metadata.title.trim().toLowerCase() !== file.name.trim().toLowerCase() && (
+                                  <p className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={file.name}>
+                                    {file.name}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions Menu */}
+                            <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShareItem(file);
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                title="Chia sẻ"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <DocumentContextMenu
+                                file={file}
+                                docModals={docModals}
+                                onOpenItem={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
+                                onDownload={() => handleDownload(file)}
+                                onShare={() => setShareItem(file)}
+                                onToggleStar={() => handleToggleStar(file.id)}
+                                onDelete={() => handleDeleteItem(file.id, file.name)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Middle: Keywords Tags */}
+                          <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                            {keywordsList.length > 0 ? (
+                              <>
+                                <Tag className="w-3 h-3 text-blue-500 shrink-0" />
+                                {keywordsList.slice(0, 3).map((kw) => (
+                                  <span
+                                    key={kw}
+                                    className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-medium border border-blue-100/80 truncate max-w-[120px]"
+                                    title={kw}
+                                  >
+                                    #{kw}
+                                  </span>
+                                ))}
+                                {keywordsList.length > 3 && (
+                                  <span className="text-[9px] text-slate-400 font-medium">
+                                    +{keywordsList.length - 3}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-slate-300 italic flex items-center gap-1">
+                                <Tag className="w-2.5 h-2.5 text-slate-300" />
+                                Chưa có từ khóa
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShareItem(file);
-                            }}
-                            className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                            title="Chia sẻ"
-                          >
-                            <Share2 className="w-4 h-4" />
-                          </button>
+                        {/* Footer: Size • Date • Badges */}
+                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                          <div className="flex items-center gap-1.5 truncate">
+                            {file.sizeFormatted && (
+                              <span className="font-mono font-medium text-slate-600">{file.sizeFormatted}</span>
+                            )}
+                            {file.sizeFormatted && file.updatedAt && <span>•</span>}
+                            {file.updatedAt && (
+                              <span className="truncate">{file.updatedAt}</span>
+                            )}
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              docModals.openDetails(file.id);
-                            }}
-                            className="p-1 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
-                            title="Xem chi tiết thông tin về tệp"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
-
-                          <DocumentContextMenu
-                            file={file}
-                            docModals={docModals}
-                            onOpenPreview={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
-                            onDownload={() => handleDownload(file)}
-                            onShare={() => setShareItem(file)}
-                            onToggleStar={() => handleToggleStar(file.id)}
-                            onDelete={() => handleDeleteItem(file.id, file.name)}
-                          />
+                          <div className="flex items-center gap-1 shrink-0">
+                            {file.scanStatus === 'TooLargeToScan' && (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/60 rounded text-[9px] font-medium"
+                                title="Tệp có kích thước quá lớn để quét virus"
+                              >
+                                <ShieldAlert className="w-2.5 h-2.5 text-amber-500" /> Quá lớn
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Card Body: White A4 Document Preview Sheet */}
-                      <div className="bg-white mx-3 mb-3 rounded-xl p-3.5 shadow-2xs border border-slate-200/90 h-44 overflow-hidden flex flex-col justify-start relative select-none group-hover:border-blue-200 transition-colors">
-                        {file.fileType === 'sheet' ? (
-                          <div className="w-full h-full text-[10px] font-mono text-slate-600">
-                            <div className="grid grid-cols-3 gap-1 border-b pb-1 font-bold text-slate-800 bg-emerald-50/50 p-1 rounded">
-                              <div>Hạng mục</div>
-                              <div className="text-right">Dự toán</div>
-                              <div className="text-right">Duyệt</div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
-                              <div className="truncate">Cloud Storage</div>
-                              <div className="text-right">12.5M</div>
-                              <div className="text-right text-emerald-600 font-bold">OK</div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
-                              <div className="truncate">Bản quyền phần mềm</div>
-                              <div className="text-right">5.0M</div>
-                              <div className="text-right text-emerald-600 font-bold">OK</div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1 py-1 border-b border-slate-100">
-                              <div className="truncate">Bảo trì hệ thống</div>
-                              <div className="text-right">3.2M</div>
-                              <div className="text-right text-emerald-600 font-bold">OK</div>
-                            </div>
-                          </div>
-                        ) : file.fileType === 'code' ? (
-                          <div className="w-full h-full text-[10px] font-mono bg-slate-900 text-slate-200 p-2.5 rounded-lg overflow-hidden leading-relaxed">
-                            <div className="text-slate-400 text-[9px] mb-1">// ASP.NET Core Action Result</div>
-                            <div className="text-blue-400">public IActionResult <span className="text-amber-300">CheckStatus</span>(int id)</div>
-                            <div className="text-slate-300">{'{'}</div>
-                            <div className="text-emerald-400 pl-3">if (id == 0) return NotFound();</div>
-                            <div className="text-purple-400 pl-3">return View(); // Render UI</div>
-                            <div className="text-slate-300">{'}'}</div>
-                          </div>
-                        ) : (
-                          file.metadata ? (
-                            <div className="w-full h-full flex flex-col justify-between text-left">
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between gap-1 border-b border-emerald-100 pb-1">
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-[10px] font-bold text-emerald-700">
-                                    <Tag className="w-3 h-3" />
-                                    Thông tin về tệp
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 font-medium">
-                                    Năm {file.metadata.releaseYear}
-                                  </span>
-                                </div>
-                                <h5 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug">
-                                  {file.metadata.title}
-                                </h5>
-                                <p className="text-[10px] text-slate-500 truncate">
-                                  Tác giả: <span className="font-semibold text-slate-700">{file.metadata.author}</span>
-                                </p>
-                                {file.metadata.abstract && (
-                                  <p className="text-[10px] text-slate-600 line-clamp-2 italic leading-relaxed">
-                                    "{file.metadata.abstract}"
-                                  </p>
-                                )}
-                                {file.metadata.keywords && (
-                                  <div className="flex flex-wrap gap-1 pt-0.5">
-                                    {file.metadata.keywords.split(',').slice(0, 2).map((k: string) => (
-                                      <span key={k} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[9px] rounded font-medium truncate max-w-[100px]">
-                                        #{k.trim()}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  docModals.openDetails(file.id);
-                                }}
-                                className="mt-1 w-full py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                <span>Thông tin về tệp</span>
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="w-full h-full flex flex-col justify-between text-left">
-                              <div className="overflow-hidden">
-                                <div className="text-center font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-1.5 mb-2 uppercase tracking-tight">
-                                  {file.name.replace('.gdoc', '')}
-                                </div>
-                                <p className="text-[10px] text-slate-600 line-clamp-4 whitespace-pre-line leading-relaxed">
-                                  {file.contentSnippet || 'Nội dung tệp tin đã được đồng bộ hóa và lưu trữ an toàn trên máy chủ CloudDMS.'}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  docModals.openDetails(file.id);
-                                }}
-                                className="mt-1 w-full py-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-50 hover:bg-emerald-50 border border-slate-200/80 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                              >
-                                <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Thông tin về tệp</span>
-                              </button>
-                            </div>
-                          )
-                        )}
-
-                        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 /* LIST VIEW (Google Drive List Table) */
@@ -1761,7 +1689,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                       {files.map((file) => (
                         <tr
                           key={file.id}
-                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                          onClick={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                           className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                         >
                           <td className="py-3 px-4">
@@ -1833,7 +1761,7 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
                               <DocumentContextMenu
                                 file={file}
                                 docModals={docModals}
-                                onOpenPreview={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setPreviewFile(file) : void handleDownload(file))}
+                                onOpenItem={() => ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip'))) ? setArchiveFile(file) : void handleDownload(file))}
                                 onDownload={() => handleDownload(file)}
                                 onShare={() => setShareItem(file)}
                                 onToggleStar={() => handleToggleStar(file.id)}
@@ -2028,8 +1956,8 @@ export const DepartmentFilesView: React.FC<DepartmentFilesViewProps> = ({
       )}
 
       {/* Modal: Mở / Tải xuống tài liệu (FilePreviewModal) */}
-      {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
-        onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownload(previewFile)} />}
+      {archiveFile && <ArchiveBrowser key={archiveFile.id} file={archiveFile}
+        onClose={() => setArchiveFile(null)} onDownloadPackage={() => void handleDownload(archiveFile)} />}
 
       {/* Modal: Chia sẻ tài liệu */}
       {shareItem && (

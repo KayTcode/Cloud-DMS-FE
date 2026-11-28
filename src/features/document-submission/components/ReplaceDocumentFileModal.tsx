@@ -6,7 +6,7 @@ import {
   FileText,
   Trash2,
 } from 'lucide-react';
-import { documentApi } from '../api/documentApi';
+import { useUploadManager } from '@/services/upload/large/UploadManagerContext';
 import { formatBytes } from '@/features/user/api/driveApi';
 
 interface ReplaceDocumentFileModalProps {
@@ -24,6 +24,7 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
   onClose,
   onSuccess,
 }) => {
+  const { enqueueLarge } = useUploadManager();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,13 +59,8 @@ export const ReplaceDocumentFileModal: React.FC<ReplaceDocumentFileModalProps> =
     setErrorMessage('');
 
     try {
-      await documentApi.replaceFile(
-        {
-          fileId,
-          newFile: selectedFile,
-        },
-        (percent) => setUploadPercent(percent)
-      );
+      await enqueueLarge(selectedFile, { folderId: null, replaceFileId: fileId });
+      setUploadPercent(100);
 
       resetForm();
       if (onSuccess) {

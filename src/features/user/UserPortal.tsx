@@ -10,7 +10,6 @@ import {
 } from './views';
 import {
   AdjustQuotaModal,
-  FilePreviewModal,
   MoveFolderModal,
   NewFolderModal,
   ShareModal,
@@ -153,7 +152,7 @@ export const UserPortal: React.FC = () => {
   const [downloadsDisabled, setDownloadsDisabled] = useState(false);
 
   // Modals state
-  const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
+  const [archiveFile, setArchiveFile] = useState<DriveItem | null>(null);
   const [shareItem, setShareItem] = useState<DriveItem | null>(null);
   const [shareTarget, setShareTarget] = useState<DriveItem | null>(null);
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
@@ -626,7 +625,7 @@ export const UserPortal: React.FC = () => {
             setActiveFilter={handleFilterChange}
             onUploadFile={handleUploadFiles}
             onOpenNewFolderModal={() => setIsNewFolderOpen(true)}
-            onOpenFilePreview={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setPreviewFile(file); else void handleDownloadItem(file); }}
+            onOpenItem={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setArchiveFile(file); else void handleDownloadItem(file); }}
             onToggleStar={handleToggleStar}
             onDeleteFile={handleDeleteItem}
             onShareItem={(item) => setShareItem(item)}
@@ -657,7 +656,7 @@ export const UserPortal: React.FC = () => {
 
         {activeTab === 'shared' && (
           <SharedFilesView
-            onOpenFilePreview={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setPreviewFile(file); else void handleDownloadItem(file); }}
+            onOpenItem={(file) => { if ((file.archiveKind === 'folder' || file.archiveKind === 'batch' || (!file.archiveKind && file.name.toLowerCase().endsWith('.zip')))) setArchiveFile(file); else void handleDownloadItem(file); }}
             onDownloadItem={handleDownloadItem}
             onShowToast={showNotification}
           />
@@ -684,8 +683,8 @@ export const UserPortal: React.FC = () => {
       </div>
 
       {/* Modals */}
-      {previewFile && <ArchiveBrowser key={previewFile.id} file={previewFile}
-        onClose={() => setPreviewFile(null)} onDownloadPackage={() => void handleDownloadItem(previewFile)} />}
+      {archiveFile && <ArchiveBrowser key={archiveFile.id} file={archiveFile}
+        onClose={() => setArchiveFile(null)} onDownloadPackage={() => void handleDownloadItem(archiveFile)} />}
 
       <ShareModal
         key={shareItem?.id}

@@ -33,7 +33,7 @@ import { ShareModal } from './ShareModal';
 import { DocumentDetailsModal } from '@/features/document-submission';
 
 export interface SharedByMeViewProps {
-  onOpenFilePreview?: (file: DriveItem) => void;
+  onOpenItem?: (file: DriveItem) => void;
   onDownloadItem?: (item: DriveItem) => void;
   onShowToast?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
@@ -41,7 +41,7 @@ export interface SharedByMeViewProps {
 type SortField = 'date' | 'name' | 'size';
 
 export const SharedByMeView: React.FC<SharedByMeViewProps> = ({
-  onOpenFilePreview,
+  onOpenItem,
   onDownloadItem,
   onShowToast,
 }) => {
@@ -152,8 +152,8 @@ export const SharedByMeView: React.FC<SharedByMeViewProps> = ({
 
   const handlePreview = (item: SharedByMeFileItem) => {
     const driveItem = toDriveItem(item);
-    if (onOpenFilePreview) {
-      onOpenFilePreview(driveItem);
+    if (onOpenItem) {
+      onOpenItem(driveItem);
     } else {
       handleDownload(item);
     }

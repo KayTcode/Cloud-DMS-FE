@@ -6,9 +6,7 @@ import { downloadViaLink } from '@/services/download/linkDownload';
 import {
   DriveItem,
   FileType,
-  FileTextResult,
   PersonalStorageQuotaDto,
-  PreviewResult,
   SharedFileItem,
   SharedFileListResponse,
   SharedByMeFileItem,
@@ -80,7 +78,6 @@ export const mapFileEntryToDriveItem = (dto: any, isTrash = false): DriveItem =>
     tags: [dto.contentType?.split('/')[1]?.toUpperCase() || ext?.toUpperCase() || 'FILE'],
     metadata: dto.metadata || null,
     department: dto.departmentName || '',
-    previewUrl: dto.previewUrl,
     authorName: dto.authorName || undefined,
     isSharedLink: dto.isSharedLink ?? undefined,
     isSharedToDepartment: dto.isSharedToDepartment ?? undefined,
@@ -407,69 +404,8 @@ export const driveApi = {
     }
   },
 
-  // Get file preview (GET /api/files/{id}/preview, with fallback to POST /api/files/{id}/preview)
-  getFilePreview: async (fileId: string): Promise<PreviewResult> => {
-    try {
-      const res: any = await apiClient.get(`/files/${fileId}/preview`);
-      const preview = res?.value ?? res?.data ?? res;
-      if (preview && preview.status === 'ready') {
-        return preview;
-      }
-      // If pending or no url, trigger request preview to ensure background worker renders it
-      if (!preview || preview.status === 'pending') {
-        await apiClient.post(`/files/${fileId}/preview`).catch(() => {});
-      }
-      return preview ?? { status: 'pending', documentVersion: 0, reason: 'PENDING' };
-    } catch (error: any) {
-      // If 404/unavailable or not yet triggered, trigger preview request
-      try {
-        const postRes: any = await apiClient.post(`/files/${fileId}/preview`);
-        return postRes?.value ?? postRes?.data ?? postRes;
-      } catch (innerErr: any) {
-        return {
-          status: 'unavailable',
-          documentVersion: 0,
-          reason: innerErr?.message || 'Xem trước không khả dụng',
-        };
-      }
-    }
-  },
-
-  // Trigger preview generation explicitly (POST /api/files/{id}/preview)
-  requestFilePreview: async (fileId: string): Promise<PreviewResult> => {
-    const res: any = await apiClient.post(`/files/${fileId}/preview`);
-    return res?.value ?? res?.data ?? res;
-  },
-
-  // Get extracted text chunks (GET /api/files/{id}/text)
-  getFileText: async (
-    fileId: string,
-    limit = 20,
-    cursor?: string | null
-  ): Promise<FileTextResult> => {
-    try {
-      const res: any = await apiClient.get(`/files/${fileId}/text`, {
-        params: { limit, cursor: cursor || undefined },
-      });
-      return res?.value ?? res?.data ?? res;
-    } catch (error: any) {
-      return {
-        status: 'unavailable',
-        documentVersion: 0,
-        items: [],
-        reason: error?.message || 'Không thể trích xuất văn bản.',
-      };
-    }
-  },
-
-  // Download file securely. Files with no archive/zip-package wrapper
-  // (`archiveKind === null`) download via a direct storage-provider link
-  // (`downloadViaLink`), bypassing the old zip-package download entirely.
-  // Zip-package files (`archiveKind` is `'file' | 'folder' | 'batch'`) keep
-  // using the legacy backend-streamed download below. When `archiveKind`
-  // is unknown (`undefined`, e.g. callers that only have a DTO without the
-  // field), we optimistically try the link path first and fall back to the
-  // legacy path only if the backend tells us to (`USE_PACKAGE_DOWNLOAD`).
+  // The server chooses a streaming ZIP/member link for large files, with unscanned acknowledgement.
+  // Bounded packages fall back to authenticated extraction/local package download.
   downloadFile: async (
     fileId: string,
     fileName = 'download',
@@ -485,12 +421,7 @@ export const driveApi = {
             )
           : false);
 
-    if (archiveKind === null) {
-      await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
-      return;
-    }
-
-    if (archiveKind === undefined) {
+    {
       try {
         await downloadViaLink(fileId, { confirmUnscanned: confirmUnscannedResolved });
         return;
@@ -630,11 +561,8 @@ export const driveApi = {
     return res?.value ?? res?.data ?? res;
   },
   downloadArchiveMember: async (fileId: string, memberId: string, name: string): Promise<void> => {
-    const blob: any = await apiClient.get(`/files/${fileId}/archive/${memberId}/download`, { responseType: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    await downloadViaLink(fileId, { confirmUnscanned: async () => window.confirm(
+      'Tệp này chưa được quét virus. Chỉ tải xuống nếu bạn tin tưởng người gửi. Tiếp tục?') }, memberId);
   },
   getShareCandidates: async (fileId: string, query: string, signal?: AbortSignal): Promise<ShareCandidate[]> => {
     const res: any = await apiClient.get(`/files/${fileId}/share-candidates`, { params: { q: query }, signal });
